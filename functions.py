@@ -11,6 +11,7 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 from tqdm import tqdm
+import seaborn as sns
 from scipy import stats, signal
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
@@ -1628,13 +1629,13 @@ def get_sequences(mask, len_months):
 # https://github.com/timokelder/UNSEEN/blob/master/R/independence_testing.R
 def independence_test(
     ensemble: pd.DataFrame,
-    n_members: int,
+    members: List[str],
     n_leads: int,
     var_name: str,
     member_name: str = "member",
     lead_name: str = "lead",
     detrend: bool = False,
-):
+) -> np.ndarray:
     """
     Calculates the correlation between each unique pair of ensemble members
     using the Spearman correlation to quantify the dependence between the
@@ -1646,8 +1647,8 @@ def independence_test(
         The DataFrame containing the ensemble data. With columns for the
         ensemble member, lead time, and the variable of interest.
         
-    n_members: int
-        The number of ensemble members.
+    members: list[str]
+        The list of ensemble members.
         
     n_leads: int
         The number of lead times.
@@ -1668,20 +1669,20 @@ def independence_test(
 
     Returns
     
-    cor_matrix: np.ndarray
+    corr_matrix: np.ndarray
         The correlation matrix between each unique pair of ensemble members.
     """
 
     # Set up the correlation matrix
-    corr_matrix = np.zeros((n_leads, n_members, n_members))
-
+    corr_matrix = np.zeros((n_leads, len(members), len(members)))
+                            
     # Loop over the lead times
-    for lead in range(n_leads):
+    for lead in tqdm(range(n_leads), desc="Calculating correlations"):
         # Loop over the ensemble members
-        for m1 in range(n_members):
-            for m2 in range(n_members):
+        for i, m1 in enumerate(members):
+            for j, m2 in enumerate(members):
                 # Only caluclate for the top half of the correlation matrix
-                if m1 > m2:
+                if i > j:
                     # Extract the data for the two ensemble members
                     m1_data = ensemble[(ensemble[member_name] == m1) & (ensemble[lead_name] == lead)][var_name].values
                     m2_data = ensemble[(ensemble[member_name] == m2) & (ensemble[lead_name] == lead)][var_name].values
@@ -1696,6 +1697,342 @@ def independence_test(
                     corr = stats.spearmanr(m1_data, m2_data)[0]
 
                     # Store the correlation in the matrix
-                    corr_matrix[lead, m1, m2] = corr
+                    corr_matrix[lead, i, j] = corr
 
     return corr_matrix
+
+# Write a function for plotting independence
+def plot_independence(
+    corr_matrix: np.ndarray,
+    figsize_x: int = 10,
+    figsize_y: int = 10,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plot the correlation matrix between each unique pair of ensemble members.
+
+    Parameters
+    ----------
+
+    corr_matrix: np.ndarray
+        The correlation matrix between each unique pair of ensemble members with shape (n_leads, len(members), len(members)).
+
+    figsize_x: int
+        The figure size in the x direction
+        Default is 10
+
+    figsize_y: int
+        The figure size in the y direction
+        Default is 10
+
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+    """
+
+    # Set up the figure as a single plot
+    fig, ax = plt.subplots(1, 1, figsize=(figsize_x, figsize_y))
+
+    # Dashed line at y=0
+    ax.axhline(0, color="black", linestyle="--", linewidth=0.5, alpha=0.8)
+
+    # Loop over the lead times
+    for lead in range(corr_matrix.shape[0]):
+        # Flatten the correlation matrix
+        corr_flat = corr_matrix[lead, :, :].flatten()
+
+        # Plot the correlation matrix as a boxplot
+        # using matplotlib
+        ax.boxplot(corr_flat, positions=[lead], widths=0.8, whis=[5, 95])
+
+    # Set the x-axis label
+    ax.set_xlabel("Lead time")
+
+    # Set the y-axis label
+    ax.set_ylabel("Spearman correlation")
+
+    # Set the x-ticks
+    ax.set_xticks(range(corr_matrix.shape[0]))
+
+    # Set the x-tick labels
+    ax.set_xticklabels(range(1, corr_matrix.shape[0] + 1))
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+
+    return
+
+def plot_independence_sb(
+    corr_matrix: np.ndarray,
+    figsize_x: int = 10,
+    figsize_y: int = 10,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plot the correlation matrix between each unique pair of ensemble members.
+
+    Parameters
+    ----------
+
+    corr_matrix: np.ndarray
+        The correlation matrix between each unique pair of ensemble members with shape (n_leads, len(members), len(members)).
+
+    figsize_x: int
+        The figure size in the x direction
+        Default is 10
+
+    figsize_y: int
+        The figure size in the y direction
+        Default is 10
+
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+    """
+
+    # Set up the figure as a single plot
+    fig, ax = plt.subplots(1, 1, figsize=(figsize_x, figsize_y))
+
+    # Create a DataFrame to hold the lead times and correlation values
+    data = []
+
+    # Loop over the lead times
+    for lead in range(corr_matrix.shape[0]):
+        # Flatten the correlation matrix
+        corr_flat = corr_matrix[lead, :, :].flatten()
+
+        # Add the lead times and correlation values to the DataFrame
+        for value in corr_flat:
+            data.append({'lead': lead, 'correlation': value})
+
+    df = pd.DataFrame(data)
+
+    # clean the data by removing the NaN values
+    df = df.dropna()
+
+    # Plot the correlation matrix as a boxplot using seaborn
+    sns.boxplot(x='lead', y='correlation', data=df, ax=ax)
+
+    # Set the x-axis label
+    ax.set_xlabel("Lead time")
+
+    # Set the y-axis label
+    ax.set_ylabel("Spearman correlation")
+
+    # Set the x-ticks
+    ax.set_xticks(range(corr_matrix.shape[0]))
+
+    # Set the x-tick labels
+    ax.set_xticklabels(range(1, corr_matrix.shape[0] + 1))
+
+    # Constrain the y-axis to between -1 and 1
+    ax.set_ylim(-0.3, 0.3)
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+
+    return df
+
+def plot_independence_violin(
+    corr_matrix: np.ndarray,
+    figsize_x: int = 10,
+    figsize_y: int = 10,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plot the correlation matrix between each unique pair of ensemble members.
+
+    Parameters
+    ----------
+
+    corr_matrix: np.ndarray
+        The correlation matrix between each unique pair of ensemble members with shape (n_leads, len(members), len(members)).
+
+    figsize_x: int
+        The figure size in the x direction
+        Default is 10
+
+    figsize_y: int
+        The figure size in the y direction
+        Default is 10
+
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+    """
+
+    # Set up the figure as a single plot
+    fig, ax = plt.subplots(1, 1, figsize=(figsize_x, figsize_y))
+
+    # Create a DataFrame to hold the lead times and correlation values
+    data = []
+
+    # Loop over the lead times
+    for lead in range(corr_matrix.shape[0]):
+        # Flatten the correlation matrix
+        corr_flat = corr_matrix[lead, :, :].flatten()
+
+        # Add the lead times and correlation values to the DataFrame
+        for value in corr_flat:
+            data.append({'lead': lead, 'correlation': value})
+
+    df = pd.DataFrame(data)
+
+    # clean the data by removing the NaN values
+    df = df.dropna()
+
+    # Plot the correlation matrix as a violin plot using seaborn
+    sns.violinplot(x='lead', y='correlation', data=df, ax=ax)
+
+    # Set the x-axis label
+    ax.set_xlabel("Lead time")
+
+    # Set the y-axis label
+    ax.set_ylabel("Spearman correlation")
+
+    # Set the x-ticks
+    ax.set_xticks(range(corr_matrix.shape[0]))
+
+    # Set the x-tick labels
+    ax.set_xticklabels(range(1, corr_matrix.shape[0] + 1))
+
+    # Constrain the y-axis to between -1 and 1
+    ax.set_ylim(-0.3, 0.3)
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+
+    return df
+
+def plot_independence_pd(
+    corr_matrix: np.ndarray,
+    figsize_x: int = 10,
+    figsize_y: int = 10,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plot the correlation matrix between each unique pair of ensemble members.
+
+    Parameters
+    ----------
+
+    corr_matrix: np.ndarray
+        The correlation matrix between each unique pair of ensemble members with shape (n_leads, len(members), len(members)).
+
+    figsize_x: int
+        The figure size in the x direction
+        Default is 10
+
+    figsize_y: int
+        The figure size in the y direction
+        Default is 10
+
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+    """
+
+    # Set up the figure as a single plot
+    fig, ax = plt.subplots(1, 1, figsize=(figsize_x, figsize_y))
+
+    # Create a DataFrame to hold the lead times and correlation values
+    data = []
+
+    # Loop over the lead times
+    for lead in range(corr_matrix.shape[0]):
+        # Flatten the correlation matrix
+        corr_flat = corr_matrix[lead, :, :].flatten()
+
+        # Add the lead times and correlation values to the DataFrame
+        for value in corr_flat:
+            data.append({'lead': lead, 'correlation': value})
+
+    df = pd.DataFrame(data)
+
+    # Plot the correlation matrix as a boxplot using pandas
+    df.boxplot(column='correlation', by='lead', ax=ax)
+
+    # Set the x-axis label
+    ax.set_xlabel("Lead time")
+
+    # Set the y-axis label
+    ax.set_ylabel("Spearman correlation")
+
+    # Constrain the y-axis to between -1 and 1
+    ax.set_ylim(-0.3, 0.3)
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+
+    return df
+
+# Define a function to plot the model stability in terms of density
+# After Timo Kelders functions
+# https://github.com/timokelder/UNSEEN/blob/master/R/stability_test.R
+# TODO: Complete this function
+def stability_density(
+    ensemble: pd.DataFrame,
+    var_name: str,
+    label: str,
+    lead_name: str = "lead",
+    fontsize: int = 12,
+):
+    """
+    Function which plots the density distribution of different lead times.
+    """
