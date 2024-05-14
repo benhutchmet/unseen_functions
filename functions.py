@@ -16,6 +16,7 @@ from scipy import stats, signal
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import xesmf as xe
+import matplotlib.cm as cm
 
 # Import types
 from typing import Any, Callable, Union, List
@@ -2025,14 +2026,226 @@ def plot_independence_pd(
 # Define a function to plot the model stability in terms of density
 # After Timo Kelders functions
 # https://github.com/timokelder/UNSEEN/blob/master/R/stability_test.R
-# TODO: Complete this function
 def stability_density(
     ensemble: pd.DataFrame,
     var_name: str,
     label: str,
+    cmap: str = "Blues",
     lead_name: str = "lead",
     fontsize: int = 12,
+    fig_size: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ):
     """
     Function which plots the density distribution of different lead times.
+
+    Parameters
+
+    ensemble: pd.DataFrame
+        The DataFrame containing the ensemble data. With columns for the
+        ensemble member, lead time, and the variable of interest.
+
+    var_name: str
+        The name of the variable of interest.
+
+    label: str
+        The label for the variable of interest.
+
+    cmap: str
+        The colormap to use. Default is "Blues".
+
+    lead_name: str
+        The name of the lead time column. Default is "lead".
+
+    fontsize: int
+        The fontsize for the labels. Default is 12.
+
+    fig_size: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+
+    None
+
     """
+
+    # Set up the figure
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    # Get the unique lead times
+    leads = sorted(ensemble[lead_name].unique())
+
+    # Create a colormap
+    colormap = cm.get_cmap(cmap, len(leads))
+
+    # Loop over the lead times
+    for i, lead in enumerate(leads):
+        # Extract the data for the lead time
+        data = ensemble[ensemble[lead_name] == lead][var_name]
+
+        # Plot the density distribution with the color from the colormap
+        sns.kdeplot(data, label=f"{lead}", color=colormap(i))
+
+    # Set the x-axis label
+    ax.set_xlabel(label, fontsize=fontsize)
+
+    # Set the y-axis label
+    ax.set_ylabel("Density", fontsize=fontsize)
+
+    # Add a legend
+    ax.legend(title="Lead time")
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"density_{date}_{time}.pdf"))
+
+    return
+
+# Define a function to plot the model stability in terms of density
+# After Timo Kelders functions
+# Showing the confidence interval of the distribution of all lead times pooled
+# together
+# Test whether the individual lead time falls within these confidence intervals
+# In this case we bootstrap the pooled lead times into series with an equal
+# length to the individual lead times (54 init years * 10 members = 540)
+# with nboot = 10,000
+def model_stability_boot(
+    ensemble: pd.DataFrame,
+    var_name: str,
+    label: str,
+    nboot: int = 10000,
+    cmap: str = "Blues",
+    lead_name: str = "lead",
+    fontsize: int = 12,
+    fig_size: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+)
+    """
+    Function which plots the density distribution of different lead times.
+    
+    Parameters
+    
+    ensemble: pd.DataFrame
+        The DataFrame containing the ensemble data. With columns for the
+        ensemble member, lead time, and the variable of interest.
+        
+    var_name: str
+        The name of the variable of interest.
+        
+    label: str
+        The label for the variable of interest.
+        
+    nboot: int
+        The number of bootstrap samples to take. Default is 10000.
+        
+    cmap: str
+        The colormap to use. Default is "Blues".
+        
+    lead_name: str
+        The name of the lead time column. Default is "lead".
+
+    fontsize: int
+        The fontsize for the labels. Default is 12.
+
+    fig_size: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+
+    None
+
+    """
+
+    # Set up the length of the pooled ensemble
+    pooled_length = ensemble.shape[0] # i.e. all lead times pooled together
+
+    # Print the pooled length
+    print(f"The pooled length is {pooled_length}")
+
+    # set up the length of the leadtime
+    lead_length = len(ensemble[lead_name] == 2) # i.e. the length for a single lead time
+
+    # Print the lead length
+    print(f"The lead length is {lead_length}")
+
+    # Initialise the bootstrap array
+    # e.g. with shape (10000, 540) for 10,000 bootstraps
+    # and 540 pooled ensemble members
+    boot = np.zeros([nboot, lead_length])
+
+    # Loop over the number of bootstraps
+    for i in tqdm(range(nboot), desc="Performing bootstrapping"):
+        # Sample the pooled ensemble
+        boot[i, :] = np.random.choice(ensemble[var_name], lead_length)
+
+    # Calculate the return periods
+    pooled_rps = ensemble_length / np.arange(1, ensemble_length + 1)
+    ld_rps = leadtime_length / np.arange(1, leadtime_length + 1)
+
+    # Calculate the quantiles for each bootstrap sample
+    return_vs = np.quantile(bootstrapped_array, q=1 - 1 / pooled_rps, axis=1)
+
+    # Calculate the 2.5% and 97.5% quantiles for each return period
+    ci_return_vs = np.quantile(return_vs, q=[0.025, 0.975], axis=0)
+
+    # Create a DataFrame including the return periods, empirical values and confidence intervals
+    df_quantiles = ensemble.copy()
+    df_quantiles['rps_all'] = rps
+    df_quantiles['quantiles_all'] = df_quantiles[var_name].quantile(1 - 1 / rps)
+
+    # Group the DataFrame by ld_name and calculate the quantiles for each group
+    df_quantiles['rps_ld'] = rps_ld
+    df_quantiles['quantiles_ld'] = df_quantiles.groupby(ld_name)[var_name].transform(lambda x: x.quantile(1 - 1 / rps_ld))
+
+    # Add the confidence intervals to the DataFrame
+    df_quantiles['ci_2.5'] = ci_rvs[0, :]
+    df_quantiles['ci_97.5'] = ci_rvs[1, :]
+
+    # Initialize the plot
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    # Create a colour map
+    colormap = cm.get_cmap(cmap, len(ensemble[lead_name].unique()))
+
+    # Add the lines to the plot
+    for i, lead in enumerate(ensemble[lead_name].unique()):
+        # Extract the data for the lead time
+        data = ensemble[ensemble[lead_name] == lead][var_name]
+
+        # Plot the line
+        sns.lineplot(x='rps_ld', y='quantiles_ld', data=data, color=colormap(i), ax=ax)
+
+    # plot the quantiles for the full ensemble
+    sns.lineplot(x='rps_all', y='quantiles_all', data=df_quantiles, color='black', ax=ax)
+
+    # Add the shaded area to the plot
+    plt.fill_between(df_quantiles['rps_all'], df_quantiles['ci_2.5'], df_quantiles['ci_97.5'], color='black', alpha=0.1)
+
+    # Set the x-axis to a logarithmic scale
+    plt.xscale('log')
+
+    # Set the labels of the x-axis and y-axis
+    plt.xlabel('Return period (years)')
+    plt.ylabel(lab)
+
+    # Add a legend
+    plt.legend()
+
+    # Show the plot
+    plt.show()
+
+    return
