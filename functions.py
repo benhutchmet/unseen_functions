@@ -2130,7 +2130,7 @@ def model_stability_boot(
     fontsize: int = 12,
     fig_size: tuple = (10, 10),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
-)
+):
     """
     Function which plots the density distribution of different lead times.
     
@@ -2176,8 +2176,8 @@ def model_stability_boot(
     # Print the pooled length
     print(f"The pooled length is {pooled_length}")
 
-    # set up the length of the leadtime
-    lead_length = len(ensemble[lead_name] == 2) # i.e. the length for a single lead time
+    # Set up the length of the individual lead time
+    lead_length = sum(ensemble[lead_name] == 2)
 
     # Print the lead length
     print(f"The lead length is {lead_length}")
@@ -2193,27 +2193,66 @@ def model_stability_boot(
         boot[i, :] = np.random.choice(ensemble[var_name], lead_length)
 
     # Calculate the return periods
-    pooled_rps = ensemble_length / np.arange(1, ensemble_length + 1)
-    ld_rps = leadtime_length / np.arange(1, leadtime_length + 1)
+    pooled_rps = pooled_length / np.arange(1, pooled_length + 1)
+    ld_rps = lead_length / np.arange(1, lead_length + 1)
 
     # Calculate the quantiles for each bootstrap sample
-    return_vs = np.quantile(bootstrapped_array, q=1 - 1 / pooled_rps, axis=1)
+    return_vs = np.quantile(boot, q=1 - 1 / pooled_rps, axis=1)
 
     # Calculate the 2.5% and 97.5% quantiles for each return period
     ci_return_vs = np.quantile(return_vs, q=[0.025, 0.975], axis=0)
 
     # Create a DataFrame including the return periods, empirical values and confidence intervals
     df_quantiles = ensemble.copy()
-    df_quantiles['rps_all'] = rps
-    df_quantiles['quantiles_all'] = df_quantiles[var_name].quantile(1 - 1 / rps)
+    df_quantiles['rps_all'] = pooled_rps
+    df_quantiles['quantiles_all'] = df_quantiles[var_name].quantile(1 - 1 / pooled_rps)
 
-    # Group the DataFrame by ld_name and calculate the quantiles for each group
-    df_quantiles['rps_ld'] = rps_ld
-    df_quantiles['quantiles_ld'] = df_quantiles.groupby(ld_name)[var_name].transform(lambda x: x.quantile(1 - 1 / rps_ld))
+    # Print the shape of the DataFrame
+    print("shape of df_quantiles", df_quantiles.shape)
+
+    # print the shape orf the rps_all and quantiles_all columns
+    print("shape of rps_all", df_quantiles['rps_all'].shape)
+
+    print("shape of quantiles_all", df_quantiles['quantiles_all'].shape)
+
+    # Identify the unique lead times
+    leads = ensemble[lead_name].unique()
+
+    # Loop over the lead times
+    for lead in leads:
+        # Extract the data for the lead time
+        data = ensemble[ensemble[lead_name] == lead]
+
+        # Group the DataFrame by ld_name
+        grouped = data.groupby(lead_name)
+
+        # Calculate the quantiles for each group and add them as a new column to the DataFrame
+        data = grouped.apply(lambda x: x.assign(quantiles_ld=x[var_name].quantile(1 - 1 / ld_rps)))
+
+        # print the shape of the data
+        print("shape of data", data.shape)
+
+        # Print the shape of ld_rps
+        print("shape of ld_rps", ld_rps.shape)
+
+        # Add the return periods to the DataFrame
+        data['rps_ld'] = ld_rps
+
+    # print the shape of the data
+    print("shape of data", data.shape)
+
+    # add the data to the DataFrame
+    df_quantiles['rps_ld'] = data['rps_ld']
+
+    # Add the quantiles to the DataFrame
+    df_quantiles['quantiles_ld'] = data['quantiles_ld']
+
+    # print the shape of the DataFrame
+    print("shape of df_quantiles", df_quantiles.shape)
 
     # Add the confidence intervals to the DataFrame
-    df_quantiles['ci_2.5'] = ci_rvs[0, :]
-    df_quantiles['ci_97.5'] = ci_rvs[1, :]
+    df_quantiles['ci_2.5'] = ci_return_vs[0, :]
+    df_quantiles['ci_97.5'] = ci_return_vs[1, :]
 
     # Initialize the plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
@@ -2240,7 +2279,7 @@ def model_stability_boot(
 
     # Set the labels of the x-axis and y-axis
     plt.xlabel('Return period (years)')
-    plt.ylabel(lab)
+    plt.ylabel(label)
 
     # Add a legend
     plt.legend()
