@@ -2775,3 +2775,184 @@ def plot_fidelity(
     # plt.savefig(os.path.join(save_dir, f"fidelity_{date}_{time}.pdf"))
 
     return
+
+# Define a function for plotting the events
+# using the dataframes
+def plot_events_ts(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    ylabel: str,
+    model_name: str = "HadGEM3-GC31-MM",
+    obs_time_name: str = "year",
+    model_time_name: str = "init",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    delta_shift_bias: bool = False,
+    do_detrend: bool = False,
+    figsize: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the hindcast events on the same axis as the observed events.
+    
+    Parameters
+    ----------
+    
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+        
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+        
+    obs_val_name: str
+        The name of the observation value column.
+        
+    model_val_name: str
+        The name of the model value column.
+
+    ylabel: str
+        The y-axis label.
+
+    model_name: str
+        The name of the model. Default is "HadGEM3-GC31-MM".
+        
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+        
+    model_time_name: str
+        The name of the model time column. Default is "init".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    delta_shift_bias: bool
+        Whether to shift the model data by the bias. Default is False.
+
+    do_detrend: bool
+        Whether to detrend the data. Default is False.
+
+    figsize: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Set up the years
+    years = obs_df[obs_time_name].unique()
+
+    # If bias shift is True
+    if delta_shift_bias:
+        print("Shifting the model data by the bias")
+        # Calculate the bias
+        bias = model_df[model_val_name].mean() - obs_df[obs_val_name].mean()
+
+        # Shift the model data by the bias
+        model_df[model_val_name] = model_df[model_val_name] - bias
+
+    # if do detrend is true
+    if do_detrend:
+        print("Detrending the data")
+        # Detrend the data
+        obs_df[obs_val_name] = signal.detrend(obs_df[obs_val_name])
+        model_df[model_val_name] = signal.detrend(model_df[model_val_name])
+
+    # Set up the figure
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    # Loop over the ensemble members
+    for member in model_df[model_member_name].unique():
+        # Seperate the data based on the condition
+        model_data = model_df[model_df[model_member_name] == member]
+
+        # Seperate data into below and above the threshold
+        model_data_below20 = model_data[model_data[model_val_name] < np.quantile(obs_df[obs_val_name], 0.2)]
+
+        # Above the threshold
+        model_data_above20 = ~model_data_below20
+
+        # below the minimum of the obs
+        model_data_below_obs_min = model_data[model_data[model_val_name] < obs_df[obs_val_name].min()]
+
+        # Plot the points below the 20th percentile
+        ax.scatter(
+            model_data_below20[model_time_name],
+            model_data_below20[model_val_name],
+            color="blue",
+            alpha=0.8,
+            label="model wind drought" if member == 0 else None,
+        )
+
+        # Plot the points above the 20th percentile
+        ax.scatter(
+            model_data_above20[model_time_name],
+            model_data_above20[model_val_name],
+            color="grey",
+            alpha=0.8,
+            label=model_name if member == 0 else None,
+        )
+
+        # Plot the points below the minimum of the obs
+        ax.scatter(
+            model_data_below_obs_min[model_time_name],
+            model_data_below_obs_min[model_val_name],
+            color="red",
+            alpha=0.8,
+            marker="x",
+            label="model wind drought" if member == 0 else None,
+        )
+
+    # Plot the observed data
+    ax.plot(
+        obs_df[obs_time_name],
+        obs_df[obs_val_name],
+        color="black",
+        label="ERA5",
+    )
+
+    # Plot the 20th percentile of the obs as a horizontal line
+    ax.axhline(np.quantile(obs_df[obs_val_name], 0.2), color="black", linestyle="--")
+
+    # Plot the minimum of the obs as a horizontal line
+    ax.axhline(obs_df[obs_val_name].min(), color="red", linestyle="--")
+
+    # Legend in the upper left
+    ax.legend(loc="upper left")
+
+    # Set the x-axis label
+    ax.set_xlabel("Year")
+
+    # Set the y-axis label
+    ax.set_ylabel(ylabel)
+
+    # Show the plot
+    plt.show()
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+
+    return
+
+
