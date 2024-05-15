@@ -865,8 +865,7 @@ def load_regrid_obs(
 
     # Set up the 2d grid
     ds_out = xe.util.grid_2d(
-        grid_bounds[0], grid_bounds[1], lon_res,
-        grid_bounds[2], grid_bounds[3], lat_res
+        grid_bounds[0], grid_bounds[1], lon_res, grid_bounds[2], grid_bounds[3], lat_res
     )
 
     # Open the observations
@@ -893,8 +892,8 @@ def load_regrid_obs(
     # print(ds_out.lat.min(), ds_out.lat.max())
 
     # Convert the lon and lat to 1D
-    ds_out['lon'] = ds_out['lon'].mean(dim='y')
-    ds_out['lat'] = ds_out['lat'].mean(dim='x')
+    ds_out["lon"] = ds_out["lon"].mean(dim="y")
+    ds_out["lat"] = ds_out["lat"].mean(dim="x")
 
     # Set up the regriidder
     regridder = xe.Regridder(
@@ -962,6 +961,7 @@ def load_regrid_obs(
 
     # Return the obs data
     return obs_data
+
 
 # Define a function for crossing year
 def cross_year(
@@ -2521,5 +2521,257 @@ def model_stability_boot(
 
     # Show the plot
     plt.show()
+
+    return
+
+
+# Define a function to plot the model fidelity
+# After my own functions
+def plot_fidelity(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str = "year",
+    model_time_name: str = "init",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    nboot: int = 10000,
+    figsize: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Calculates the bootstrap statistics for the model fidelity for the hindcast
+    and the statistics for the obs datasets before plotting these.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    nboot: int
+        The number of bootstrap samples to take. Default is 10000.
+
+    figsize: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+
+    None
+
+    """
+
+    # Set up the model stats dict
+    model_stats = {
+        "mean": [],
+        "sigma": [],
+        "skew": [],
+        "kurt": [],
+    }
+
+    # Assert that the len of unique init in model_df
+    # is equal to the len of unique year in obs_df
+    assert len(model_df[model_time_name].unique()) == len(
+        obs_df[obs_time_name].unique()
+    ), "The number of unique initialisation dates in the model data must be equal to the number of unique years in the observations."
+
+    # Set up the number of unique initialisation dates
+    n_years = len(model_df[model_time_name].unique())
+
+    # Set up the number of unique ensemble members
+    n_members = len(model_df[model_member_name].unique())
+
+    n_leads = len(model_df[model_lead_name].unique())
+
+    # Set up zeros for the bootstrapped values
+    boot_mean = np.zeros(nboot)
+    boot_sigma = np.zeros(nboot)
+    boot_skew = np.zeros(nboot)
+    boot_kurt = np.zeros(nboot)
+
+    # Extract the unique model times
+    model_times = model_df[model_time_name].unique()
+
+    # Extract the unique model members
+    model_members = model_df[model_member_name].unique()
+
+    # Extract the unique model leads
+    model_leads = model_df[model_lead_name].unique()
+
+    # Create the indexes for the ensemble members
+    member_idx = np.arange(n_members)
+
+    # Loop over the number of bootstraps
+    for iboot in tqdm(range(nboot), desc="Calculating bootstrap statistics"):
+        # Create the time index
+        idx_time_this = range(0, n_years)
+
+        # Create an empty array to store the bootstrapped values
+        model_boot = np.zeros([n_years])
+
+        # Set the year index to 0
+        idx_year = 0
+
+        # Loop over the number of years
+        for itime in idx_time_this:
+            # Set up random indices for the ensemble members
+            idx_ens_this = random.choices(member_idx)
+
+            # Set up a random choice for the lead time
+            idx_lead_this = random.choices(range(n_leads))
+
+            # Find the time at the itime index
+            model_time_this = model_times[itime]
+
+            # Find the name for the member at this index
+            model_member_this = model_members[idx_ens_this]
+
+            # Find the name for the lead at this index
+            model_lead_this = model_leads[idx_lead_this]
+
+            # Extract the model data for the year and ensemble members
+            model_data = model_df[
+                (model_df[model_time_name] == model_time_this)
+                & (model_df[model_member_name] == model_member_this[0])
+                & (model_df[model_lead_name] == model_lead_this[0])
+            ][model_val_name].values
+
+            # Append the model data to the bootstrapped array
+            model_boot[idx_year] = model_data
+
+            # Increment the year index
+            idx_year += 1
+
+        # Calculate the statistics for the bootstrapped array
+        boot_mean[iboot] = np.mean(model_boot)
+
+        boot_sigma[iboot] = np.std(model_boot)
+
+        boot_skew[iboot] = stats.skew(model_boot)
+
+        boot_kurt[iboot] = stats.kurtosis(model_boot)
+
+    # Append the bootstrapped statistics to the model_stats dict
+    model_stats["mean"] = boot_mean
+    model_stats["sigma"] = boot_sigma
+    model_stats["skew"] = boot_skew
+    model_stats["kurt"] = boot_kurt
+
+    # Calculate the obs stats
+    # Define the mdi
+    # mdi = -9999.0
+
+    # Set up the dictionary to store the obs stats
+    obs_stats = {
+        "mean": obs_df[obs_val_name].mean(),
+        "sigma": obs_df[obs_val_name].std(),
+        "skew": stats.skew(obs_df[obs_val_name]),
+        "kurt": stats.kurtosis(obs_df[obs_val_name]),
+    }
+
+    # Set up the figure as 2x2
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+
+    # Form a list of the axes
+    axes = axes.flatten()
+
+    # Form a list of the model stats
+    model_stats_list = [
+        model_stats["mean"],
+        model_stats["sigma"],
+        model_stats["skew"],
+        model_stats["kurt"],
+    ]
+
+    # For the same list of the obs stats
+    obs_stats_list = [
+        obs_stats["mean"],
+        obs_stats["sigma"],
+        obs_stats["skew"],
+        obs_stats["kurt"],
+    ]
+
+    # For the same list of the stat names
+    stat_names = ["mean", "sigma", "skew", "kurt"]
+
+    # Form the list of the axes labels
+    axes_labels = ["a", "b", "c", "d"]
+
+    # Loop over the axes
+    for i, ax in enumerate(axes):
+        # Plot the histogram of the model stats
+        ax.hist(model_stats_list[i], bins=100, density=True, color="red", label="model")
+
+        # Plot the obs stats
+        ax.axvline(obs_stats_list[i], color="black", linestyle="-", label="ERA5")
+
+        # Calculate the position of the obs stat in the distribution
+        obs_pos = stats.percentileofscore(model_stats_list[i], obs_stats_list[i])
+
+        # Plot vertical black dashed lines for the 2.5% and 97.5% quantiles of the model stats
+        ax.axvline(
+            np.quantile(model_stats_list[i], 0.025), color="black", linestyle="--"
+        )
+
+        ax.axvline(
+            np.quantile(model_stats_list[i], 0.975), color="black", linestyle="--"
+        )
+
+        # Add a title in bold
+        ax.set_title(f"{stat_names[i]}, {obs_pos:.2f}%", fontweight="bold")
+
+        # Add the axes label
+        # in the top left
+        ax.text(
+            0.05,
+            0.95,
+            axes_labels[i],
+            transform=ax.transAxes,
+            fontsize=12,
+            fontweight="bold",
+            va="top",
+            ha="left",
+            bbox=dict(facecolor="white", alpha=0.5),
+            zorder=100,
+        )
+
+    # show the plot
+    plt.show()
+
+    # Set up teh current time in d m y h m s
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d")
+    time = now.strftime("%H:%M:%S")
+
+    # FIXME: JASMIN GWS not working currently 15/05/24
+    # # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"fidelity_{date}_{time}.pdf"))
 
     return
