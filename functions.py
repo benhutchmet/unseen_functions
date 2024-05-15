@@ -759,7 +759,7 @@ def select_gridbox(
 
     # Extract the latitudinal and longitudinal bounds
     lon1, lon2, lat1, lat2 = grid["lon1"], grid["lon2"], grid["lat1"], grid["lat2"]
-    
+
     # Assert that the latitudinal and longitudinal bounds for ds are -180 to 180
     assert (
         ds["lon"].min().values >= -180.0 and ds["lon"].max().values <= 180.0
@@ -785,6 +785,177 @@ def select_gridbox(
 
     # Return the mean dataset
     return ds_mean
+
+
+# define a function to load and regrid the observations
+def load_regrid_obs(
+    model_ds: xr.Dataset,
+    obs_variable: str,
+    obs_path: str,
+    start_year: int,
+    end_year: int,
+    months: list[int],
+    grid: dict[str, float],
+    rg_algo: str = "bilinear",
+    grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
+    periodic: bool = True,
+) -> xr.Dataset:
+    """
+    Load and regrid the observations to a regular grid with specified bounds.
+
+    Inputs:
+
+    model_ds: xr.Dataset
+        The input xarray Dataset to be regridded.
+
+    obs_variable: str
+        The variable to load from the observations.
+
+    obs_path: str
+        The path to the observations.
+
+    start_year: int
+        The start year for the data.
+
+    end_year: int
+        The end year for the data.
+
+    months: list[int]
+        The months to take the time average over.
+        In format [10, 11, 12, 1, 2, 3] for October to March.
+
+    grid: dict[str, float]
+        The dictionary containing the latitudinal and longitudinal bounds of the gridbox.
+
+    rg_algo: str, optional
+        The regridding algorithm to be used. Default is "bilinear".
+
+    grid_bounds: list[float], optional
+        The bounds of the regular grid to which the input dataset is regridded.
+
+    periodic: bool, optional
+        Whether the input data is on a periodic grid. Default is True.
+
+    Returns:
+
+    obs_data: pd.DataFrame
+        The regridded observations in a pandas DataFrame.
+
+    """
+
+    # Extract the latitudinal and longitudinal bounds
+    lon1, lon2 = grid["lon1"], grid["lon2"]
+    lat1, lat2 = grid["lat1"], grid["lat2"]
+
+    # Calculate the resoluion of the input dataset
+    lat_res = (model_ds["lat"].max() - model_ds["lat"].min()) / (
+        model_ds["lat"].count() - 1.0
+    ).values
+    lon_res = (model_ds["lon"].max() - model_ds["lon"].min()) / (
+        model_ds["lon"].count() - 1.0
+    ).values
+
+    # Set up the 2d grid
+    ds_out = xe.util.grid_2d(
+        grid_bounds[0], grid_bounds[1], lon_res,
+        grid_bounds[2], grid_bounds[3], lat_res
+    )
+
+    # Open the observations
+    obs = xr.open_mfdataset(
+        obs_path,
+        combine="by_coords",
+        parallel=True,
+    )[obs_variable]
+
+    # If expver is present in the observations
+    if "expver" in obs.coords:
+        # Combine the first two expver variables
+        obs = obs.sel(expver=1).combine_first(obs.sel(expver=5))
+
+    # Set up the regriidder
+    regridder = xe.Regridder(
+        obs,
+        ds_out,
+        rg_algo,
+        periodic=periodic,
+    )
+
+    # Perform the regridding
+    obs_rg = regridder(obs)
+
+    # Extract the time series for the gridbox
+    obs_rg = obs_rg.sel(lat=slice(lat1, lat2), lon=slice(lon1, lon2)).mean(
+        dim=("lat", "lon")
+    )
+
+    # If the type of time is numpy.datetime64
+    if isinstance(obs_rg["time"].values[0], np.datetime64):
+        # Convert numpy.datetime64 to datetime
+        obs_rg["time"] = pd.to_datetime(obs_rg["time"].values)
+
+    # If the months list contains [* 12, 1 *]
+    if cross_year(months):
+        print("Crosses the year boundary")
+        # Select the months
+        obs_rg = obs_rg.sel(time=obs_rg["time.month"].isin(months))
+
+        # Shift the time back by months[-1]
+        # e.g. if months = [12, 1] then shift back by 1 month
+        # and take the annual mean
+        obs_rg = obs_rg.shift(time=-months[-1], fill_value=np.nan)
+
+        # Remove the first months[-1] values
+        obs_rg = obs_rg.isel(time=slice(months[-1], None))
+
+        # Calculate the annual mean
+        obs_rg = obs_rg.resample(time="Y").mean()
+    else:
+        # Select the months
+        obs_rg = obs_rg.sel(time=obs_rg["time.month"].isin(months))
+
+        # Calculate the annual mean
+        obs_rg = obs_rg.resample(time="Y").mean()
+
+    # Convert to a pandas dataframe
+    # with columns 'year' and 'value'
+    obs_df = obs_rg.to_dataframe().reset_index()
+
+    # Extract the years
+    years = obs_df["time"].dt.year.values
+
+    # Extract the values
+    values = obs_df[obs_variable].values
+
+    # Form the obs dataframes
+    obs_data = pd.DataFrame({"year": years, "value": values})
+
+    # Return the obs data
+    return obs_data
+
+# Define a function for crossing year
+def cross_year(
+    list: list[int],
+) -> bool:
+    """
+    Check if the list crosses the year boundary.
+
+    Inputs:
+    list: list[int]
+        The list of months.
+
+    Returns:
+    bool
+        Whether the list crosses the year boundary.
+    """
+
+    # Loop over the list
+    for i in range(len(list) - 1):
+        # If the difference between the months is negative
+        if list[i] == 12 and list[i + 1] == 1:
+            return True
+    return False
+
 
 # Function for loading the observations
 def load_obs_data(
@@ -1572,7 +1743,7 @@ def lead_time_avg(
     # Create a mask for the specified months
     mask = [lead_time.month in months for lead_time in lead_times]
 
-    # Count the number of sequences of True which have 
+    # Count the number of sequences of True which have
     # length equal to the number of months in the mask list
     sequences = get_sequences(mask, len(months))
 
@@ -1608,6 +1779,7 @@ def lead_time_avg(
     # Return the dataset
     return avg_seq_da
 
+
 def get_sequences(mask, len_months):
     sequences = []
     sequence = []
@@ -1641,25 +1813,25 @@ def independence_test(
     Calculates the correlation between each unique pair of ensemble members
     using the Spearman correlation to quantify the dependence between the
     ensemble members.
-    
+
     Parameters
-    
+
     ensemble: pd.DataFrame
         The DataFrame containing the ensemble data. With columns for the
         ensemble member, lead time, and the variable of interest.
-        
+
     members: list[str]
         The list of ensemble members.
-        
+
     n_leads: int
         The number of lead times.
-        
+
     var_name: str
         The name of the variable of interest.
-        
+
     member_name: str
         The name of the ensemble member column. Default is "member".
-        
+
     lead_name: str
         The name of the lead time column. Default is "lead".
 
@@ -1669,14 +1841,14 @@ def independence_test(
         If True, data are detrended by differencing.
 
     Returns
-    
+
     corr_matrix: np.ndarray
         The correlation matrix between each unique pair of ensemble members.
     """
 
     # Set up the correlation matrix
     corr_matrix = np.zeros((n_leads, len(members), len(members)))
-                            
+
     # Loop over the lead times
     for lead in tqdm(range(n_leads), desc="Calculating correlations"):
         # Loop over the ensemble members
@@ -1685,8 +1857,12 @@ def independence_test(
                 # Only caluclate for the top half of the correlation matrix
                 if i > j:
                     # Extract the data for the two ensemble members
-                    m1_data = ensemble[(ensemble[member_name] == m1) & (ensemble[lead_name] == lead)][var_name].values
-                    m2_data = ensemble[(ensemble[member_name] == m2) & (ensemble[lead_name] == lead)][var_name].values
+                    m1_data = ensemble[
+                        (ensemble[member_name] == m1) & (ensemble[lead_name] == lead)
+                    ][var_name].values
+                    m2_data = ensemble[
+                        (ensemble[member_name] == m2) & (ensemble[lead_name] == lead)
+                    ][var_name].values
 
                     # Detrend the data if specified
                     if detrend:
@@ -1701,6 +1877,7 @@ def independence_test(
                     corr_matrix[lead, i, j] = corr
 
     return corr_matrix
+
 
 # Write a function for plotting independence
 def plot_independence(
@@ -1743,7 +1920,7 @@ def plot_independence(
     ax.axhline(0, color="black", linestyle="--", linewidth=0.5, alpha=0.8)
 
     # Loop over the lead times
-    for lead in range(corr_matrix.shape[0]):
+    for lead in tqdm(range(corr_matrix.shape[0])):
         # Flatten the correlation matrix
         corr_flat = corr_matrix[lead, :, :].flatten()
 
@@ -1763,19 +1940,20 @@ def plot_independence(
     # Set the x-tick labels
     ax.set_xticklabels(range(1, corr_matrix.shape[0] + 1))
 
-    # Set the current time
-    now = datetime.now()
+    # # Set the current time
+    # now = datetime.now()
 
-    # Set the current date
-    date = now.strftime("%Y-%m-%d")
+    # # Set the current date
+    # date = now.strftime("%Y-%m-%d")
 
-    # Set the current time
-    time = now.strftime("%H:%M:%S")
+    # # Set the current time
+    # time = now.strftime("%H:%M:%S")
 
-    # Save the plot
-    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+    # # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
 
     return
+
 
 def plot_independence_sb(
     corr_matrix: np.ndarray,
@@ -1823,7 +2001,7 @@ def plot_independence_sb(
 
         # Add the lead times and correlation values to the DataFrame
         for value in corr_flat:
-            data.append({'lead': lead, 'correlation': value})
+            data.append({"lead": lead, "correlation": value})
 
     df = pd.DataFrame(data)
 
@@ -1831,7 +2009,7 @@ def plot_independence_sb(
     df = df.dropna()
 
     # Plot the correlation matrix as a boxplot using seaborn
-    sns.boxplot(x='lead', y='correlation', data=df, ax=ax)
+    sns.boxplot(x="lead", y="correlation", data=df, ax=ax)
 
     # Set the x-axis label
     ax.set_xlabel("Lead time")
@@ -1848,19 +2026,20 @@ def plot_independence_sb(
     # Constrain the y-axis to between -1 and 1
     ax.set_ylim(-0.3, 0.3)
 
-    # Set the current time
-    now = datetime.now()
+    # # Set the current time
+    # now = datetime.now()
 
-    # Set the current date
-    date = now.strftime("%Y-%m-%d")
+    # # Set the current date
+    # date = now.strftime("%Y-%m-%d")
 
-    # Set the current time
-    time = now.strftime("%H:%M:%S")
+    # # Set the current time
+    # time = now.strftime("%H:%M:%S")
 
-    # Save the plot
-    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+    # # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
 
     return df
+
 
 def plot_independence_violin(
     corr_matrix: np.ndarray,
@@ -1908,7 +2087,7 @@ def plot_independence_violin(
 
         # Add the lead times and correlation values to the DataFrame
         for value in corr_flat:
-            data.append({'lead': lead, 'correlation': value})
+            data.append({"lead": lead, "correlation": value})
 
     df = pd.DataFrame(data)
 
@@ -1916,7 +2095,7 @@ def plot_independence_violin(
     df = df.dropna()
 
     # Plot the correlation matrix as a violin plot using seaborn
-    sns.violinplot(x='lead', y='correlation', data=df, ax=ax)
+    sns.violinplot(x="lead", y="correlation", data=df, ax=ax)
 
     # Set the x-axis label
     ax.set_xlabel("Lead time")
@@ -1946,6 +2125,7 @@ def plot_independence_violin(
     plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
 
     return df
+
 
 def plot_independence_pd(
     corr_matrix: np.ndarray,
@@ -1993,12 +2173,12 @@ def plot_independence_pd(
 
         # Add the lead times and correlation values to the DataFrame
         for value in corr_flat:
-            data.append({'lead': lead, 'correlation': value})
+            data.append({"lead": lead, "correlation": value})
 
     df = pd.DataFrame(data)
 
     # Plot the correlation matrix as a boxplot using pandas
-    df.boxplot(column='correlation', by='lead', ax=ax)
+    df.boxplot(column="correlation", by="lead", ax=ax)
 
     # Set the x-axis label
     ax.set_xlabel("Lead time")
@@ -2022,6 +2202,7 @@ def plot_independence_pd(
     plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
 
     return df
+
 
 # Define a function to plot the model stability in terms of density
 # After Timo Kelders functions
@@ -2082,7 +2263,7 @@ def stability_density(
     colormap = cm.get_cmap(cmap, len(leads))
 
     # Loop over the lead times
-    for i, lead in enumerate(leads):
+    for i, lead in tqdm(enumerate(leads)):
         # Extract the data for the lead time
         data = ensemble[ensemble[lead_name] == lead][var_name]
 
@@ -2098,19 +2279,20 @@ def stability_density(
     # Add a legend
     ax.legend(title="Lead time")
 
-    # Set the current time
-    now = datetime.now()
+    # # Set the current time
+    # now = datetime.now()
 
-    # Set the current date
-    date = now.strftime("%Y-%m-%d")
+    # # Set the current date
+    # date = now.strftime("%Y-%m-%d")
 
-    # Set the current time
-    time = now.strftime("%H:%M:%S")
+    # # Set the current time
+    # time = now.strftime("%H:%M:%S")
 
-    # Save the plot
-    plt.savefig(os.path.join(save_dir, f"density_{date}_{time}.pdf"))
+    # # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"density_{date}_{time}.pdf"))
 
     return
+
 
 # Define a function to plot the model stability in terms of density
 # After Timo Kelders functions
@@ -2133,25 +2315,25 @@ def model_stability_boot(
 ):
     """
     Function which plots the density distribution of different lead times.
-    
+
     Parameters
-    
+
     ensemble: pd.DataFrame
         The DataFrame containing the ensemble data. With columns for the
         ensemble member, lead time, and the variable of interest.
-        
+
     var_name: str
         The name of the variable of interest.
-        
+
     label: str
         The label for the variable of interest.
-        
+
     nboot: int
         The number of bootstrap samples to take. Default is 10000.
-        
+
     cmap: str
         The colormap to use. Default is "Blues".
-        
+
     lead_name: str
         The name of the lead time column. Default is "lead".
 
@@ -2171,7 +2353,7 @@ def model_stability_boot(
     """
 
     # Set up the length of the pooled ensemble
-    pooled_length = ensemble.shape[0] # i.e. all lead times pooled together
+    pooled_length = ensemble.shape[0]  # i.e. all lead times pooled together
 
     # Print the pooled length
     print(f"The pooled length is {pooled_length}")
@@ -2197,23 +2379,19 @@ def model_stability_boot(
     ld_rps = lead_length / np.arange(1, lead_length + 1)
 
     # Calculate the quantiles for each bootstrap sample
-    return_vs = np.quantile(boot, q=1 - 1 / pooled_rps, axis=1)
+    return_vs = np.quantile(boot, q=1 - 1 / pooled_rps, axis=0)
 
     # Calculate the 2.5% and 97.5% quantiles for each return period
-    ci_return_vs = np.quantile(return_vs, q=[0.025, 0.975], axis=0)
+    ci_return_vs = np.quantile(return_vs, q=[0.025, 0.975], axis=1)
 
     # Create a DataFrame including the return periods, empirical values and confidence intervals
     df_quantiles = ensemble.copy()
-    df_quantiles['rps_all'] = pooled_rps
-    df_quantiles['quantiles_all'] = df_quantiles[var_name].quantile(1 - 1 / pooled_rps)
+    df_quantiles["rps_all"] = pooled_rps
 
-    # Print the shape of the DataFrame
-    print("shape of df_quantiles", df_quantiles.shape)
-
-    # print the shape orf the rps_all and quantiles_all columns
-    print("shape of rps_all", df_quantiles['rps_all'].shape)
-
-    print("shape of quantiles_all", df_quantiles['quantiles_all'].shape)
+    # Calculate the quantiles for the full ensemble
+    df_quantiles["quantiles_all"] = df_quantiles.apply(
+        lambda row: df_quantiles[var_name].quantile(1 - 1 / row["rps_all"]), axis=1
+    )
 
     # Identify the unique lead times
     leads = ensemble[lead_name].unique()
@@ -2226,59 +2404,86 @@ def model_stability_boot(
         # Group the DataFrame by ld_name
         grouped = data.groupby(lead_name)
 
-        # Calculate the quantiles for each group and add them as a new column to the DataFrame
-        data = grouped.apply(lambda x: x.assign(quantiles_ld=x[var_name].quantile(1 - 1 / ld_rps)))
+        # Where df_quantiles[df_quantiles[lead_name] == lead], we want to add the return periods
+        # and the quantiles to the DataFrame
+        # add the return periods to these specific rows of the dataframe
+        ensemble.loc[ensemble[lead_name] == lead, "rps_ld"] = ld_rps
 
-        # print the shape of the data
-        print("shape of data", data.shape)
+        # Calculate the quantiles for the lead time
+        ensemble.loc[ensemble[lead_name] == lead, "quantiles_ld"] = ensemble[
+            ensemble[lead_name] == lead
+        ].apply(
+            lambda row: ensemble[ensemble[lead_name] == lead][var_name].quantile(
+                1 - 1 / row["rps_ld"]
+            ),
+            axis=1,
+        )
 
-        # Print the shape of ld_rps
-        print("shape of ld_rps", ld_rps.shape)
+    # add the new columns in ensemble to the DataFrame
+    df_quantiles["rps_ld"] = ensemble["rps_ld"]
 
-        # Add the return periods to the DataFrame
-        data['rps_ld'] = ld_rps
-
-    # print the shape of the data
-    print("shape of data", data.shape)
-
-    # add the data to the DataFrame
-    df_quantiles['rps_ld'] = data['rps_ld']
-
-    # Add the quantiles to the DataFrame
-    df_quantiles['quantiles_ld'] = data['quantiles_ld']
-
-    # print the shape of the DataFrame
-    print("shape of df_quantiles", df_quantiles.shape)
+    # add the new columns in ensemble to the DataFrame
+    df_quantiles["quantiles_ld"] = ensemble["quantiles_ld"]
 
     # Add the confidence intervals to the DataFrame
-    df_quantiles['ci_2.5'] = ci_return_vs[0, :]
-    df_quantiles['ci_97.5'] = ci_return_vs[1, :]
+    df_quantiles["ci_2.5"] = ci_return_vs[0, :]
+    df_quantiles["ci_97.5"] = ci_return_vs[1, :]
 
     # Initialize the plot
     fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    # Set ensemble to the DataFrame
+    ensemble = df_quantiles
 
     # Create a colour map
     colormap = cm.get_cmap(cmap, len(ensemble[lead_name].unique()))
 
     # Add the lines to the plot
-    for i, lead in enumerate(ensemble[lead_name].unique()):
-        # Extract the data for the lead time
-        data = ensemble[ensemble[lead_name] == lead][var_name]
+    for i, lead in tqdm(enumerate(ensemble[lead_name].unique())):
+        # Extract a subset of the dataframe for the specific lead time
+        data = ensemble[ensemble[lead_name] == lead]
 
         # Plot the line
-        sns.lineplot(x='rps_ld', y='quantiles_ld', data=data, color=colormap(i), ax=ax)
+        sns.lineplot(
+            x="rps_ld",
+            y="quantiles_ld",
+            data=data,
+            color=colormap(i),
+            ax=ax,
+            label=f"{lead}",
+        )
 
     # plot the quantiles for the full ensemble
-    sns.lineplot(x='rps_all', y='quantiles_all', data=df_quantiles, color='black', ax=ax)
+    sns.lineplot(
+        x="rps_all",
+        y="quantiles_all",
+        data=df_quantiles,
+        color="black",
+        ax=ax,
+        label="Full ensemble",
+        linestyle="--",
+    )
 
     # Add the shaded area to the plot
-    plt.fill_between(df_quantiles['rps_all'], df_quantiles['ci_2.5'], df_quantiles['ci_97.5'], color='black', alpha=0.1)
+    plt.fill_between(
+        df_quantiles["rps_all"],
+        df_quantiles["ci_2.5"],
+        df_quantiles["ci_97.5"],
+        color="black",
+        alpha=0.1,
+    )
 
     # Set the x-axis to a logarithmic scale
-    plt.xscale('log')
+    plt.xscale("log")
+
+    # Set the xlabels as 10, 100, 1000, 10000
+    plt.xticks([1, 10, 100, 1000])
+
+    # Set the xlim
+    plt.xlim([1, 1000])
 
     # Set the labels of the x-axis and y-axis
-    plt.xlabel('Return period (years)')
+    plt.xlabel("Return period (years)")
     plt.ylabel(label)
 
     # Add a legend
