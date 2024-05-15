@@ -738,6 +738,8 @@ def select_gridbox(
     ds: xr.Dataset,
     grid: dict[str, float],
     dim: tuple[str, str] = ("y", "x"),
+    lat_name: str = "lat",
+    lon_name: str = "lon",
 ) -> xr.Dataset:
     """
     Select the gridbox from the input dataset and calculate the mean over it.
@@ -752,6 +754,12 @@ def select_gridbox(
     dim: tuple[str, str], optional
         The dimensions along which the mean is calculated. Default is ("y", "x").
 
+    lat_name: str, optional
+        The name of the latitude coordinate in the input dataset. Default is "lat".
+
+    lon_name: str, optional
+        The name of the longitude coordinate in the input dataset. Default is "lon".
+
     Returns:
     xr.Dataset
         The dataset containing the mean over the selected gridbox.
@@ -762,19 +770,19 @@ def select_gridbox(
 
     # Assert that the latitudinal and longitudinal bounds for ds are -180 to 180
     assert (
-        ds["lon"].min().values >= -180.0 and ds["lon"].max().values <= 180.0
+        ds[lon_name].min().values >= -180.0 and ds[lon_name].max().values <= 180.0
     ), "The longitudinal bounds for the dataset are not -180 to 180"
     # Assert that the latitudinal bounds for ds are -90 to 90
     assert (
-        ds["lat"].min().values >= -90.0 and ds["lat"].max().values <= 90.0
+        ds[lat_name].min().values >= -90.0 and ds[lat_name].max().values <= 90.0
     ), "The latitudinal bounds for the dataset are not -90 to 90"
 
     # Set up the mask
     mask = (
-        (ds["lat"] >= lat1)
-        & (ds["lat"] <= lat2)
-        & (ds["lon"] >= lon1)
-        & (ds["lon"] <= lon2)
+        (ds[lat_name] >= lat1)
+        & (ds[lat_name] <= lat2)
+        & (ds[lon_name] >= lon1)
+        & (ds[lon_name] <= lon2)
     )
 
     # Mask the dataset
@@ -866,12 +874,27 @@ def load_regrid_obs(
         obs_path,
         combine="by_coords",
         parallel=True,
-    )[obs_variable]
+    )
+
+    # restrict to between the start and end years
+    obs = obs.sel(time=slice(f"{start_year}-01-01", f"{end_year}-12-31"))
 
     # If expver is present in the observations
     if "expver" in obs.coords:
         # Combine the first two expver variables
         obs = obs.sel(expver=1).combine_first(obs.sel(expver=5))
+
+    # print(obs.coords)
+    # print(ds_out.coords)
+
+    # print(obs.longitude.min(), obs.longitude.max())
+    # print(obs.latitude.min(), obs.latitude.max())
+    # print(ds_out.lon.min(), ds_out.lon.max())
+    # print(ds_out.lat.min(), ds_out.lat.max())
+
+    # Convert the lon and lat to 1D
+    ds_out['lon'] = ds_out['lon'].mean(dim='y')
+    ds_out['lat'] = ds_out['lat'].mean(dim='x')
 
     # Set up the regriidder
     regridder = xe.Regridder(
@@ -882,11 +905,15 @@ def load_regrid_obs(
     )
 
     # Perform the regridding
-    obs_rg = regridder(obs)
+    obs_rg = regridder(obs[obs_variable])
+
+    # print the coordinates
+    print("Coordinates of the regridded obs:", obs_rg.coords)
 
     # Extract the time series for the gridbox
-    obs_rg = obs_rg.sel(lat=slice(lat1, lat2), lon=slice(lon1, lon2)).mean(
-        dim=("lat", "lon")
+    obs_rg = select_gridbox(
+        ds=obs_rg,
+        grid=grid,
     )
 
     # If the type of time is numpy.datetime64
@@ -916,6 +943,9 @@ def load_regrid_obs(
 
         # Calculate the annual mean
         obs_rg = obs_rg.resample(time="Y").mean()
+
+    # Ensure the DataArray has a name
+    obs_rg.name = obs_variable
 
     # Convert to a pandas dataframe
     # with columns 'year' and 'value'
