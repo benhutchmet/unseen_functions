@@ -12,7 +12,7 @@ import xarray as xr
 import pandas as pd
 from tqdm import tqdm
 import seaborn as sns
-from scipy import stats, signal
+from scipy import stats, signal, genextreme, linregress
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import xesmf as xe
@@ -2776,6 +2776,7 @@ def plot_fidelity(
 
     return
 
+
 # Define a function for plotting the events
 # using the dataframes
 def plot_events_ts(
@@ -2796,21 +2797,21 @@ def plot_events_ts(
 ) -> None:
     """
     Plots the hindcast events on the same axis as the observed events.
-    
+
     Parameters
     ----------
-    
+
     obs_df: pd.DataFrame
         The DataFrame containing the observations with columns for the
         observation value and the observation time.
-        
+
     model_df: pd.DataFrame
         The DataFrame containing the model data with columns for the
         model value and the model time.
-        
+
     obs_val_name: str
         The name of the observation value column.
-        
+
     model_val_name: str
         The name of the model value column.
 
@@ -2819,10 +2820,10 @@ def plot_events_ts(
 
     model_name: str
         The name of the model. Default is "HadGEM3-GC31-MM".
-        
+
     obs_time_name: str
         The name of the observation time column. Default is "year".
-        
+
     model_time_name: str
         The name of the model time column. Default is "init".
 
@@ -2874,49 +2875,57 @@ def plot_events_ts(
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
     # Loop over the ensemble members
-    for member in model_df[model_member_name].unique():
+    for i, member in enumerate(model_df[model_member_name].unique()):
         # Seperate the data based on the condition
         model_data = model_df[model_df[model_member_name] == member]
 
         # Seperate data into below and above the threshold
-        model_data_below20 = model_data[model_data[model_val_name] < np.quantile(obs_df[obs_val_name], 0.2)]
+        # model_data_below20 = model_data[model_data[model_val_name] < np.quantile(obs_df[obs_val_name], 0.2)]
+
+        model_data_below20 = (
+            obs_df[obs_val_name].min() < model_data[model_val_name]
+        ) & (model_data[model_val_name] < np.quantile(obs_df[obs_val_name], 0.2))
 
         # Above the threshold
-        model_data_above20 = ~model_data_below20
+        model_data_above20 = (
+            model_data[model_val_name] >= obs_df[obs_val_name].min()
+        ) & ~model_data_below20
 
         # below the minimum of the obs
-        model_data_below_obs_min = model_data[model_data[model_val_name] < obs_df[obs_val_name].min()]
+        model_data_below_obs_min_bool = (
+            model_data[model_val_name] < obs_df[obs_val_name].min()
+        )
 
         # Plot the points below the 20th percentile
         ax.scatter(
-            model_data_below20[model_time_name],
-            model_data_below20[model_val_name],
+            model_data[model_data_below20][model_time_name],
+            model_data[model_data_below20][model_val_name],
             color="blue",
             alpha=0.8,
-            label="model wind drought" if member == 0 else None,
+            label="model wind drought" if i == 0 else None,
         )
 
         # Plot the points above the 20th percentile
         ax.scatter(
-            model_data_above20[model_time_name],
-            model_data_above20[model_val_name],
+            model_data[model_data_above20][model_time_name],
+            model_data[model_data_above20][model_val_name],
             color="grey",
             alpha=0.8,
-            label=model_name if member == 0 else None,
+            label=model_name if i == 0 else None,
         )
 
         # Plot the points below the minimum of the obs
         ax.scatter(
-            model_data_below_obs_min[model_time_name],
-            model_data_below_obs_min[model_val_name],
+            model_data[model_data_below_obs_min_bool][model_time_name],
+            model_data[model_data_below_obs_min_bool][model_val_name],
             color="red",
             alpha=0.8,
             marker="x",
-            label="model wind drought" if member == 0 else None,
+            label="model wind drought" if i == 0 else None,
         )
 
     # Plot the observed data
-    ax.plot(
+    ax.scatter(
         obs_df[obs_time_name],
         obs_df[obs_val_name],
         color="black",
@@ -2924,7 +2933,7 @@ def plot_events_ts(
     )
 
     # Plot the 20th percentile of the obs as a horizontal line
-    ax.axhline(np.quantile(obs_df[obs_val_name], 0.2), color="black", linestyle="--")
+    ax.axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
 
     # Plot the minimum of the obs as a horizontal line
     ax.axhline(obs_df[obs_val_name].min(), color="red", linestyle="--")
@@ -2956,3 +2965,411 @@ def plot_events_ts(
     return
 
 
+# Define a function to plot the events time series using boxplots
+# for the hindcast data
+def plot_events_ts_bp(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    ylabel: str,
+    model_name: str = "HadGEM3-GC31-MM",
+    obs_time_name: str = "year",
+    model_time_name: str = "init",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    delta_shift_bias: bool = False,
+    do_detrend: bool = False,
+    figsize: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the hindcast events on the same axis as the observed events using boxplots.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    ylabel: str
+        The y-axis label.
+
+    model_name: str
+        The name of the model. Default is "HadGEM3-GC31-MM".
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    delta_shift_bias: bool
+        Whether to shift the model data by the bias. Default is False.
+
+    do_detrend: bool
+        Whether to detrend the data. Default is False.
+
+    figsize: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Set up the years
+    years = obs_df[obs_time_name].unique()
+
+    # If bias shift is True
+    if delta_shift_bias:
+        print("Shifting the model data by the bias")
+        # Calculate the bias
+        bias = model_df[model_val_name].mean() - obs_df[obs_val_name].mean()
+
+        # Shift the model data by the bias
+        model_df[model_val_name] = model_df[model_val_name] - bias
+
+    # if do detrend is true
+    if do_detrend:
+        print("Detrending the data")
+        # Detrend the data
+        obs_df[obs_val_name] = signal.detrend(obs_df[obs_val_name])
+        model_df[model_val_name] = signal.detrend(model_df[model_val_name])
+
+    # Set up the figure with two subplots
+    # Set up the figure with two subplots with different widths
+    fig, axs = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=figsize,
+        sharey=True,
+        gridspec_kw={"width_ratios": [8, 1]},
+    )
+
+    # plot a horizontal line for the 20th percentil of the obs
+    axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
+
+    # plot a horizontal line for the minimum of the obs
+    axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+
+    # Loop over the years
+    for i, year in enumerate(years):
+        # Extract the model data for the year
+        model_data = model_df[model_df[model_time_name] == year]
+
+        # Plot the boxplot for the model data on the first subplot
+        axs[0].boxplot(
+            model_data[model_val_name],
+            positions=[year],
+            widths=0.6,
+            patch_artist=True,
+            boxprops=dict(facecolor="red", color="red"),
+            medianprops=dict(color="black"),
+            whiskerprops=dict(color="black"),
+            capprops=dict(color="black"),
+            zorder=1,
+            flierprops=dict(
+                marker="o",
+                markerfacecolor="k",
+                markersize=5,
+                linestyle="none",
+                markeredgecolor="k",
+                alpha=0.5,
+            ),  # Set flier properties
+        )
+
+    # Plot the observed data as blue crosses on the first subplot
+    axs[0].scatter(
+        years,
+        obs_df[obs_val_name],
+        color="blue",
+        marker="x",
+        label="ERA5",
+        zorder=2,
+    )
+
+    # Plot the boxplot for the observed data on the second subplot
+    axs[1].boxplot(
+        obs_df[obs_val_name],
+        positions=[1],
+        widths=0.6,
+        patch_artist=True,
+        boxprops=dict(facecolor="blue", color="blue"),
+        medianprops=dict(color="black"),
+        whiskerprops=dict(color="black"),
+        capprops=dict(color="black"),
+        zorder=1,
+        flierprops=dict(
+            marker="o",
+            markerfacecolor="k",
+            markersize=5,
+            linestyle="none",
+            markeredgecolor="k",
+        ),  # Set flier properties
+    )
+
+    # also include a red boxplot for the model data
+    axs[1].boxplot(
+        model_df[model_val_name],
+        positions=[2],
+        widths=0.6,
+        patch_artist=True,
+        boxprops=dict(facecolor="red", color="red"),
+        medianprops=dict(color="black"),
+        whiskerprops=dict(color="black"),
+        capprops=dict(color="black"),
+        zorder=1,
+        flierprops=dict(
+            marker="x",
+            markerfacecolor="k",
+            markersize=5,
+            linestyle="none",
+            markeredgecolor="k",
+            alpha=0.5,
+        ),  # Set flier properties
+    )
+
+    # Set the x-axis label
+    axs[0].set_xlabel("Year")
+
+    # Set the y-axis label
+    axs[0].set_ylabel(ylabel)
+
+    # print years min and max
+    print(f"The years min is {years.min()} and the years max is {years.max()}")
+
+    # # Format the x-ticks for ticks every 10 years
+    # ax.set_xticks(np.arange(years.min(), years.max() + 1, 10))
+
+    # shift years back by 1
+    years = years - 1
+
+    axs[0].set_xticks(range(years[0], years[-1] + 1, 10))
+    axs[0].set_xticklabels(range(years[0], years[-1] + 1, 10))
+
+    # Set the legend
+    axs[0].legend()
+
+    # specify a tight layout
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    # plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+
+    return
+
+
+# Write a function to create a GEV distribution which
+# is linearly related to the time period of the hindcast data
+# Then plot the return value plots for two periods specified
+# e.g. 1961-1981 and 1994-2014
+def plot_gev_return_values(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    ylabel: str,
+    model_name: str = "HadGEM3-GC31-MM",
+    obs_time_name: str = "year",
+    model_time_name: str = "init",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    delta_shift_bias: bool = False,
+    do_detrend: bool = False,
+    figsize: tuple = (10, 10),
+    rperiods: list = [
+        2,
+        5,
+        10,
+        20,
+        50,
+        80,
+        100,
+        120,
+        200,
+        250,
+        300,
+        500,
+        800,
+        2000,
+        5000,
+    ],
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the return values for the GEV distribution for two time periods.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    ylabel: str
+        The y-axis label.
+
+    model_name: str
+        The name of the model. Default is "HadGEM3-GC31-MM".
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    delta_shift_bias: bool
+        Whether to shift the model data by the bias. Default is False.
+
+    do_detrend: bool
+        Whether to detrend the data. Default is False.
+
+    figsize: tuple
+        The figure size. Default is (10, 10).
+
+    rperiods: list
+        The return periods to plot. Default is [2, 5, 10, 20, 50, 80, 100, 120, 200, 250, 300, 500, 800, 2000, 5000].
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Set up the years
+    years = obs_df[obs_time_name].unique()
+
+    # Print the min and max years
+    print(f"The minimum year is {years.min()} and the maximum year is {years.max()}")
+
+    # Call the RV_ci function for the first time period
+    rvs1 = RV_ci(
+        extremes=model_df[model_val_name],
+        covariate=model_df[model_time_name],
+        return_period=rperiods,
+        covariate_values=years,
+    )
+
+    return rvs1
+
+
+# Define a function to fit a GEV distribution to provided data
+# and then calculate the return values and confidence intervals for
+# a specified year/time period
+def RV_ci(
+    extremes: np.ndarray,
+    covariate: np.ndarray,
+    return_period: int,
+    covariate_values: np.ndarray,
+) -> np.ndarray:
+    """
+    Fits a GEV distribution to the provided data and calculates the
+    return values and confidence intervals for a specified year/time period.
+
+    Parameters
+    ----------
+
+    extremes: np.ndarray
+        The array of extreme values.
+        E.g. ONDJFM average 10m wind speeds
+
+    covariate: np.ndarray
+        The array of covariate values.
+
+    return_period: int
+        The return period.
+
+    covariate_values: np.ndarray
+        The array of covariate values.
+
+    Returns
+    -------
+
+    rvs: np.ndarray
+        The array of return values.
+
+    """
+
+    # Fit a GEV distribution to the extremes data
+    c, loc, scale = genextreme.fit(extremes)
+
+    # Fit a linear regression model to the location and scale parameters
+    loc_slope, loc_intercept, _, _, _ = linregress(covariate, loc)
+    scale_slope, scale_intercept, _, _, _ = linregress(covariate, scale)
+
+    # Plot a scatter between the covariate and the location parameter
+    plt.scatter(covariate, loc)
+
+    # Plot the linear regression line
+    plt.plot(
+        covariate_values,
+        loc_slope * covariate_values + loc_intercept,
+        color="red",
+        label="Location",
+    )
+
+    # Predict the location and scale parameters for the covariate values
+    loc_values = loc_slope * covariate_values + loc_intercept
+    scale_values = scale_slope * covariate_values + scale_intercept
+
+    # Calculate the return values for the predicted location and scale parameters
+    rvs = genextreme.ppf(
+        (1.0 - 1.0 / return_period), c, loc=loc_values, scale=scale_values
+    )
+
+    return rvs
