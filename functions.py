@@ -5,6 +5,7 @@ import os
 import sys
 import glob
 import random
+import re
 
 # Third party imports
 import numpy as np
@@ -12,11 +13,13 @@ import xarray as xr
 import pandas as pd
 from tqdm import tqdm
 import seaborn as sns
-from scipy import stats, signal, genextreme, linregress
+from scipy import stats, signal
+from scipy.stats import genextreme, linregress
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import xesmf as xe
 import matplotlib.cm as cm
+import cftime
 
 # Import types
 from typing import Any, Callable, Union, List
@@ -329,6 +332,7 @@ def load_model_data_xarray(
     first_fcst_year: int,
     last_fcst_year: int,
     months: list,
+    frequency: str = "Amon",
     engine: str = "netcdf4",
     parallel: bool = True,
 ):
@@ -377,6 +381,10 @@ def load_model_data_xarray(
         The months to take the time average over
         E.g. [10, 11, 12, 1, 2, 3] for October to March
 
+    frequency: str
+        The frequency of the data
+        Defaults to 'mon'
+
     engine: str
         The engine to use for opening the dataset
         Passed to xarray.open_mfdataset
@@ -411,7 +419,8 @@ def load_model_data_xarray(
     model_path = csv_data.loc[
         (csv_data["model"] == model)
         & (csv_data["experiment"] == experiment)
-        & (csv_data["variable"] == model_variable),
+        & (csv_data["variable"] == model_variable)
+        & (csv_data["frequency"] == frequency),
         "path",
     ].values[0]
 
@@ -459,7 +468,7 @@ def load_model_data_xarray(
         # Loop over the years
         for year in range(start_year, end_year + 1):
             # Form the path to the files for this year
-            year_path = f"{model_path}/s{year}-r*i?p?f?/Amon/{model_variable}/g?/files/d????????/*.nc"
+            year_path = f"{model_path}/s{year}-r*i?p?f?/{frequency}/{model_variable}/g?/files/d????????/*.nc"
 
             # Find the files for the given year
             year_files = glob.glob(year_path)
@@ -470,16 +479,25 @@ def load_model_data_xarray(
             # List the directories in model_path
             dirs = os.listdir(model_path)
 
-            # Split these by the delimiter '-'
-            dirs_split = [dir.split("-") for dir in dirs]
+            # Regular expression pattern for the desired format
+            pattern = re.compile(r"s\d{4}-(r\d+i\d+p\d+f\d+)")
+
+            # Extract the 'r*i?p?f?' part from each directory name
+            extracted_parts = [
+                pattern.match(dir).group(1) for dir in dirs if pattern.match(dir)
+            ]
+
+            # PRINT THE EXTRACTED PARTS
+            # print("Extracted parts:", extracted_parts)
 
             # Find the unique combinations of r*i*p?f?
-            unique_combinations = np.unique(dirs_split)
+            unique_combinations = np.unique(extracted_parts)
 
-            # Assert that the number of files is the same as the number of members
-            assert len(year_files) == len(
-                unique_combinations
-            ), "The number of files is not the same as the number of members"
+            # FIXME: daily HadGEM will have like 10 members split into diff times
+            # # Assert that the number of files is the same as the number of members
+            # assert len(year_files) == len(
+            #     unique_combinations
+            # ), "The number of files is not the same as the number of members"
     else:
         print("The model path root is neither gws nor badc")
         ValueError("The model path root is neither gws nor badc")
@@ -491,8 +509,8 @@ def load_model_data_xarray(
     print("Number of unique variant labels:", len(unique_variant_labels))
     print("For model:", model)
 
-    # print the unique variant labels
-    print("Unique variant labels:", unique_variant_labels)
+    # print the first 5 unique variant labels
+    print("First 10 unique variant labels:", unique_variant_labels[:10])
 
     # Create an empty list for forming the list of files for each ensemble member
     member_files = []
@@ -532,16 +550,27 @@ def load_model_data_xarray(
 
             for year in range(start_year, end_year + 1):
                 # Form the path to the files for this year
-                path = f"{model_path}/s{year}-r{variant_label}i?p?f?/Amon/{model_variable}/g?/files/d????????/*.nc"
+                path = f"{model_path}/s{year}-{variant_label}/{frequency}/{model_variable}/g?/files/d????????/*.nc"
 
                 # Find the files which match the path
                 year_files = glob.glob(path)
 
-                # Assert that the number of files is 1
-                assert len(year_files) == 1, "The number of files is not 1"
+                # # Assert that the number of files is 1
+                # if len(year_files) == 1:
+                #     # print that only one file was found
+                #     print(f"Only one file found for {year} and {variant_label}")
+                # elif len(year_files) > 1:
+                #     # print that more than one file was found
+                #     print(f"{len(year_files)} found for {year} and {variant_label}")
+                # else:
+                #     # print that no files were found
+                #     # print(f"No files found for {year} and {variant_label}")
 
-                # Append the file to the variant label files
-                variant_label_files.append(year_files[0])
+                #     # print that we are exiting
+                #     sys.exit()
+
+                # Append the files to the variant label files
+                variant_label_files.append(year_files)
 
             # Append the variant label files to the member files
             member_files.append(variant_label_files)
@@ -576,8 +605,24 @@ def load_model_data_xarray(
         first_fcst_year_idx = (first_fcst_year - start_year) - 1
         last_fcst_year_idx = last_fcst_year - first_fcst_year
 
-    # Flatten the member files list
-    member_files = [file for sublist in member_files for file in sublist]
+    # print the shape of member files
+    print("Shape of member files:", np.shape(member_files))
+
+    # if member_files has shape (x, y)
+    if len(np.shape(member_files)) == 2:
+        # Flatten the member files list
+        member_files = [file for sublist in member_files for file in sublist]
+    elif len(np.shape(member_files)) == 3:
+        # Flatten the member files list
+        member_files = [
+            file
+            for sublist1 in member_files
+            for sublist2 in sublist1
+            for file in sublist2
+        ]
+
+    # print the shape of flattened member files
+    print("Shape of flattened member files:", np.shape(member_files))
 
     init_year_list = []
     # Loop over init_years
@@ -591,14 +636,17 @@ def load_model_data_xarray(
         for variant_label in unique_variant_labels:
             # Find the matching path for the given year and member
             # e.g file containing f"s{init_year}-{variant_label}
-            file = [
+            files = [
                 file for file in member_files if f"s{init_year}-{variant_label}" in file
-            ][0]
+            ]
+
+            # # print how many files were found
+            # print(f"Found {len(files)} files for {init_year} and {variant_label}")
 
             # Open all leads for specified variant label
             # and init_year
             member_ds = xr.open_mfdataset(
-                file,
+                files,
                 combine="nested",
                 concat_dim="time",
                 preprocess=lambda ds: preprocess(ds),
@@ -612,10 +660,12 @@ def load_model_data_xarray(
             # init_year = start_year and variant_label is unique_variant_labels[0]
             if init_year == start_year and variant_label == unique_variant_labels[0]:
                 # Set new int time
-                member_ds = set_integer_time_axis(xro=member_ds, first_month_attr=True)
+                member_ds = set_integer_time_axis(
+                    xro=member_ds, frequency=frequency, first_month_attr=True
+                )
             else:
                 # Set new integer time
-                member_ds = set_integer_time_axis(member_ds)
+                member_ds = set_integer_time_axis(member_ds, frequency=frequency)
 
             # Append the member dataset to the member list
             member_list.append(member_ds)
@@ -637,6 +687,7 @@ def load_model_data_xarray(
 
 def set_integer_time_axis(
     xro: Union[xr.DataArray, xr.Dataset],
+    frequency: str = "Amon",
     offset: int = 1,
     time_dim: str = "time",
     first_month_attr: bool = False,
@@ -649,6 +700,9 @@ def set_integer_time_axis(
     Inputs:
     xro: xr.DataArray or xr.Dataset
         The input xarray DataArray or Dataset whose time axis is to be modified.
+
+    frequency: str, optional
+        The frequency of the data. Default is "Amon".
 
     offset: int, optional
         The starting point for the new integer time axis. Default is 1.
@@ -671,6 +725,9 @@ def set_integer_time_axis(
 
         # Add the first month as an attribute to the dataset
         xro.attrs["first_month"] = str(first_month)
+
+        # add an attribute for the type of the time axis
+        xro.attrs["time_axis_type"] = type(first_month).__name__
 
     xro[time_dim] = np.arange(offset, offset + xro[time_dim].size)
     return xro
@@ -807,6 +864,7 @@ def load_regrid_obs(
     rg_algo: str = "bilinear",
     grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
     periodic: bool = True,
+    aggregate_worst_months: bool = False,
 ) -> xr.Dataset:
     """
     Load and regrid the observations to a regular grid with specified bounds.
@@ -843,6 +901,9 @@ def load_regrid_obs(
 
     periodic: bool, optional
         Whether the input data is on a periodic grid. Default is True.
+
+    aggregate_worst_months: bool, optional
+        Whether to aggregate the worst months. Default is False.
 
     Returns:
 
@@ -934,14 +995,43 @@ def load_regrid_obs(
         # Remove the first months[-1] values
         obs_rg = obs_rg.isel(time=slice(months[-1], None))
 
-        # Calculate the annual mean
-        obs_rg = obs_rg.resample(time="Y").mean()
+        # if not aggregate_worst_months:
+        if not aggregate_worst_months:
+            print("Not aggregating the worst months")
+            # Calculate the annual mean
+            obs_rg = obs_rg.resample(time="Y").mean()
+        else:
+            print("Aggregating the lowest wind speed month for each winter")
+
+            # Select the month with the lowest value for each winter
+            # group by month and year, then select the month with the lowest value
+            obs_rg = (
+                obs_rg.groupby("time.year")
+                .apply(lambda x: x.where(x == x.min().compute(), drop=True))
+                .resample(time="Y")
+                .mean()
+            )
+
     else:
         # Select the months
         obs_rg = obs_rg.sel(time=obs_rg["time.month"].isin(months))
 
-        # Calculate the annual mean
-        obs_rg = obs_rg.resample(time="Y").mean()
+        # If not aggregate_worst_months
+        if not aggregate_worst_months:
+            print("Not aggregating the worst months")
+            # Calculate the annual mean
+            obs_rg = obs_rg.resample(time="Y").mean()
+        else:
+            print("Aggregating the lowest wind speed month for each winter")
+
+            # Select the month with the lowest value for each winter
+            # group by month and year, then select the month with the lowest value
+            obs_rg = (
+                obs_rg.groupby("time.year")
+                .apply(lambda x: x.where(x == x.min().compute(), drop=True))
+                .resample(time="Y")
+                .mean()
+            )
 
     # Ensure the DataArray has a name
     obs_rg.name = obs_variable
@@ -1808,6 +1898,104 @@ def lead_time_avg(
 
     # Return the dataset
     return avg_seq_da
+
+# define a function to select the months and extract the days
+def select_months(
+        ds: xr.Dataset,
+        months: List[int],
+        first_day: str,
+        first_time: str,
+        frequency: str,
+        lead_time_dim: str = "lead",
+        time_axis_type: str = "Datetime360Day",
+) -> xr.Dataset:
+    """
+    Selects the months of interests and extracts the days of the month as a lead time variable.
+    
+    Parameters
+    ----------
+    
+    ds: xr.Dataset
+        The input xarray Dataset to be averaged over the lead times.
+        
+    months: list[int]
+        The months to average over.
+        
+    first_day: str
+        The first month of the lead time in format "YYYY-MM-DD".
+        
+    first_time: str
+        The first time of the dataset in format "HH:MM:SS".
+
+    frequency: str
+        The frequency of the time axis.
+        E.g. "day" or "Amon".
+
+    lead_time_dim: str
+        The name of the lead time dimension in the input xarray object.
+        Default is "lead".
+
+    time_axis_type: str
+        The type of time axis.
+        Default is "Datetime360Day".
+
+    Returns
+    -------
+
+    ds_avg: xr.Dataset
+        The dataset for the specified months with lead as the days of the month.
+    """
+
+    # Ensure that the first month is formatted as a datetime object
+    first_day = pd.to_datetime(first_day)
+
+    # print the first day
+    print(f"The first day is {first_day}")
+
+    # Create a list to store the lead times in days
+    dates = []
+
+    # Loop over the lead times
+    for i in range(len(ds[lead_time_dim])):
+        if time_axis_type == "Datetime360Day":
+            # Calculate the number of years, months, and days to add
+            years_to_add = i // 360
+            months_to_add = (i % 360) // 30
+            days_to_add = (i % 360) % 30
+
+            # Calculate the new date
+            new_year = first_day.year + years_to_add
+            new_month = first_day.month + months_to_add
+            new_day = first_day.day + days_to_add
+
+            # Handle overflow of days
+            if new_day > 30:
+                new_day -= 30
+                new_month += 1
+
+            # Handle overflow of months
+            if new_month > 12:
+                new_month -= 12
+                new_year += 1
+
+            new_date = cftime.Datetime360Day(new_year, new_month, new_day)
+
+            # Add the new date to the list
+            dates.append(new_date)
+        else:
+            raise NotImplementedError("Only Datetime360Day is supported")
+
+    # Print the first date
+    print(f"The first date is {dates[0]}")
+    print(f"The last date is {dates[-1]}")
+
+    # Add the dates to a dataframe
+    dates_df = pd.DataFrame(dates, columns=["time"])
+
+    # return the dates
+    return dates_df
+
+
 
 
 def get_sequences(mask, len_months):
@@ -3347,6 +3535,17 @@ def RV_ci(
 
     # Fit a GEV distribution to the extremes data
     c, loc, scale = genextreme.fit(extremes)
+
+    # print these
+    print(f"The shape parameter is {c}")
+    print(f"The location parameter is {loc}")
+    print(f"The scale parameter is {scale}")
+
+    # print the covariate values
+    print(f"The covariate values are {covariate_values}")
+
+    # print the covariate shape
+    print(f"The covariate shape is {covariate.shape}")
 
     # Fit a linear regression model to the location and scale parameters
     loc_slope, loc_intercept, _, _, _ = linregress(covariate, loc)
