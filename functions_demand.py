@@ -15,6 +15,8 @@ import shapely.geometry as sgeom
 import pandas as pd
 import xarray as xr
 
+# import dictionaries from unseen_dictionaries.py
+import unseen_dictionaries as udicts
 
 # For CLEARHEADS, Hannah has already preprocessed the T2M data to
 # be at the NUTS0 level.
@@ -206,4 +208,92 @@ def calc_hdd_cdd(
 
     return df
 
+# Write a function which calculates the weather dependent demand
+# Based on the heating and cooling degree days and the demand coefficients
+def calc_national_wd_demand(
+    df: pd.DataFrame,
+    fpath_reg_coefs: str = udicts.demand_reg_coefs_path,
+    demand_year: float = 2017.0,
+    country_names: dict = udicts.countries_nuts_id,
+    time_name: str = "time",
+    hdd_name: str = "HDD",
+    cdd_name: str = "CDD",
+) -> pd.DataFrame:
+    """
+    Calculate the national weather dependent demand.
 
+    Parameters
+    ----------
+
+    df: pd.DataFrame
+        The CLEARHEADS data.
+
+    fpath_reg_coefs: str
+        The file path for the regression coefficients.
+
+    demand_years: float
+        The number of years to calculate the demand for.
+
+    country_names: dict
+        The dictionary of country names. Matched up the full country names
+        with the NUTS IDs.
+
+    Returns
+    -------
+
+    df: pd.DataFrame
+        The CLEARHEADS data with the national weather dependent demand.
+
+    """
+
+    # Loop over the columns in the DataFrame
+    for col in df.columns:
+        # Loop over the country names
+        for country_name, country_id in country_names.items():
+            print(f"Calculating demand for {country_name}")
+            print(f"Country ID: {country_id}")
+            # if the country id is in the column name
+            if country_id in col:
+                # Split the column name by _
+                col_split = col.split("_")
+
+                # Set up the new column name
+                new_col = f"{country_name}_{col_split[1]}"
+
+                # Update the column name
+                df = df.rename(columns={col: new_col})
+
+    # Load int the regression coefficients data
+    reg_coeffs = pd.read_csv(fpath_reg_coefs)
+
+    # Loop over the columns in the DataFrame
+    for reg_col in reg_coeffs.columns:
+        if reg_col != "Unnamed: 0":
+            # Split the column name by _regression
+            # e.g. Austria
+            country = reg_col.split("_regression")[0]
+
+            # if df contains f{country}_hdd and f{country}_cdd
+            if f"{country}_hdd" in df.columns and f"{country}_cdd" in df.columns:
+                # Extract the time coefficient for col
+                time_coeff = reg_coeffs.at['time', reg_col]
+
+                # Extract the hdd coefficient for col
+                hdd_coeff = reg_coeffs.at[hdd_name, reg_col]
+
+                # Extract the cdd coefficient for col
+                cdd_coeff = reg_coeffs.at[cdd_name, reg_col]
+
+                # print the coefficients
+                print(f"Time coefficient: {time_coeff}")
+                print(f"HDD coefficient: {hdd_coeff}")
+                print(f"CDD coefficient: {cdd_coeff}")
+
+                # Calculate the demand
+                df[f"{country}_demand"] = (
+                    (time_coeff * demand_year)
+                    + (hdd_coeff * df[f"{country}_hdd"])
+                    + (cdd_coeff * df[f"{country}_cdd"])
+                )
+
+    return df
