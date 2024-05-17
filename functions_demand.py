@@ -26,7 +26,7 @@ def load_clearheads(
     trend_level: float = -9999.0,
     index: str = "time_in_hours_from_first_jan_1950",
     columns: str = "NUTS",
-    time_units: str = "d",
+    time_units: str = "h",
     start_date: str = "1950-01-01",
     nuts_keys_name: str = "NUTS_keys",
     trend_levels_name: str = "trend_levels",
