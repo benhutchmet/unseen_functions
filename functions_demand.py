@@ -18,6 +18,7 @@ import xarray as xr
 # import dictionaries from unseen_dictionaries.py
 import unseen_dictionaries as udicts
 
+
 # For CLEARHEADS, Hannah has already preprocessed the T2M data to
 # be at the NUTS0 level.
 # So we will just load and use this data instead of going through the faff
@@ -100,7 +101,7 @@ def load_clearheads(
     # If the trend level is not -9999.0
     if trend_level != -9999.0:
         print(f"Extracting data with trend level {trend_level}")
-        
+
         # Extract the data
         trend_levels = ds[trend_levels_name].values
 
@@ -120,14 +121,14 @@ def load_clearheads(
     if trend_level != -9999.0:
         # Pivot the dataframe
         df = df.reset_index().pivot(
-            index=index, 
+            index=index,
             columns=columns,
             values="detrended_data",
         )
     else:
         # Pivot the dataframe
         df = df.reset_index().pivot(
-            index=index, 
+            index=index,
             columns=columns,
             values="timeseries_data",
         )
@@ -139,6 +140,7 @@ def load_clearheads(
     df.index = pd.to_datetime(df.index, unit=time_units, origin=start_date)
 
     return df
+
 
 #  Calculate the heating degree days and cooling degree days
 def calc_hdd_cdd(
@@ -184,7 +186,7 @@ def calc_hdd_cdd(
     # if the data is not already in daily format, resample to daily
     if df.index.freq != "D":
         print("Resampling to daily")
-        
+
         # Resample the data
         df = df.resample("D").mean()
 
@@ -208,14 +210,14 @@ def calc_hdd_cdd(
 
     return df
 
+
 # Write a function which calculates the weather dependent demand
 # Based on the heating and cooling degree days and the demand coefficients
 def calc_national_wd_demand(
     df: pd.DataFrame,
-    fpath_reg_coefs: str = udicts.demand_reg_coefs_path,
+    fpath_reg_coefs: str = "/home/users/benhutch/ERA5_energy_update/ERA5_Regression_coeffs_demand_model.csv",
     demand_year: float = 2017.0,
     country_names: dict = udicts.countries_nuts_id,
-    time_name: str = "time",
     hdd_name: str = "HDD",
     cdd_name: str = "CDD",
 ) -> pd.DataFrame:
@@ -232,11 +234,17 @@ def calc_national_wd_demand(
         The file path for the regression coefficients.
 
     demand_years: float
-        The number of years to calculate the demand for.
+        The year for the time coefficient.
 
     country_names: dict
         The dictionary of country names. Matched up the full country names
         with the NUTS IDs.
+
+    hdd_name: str
+        The name of the heating degree days.
+
+    cdd_name: str
+        The name of the cooling degree days.
 
     Returns
     -------
@@ -250,8 +258,8 @@ def calc_national_wd_demand(
     for col in df.columns:
         # Loop over the country names
         for country_name, country_id in country_names.items():
-            print(f"Calculating demand for {country_name}")
-            print(f"Country ID: {country_id}")
+            # print(f"Calculating demand for {country_name}")
+            # print(f"Country ID: {country_id}")
             # if the country id is in the column name
             if country_id in col:
                 # Split the column name by _
@@ -266,6 +274,9 @@ def calc_national_wd_demand(
     # Load int the regression coefficients data
     reg_coeffs = pd.read_csv(fpath_reg_coefs)
 
+    # Set the index to the first column
+    reg_coeffs.set_index('Unnamed: 0', inplace=True)
+
     # Loop over the columns in the DataFrame
     for reg_col in reg_coeffs.columns:
         if reg_col != "Unnamed: 0":
@@ -276,7 +287,7 @@ def calc_national_wd_demand(
             # if df contains f{country}_hdd and f{country}_cdd
             if f"{country}_hdd" in df.columns and f"{country}_cdd" in df.columns:
                 # Extract the time coefficient for col
-                time_coeff = reg_coeffs.at['time', reg_col]
+                time_coeff = reg_coeffs.loc["time", reg_col]
 
                 # Extract the hdd coefficient for col
                 hdd_coeff = reg_coeffs.at[hdd_name, reg_col]
@@ -285,9 +296,9 @@ def calc_national_wd_demand(
                 cdd_coeff = reg_coeffs.at[cdd_name, reg_col]
 
                 # print the coefficients
-                print(f"Time coefficient: {time_coeff}")
-                print(f"HDD coefficient: {hdd_coeff}")
-                print(f"CDD coefficient: {cdd_coeff}")
+                # print(f"Time coefficient: {time_coeff}")
+                # print(f"HDD coefficient: {hdd_coeff}")
+                # print(f"CDD coefficient: {cdd_coeff}")
 
                 # Calculate the demand
                 df[f"{country}_demand"] = (
@@ -297,3 +308,44 @@ def calc_national_wd_demand(
                 )
 
     return df
+
+# Define a function to save the dataframe
+def save_df(
+    df: pd.DataFrame,
+    fname: str,
+    fdir: str = "/gws/nopw/j04/canari/users/benhutch/met_to_energy_dfs",
+    ftype: str = "csv"
+) -> None:
+    """
+    Save the DataFrame.
+
+    Parameters
+    ----------
+
+    df: pd.DataFrame
+        The DataFrame to save.
+
+    fname: str
+        The filename to save the DataFrame.
+
+    fdir: str
+        The directory to save the DataFrame.
+
+    ftype: str
+        The file type to save the DataFrame.
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # If the file type is csv
+    if ftype == "csv":
+        # Save the DataFrame as a CSV
+        df.to_csv(f"{fdir}/{fname}.csv")
+    else:
+        raise NotImplementedError(f"File type {ftype} not implemented.")
+    
+    return None
