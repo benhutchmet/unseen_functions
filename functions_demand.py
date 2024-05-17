@@ -146,7 +146,6 @@ def calc_hdd_cdd(
     temp_suffix: str = "t2m",
     hdd_suffix: str = "hdd",
     cdd_suffix: str = "cdd",
-    index_name: str = "time_in_hours_from_first_jan_1950",
 ) -> pd.DataFrame:
     """
     Calculate the heating degree days and cooling degree days.
@@ -172,9 +171,6 @@ def calc_hdd_cdd(
     cdd_suffix: str
         The suffix for the cooling degree days.
 
-    index_name: str
-        The name of the index column.
-
     Returns
     -------
 
@@ -195,9 +191,12 @@ def calc_hdd_cdd(
 
     # Loop over the columns
     for col in df.columns:
+        # strip t2m from the column name
+        col_raw = col.replace(f"_{temp_suffix}", "")
+
         # set up the column names
-        hdd_col = f"{col}_{hdd_suffix}"
-        cdd_col = f"{col}_{cdd_suffix}"
+        hdd_col = f"{col_raw}_{hdd_suffix}"
+        cdd_col = f"{col_raw}_{cdd_suffix}"
 
         # Calculate the heating degree days
         df[hdd_col] = df[col].apply(lambda x: max(0, hdd_base - x))
@@ -206,3 +205,5 @@ def calc_hdd_cdd(
         df[cdd_col] = df[col].apply(lambda x: max(0, x - cdd_base))
 
     return df
+
+
