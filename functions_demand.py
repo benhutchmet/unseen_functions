@@ -137,3 +137,72 @@ def load_clearheads(
     df.index = pd.to_datetime(df.index, unit=time_units, origin=start_date)
 
     return df
+
+#  Calculate the heating degree days and cooling degree days
+def calc_hdd_cdd(
+    df: pd.DataFrame,
+    hdd_base: float = 15.5,
+    cdd_base: float = 22.0,
+    temp_suffix: str = "t2m",
+    hdd_suffix: str = "hdd",
+    cdd_suffix: str = "cdd",
+    index_name: str = "time_in_hours_from_first_jan_1950",
+) -> pd.DataFrame:
+    """
+    Calculate the heating degree days and cooling degree days.
+
+    Parameters
+    ----------
+
+    df: pd.DataFrame
+        The CLEARHEADS data.
+
+    hdd_base: float
+        The base temperature for the heating degree days.
+
+    cdd_base: float
+        The base temperature for the cooling degree days.
+
+    temp_suffix: str
+        The suffix for the temperature.
+
+    hdd_suffix: str
+        The suffix for the heating degree days.
+
+    cdd_suffix: str
+        The suffix for the cooling degree days.
+
+    index_name: str
+        The name of the index column.
+
+    Returns
+    -------
+
+    df: pd.DataFrame
+        The CLEARHEADS data with the heating degree days and cooling degree days.
+
+    """
+
+    # if the data is not already in daily format, resample to daily
+    if df.index.freq != "D":
+        print("Resampling to daily")
+        
+        # Resample the data
+        df = df.resample("D").mean()
+
+    # add the temperature suffix to the columns
+    df.columns = [f"{col}_{temp_suffix}" for col in df.columns]
+
+    # Loop over the columns
+    for col in df.columns:
+        # set up the column names
+        hdd_col = f"{col}_{hdd_suffix}"
+        cdd_col = f"{col}_{cdd_suffix}"
+
+        # Calculate the heating degree days
+        df[hdd_col] = df[col].apply(lambda x: max(0, hdd_base - x))
+
+        # Calculate the cooling degree days
+        df[cdd_col] = df[col].apply(lambda x: max(0, x - cdd_base))
+
+    return df
