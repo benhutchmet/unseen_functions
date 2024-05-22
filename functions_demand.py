@@ -16,9 +16,13 @@ from netCDF4 import Dataset
 import shapely.geometry as sgeom
 import pandas as pd
 import xarray as xr
+from tqdm import tqdm
 
 # import dictionaries from unseen_dictionaries.py
 import unseen_dictionaries as udicts
+
+# Specific imports from functions
+from functions import preprocess, set_integer_time_axis
 
 
 # For CLEARHEADS, Hannah has already preprocessed the T2M data to
@@ -143,6 +147,7 @@ def load_clearheads(
 
     return df
 
+
 # Write a function to load in the decadal prediction data for a given initialisation year
 def load_dcpp_data(
     model_variable: str,
@@ -158,43 +163,43 @@ def load_dcpp_data(
     """
     Load the decadal prediction data for a given initialisation year.
     Subsets the data to the European domain.
-    
+
     Parameters
     ----------
-    
+
     model_variable: str
         The variable to load from the model.
-        
+
     model: str
         The model to load the data from.
-        
+
     init_year: int
         The initialisation year to load the data for.
-        
+
     experiment: str
         The experiment to load the data from.
-        
+
     frequency: str
         The frequency of the data.
-        
+
     engine: str
         The engine to use to load the data.
-        
+
     parallel: bool
         Whether to load the data in parallel.
-        
+
     grid: dict
         The dictionary of the grid.
-        
+
     csv_fpath: str
         The file path for the CSV file.
-        
+
     Returns
     -------
-    
+
     ds: xr.Dataset
         The loaded decadal prediction data.
-        
+
     """
 
     # Try extracting the lat and lon bounds
@@ -203,21 +208,21 @@ def load_dcpp_data(
         lat1, lat2 = grid["lat1"], grid["lat2"]
     except KeyError:
         raise KeyError("Cannot extract lat and lon bounds from grid dictionary.")
-    
+
     # Check that the csv file exists
     if not os.path.exists(csv_fpath):
         raise FileNotFoundError(f"Cannot find the file {csv_fpath}")
-    
+
     # Load in the csv file
     csv_data = pd.read_csv(csv_fpath)
 
     # Extract the path for the given model, experiment and variable
     model_path = csv_data.loc[
-    (csv_data["model"] == model)
-    & (csv_data["experiment"] == experiment)
-    & (csv_data["variable"] == model_variable)
-    & (csv_data["frequency"] == frequency),
-    "path",
+        (csv_data["model"] == model)
+        & (csv_data["experiment"] == experiment)
+        & (csv_data["variable"] == model_variable)
+        & (csv_data["frequency"] == frequency),
+        "path",
     ].values[0]
 
     # Assert that theb model path exists
@@ -263,18 +268,67 @@ def load_dcpp_data(
         assert len(files) > 0, f"No files found for {init_year} in {model_path}"
     else:
         raise ValueError(f"Model path root {model_path_root} not recognised.")
-    
+
     # Extract the variants
-    variants = [file.split("/")[-1].split("_g")[0].split(f"_s{init_year}-")[1] for file in files]
+    variants = [
+        file.split("/")[-1].split("_g")[0].split(f"_s{init_year}-")[1] for file in files
+    ]
 
     # Print the unique variants
     print(f"Unique variants: {set(variants)}")
 
-    # print that we are exiting the function
-    print("Exiting function")
-    sys.exit()
+    # member list for the xr objects
+    member_list = []
 
-    return None
+    # Load the data by looping over the unique variants
+    for variant in tqdm(set(variants), desc="Loading data"):
+        # Find the variant files
+        variant_files = [file for file in files if f"s{init_year}-{variant}" in file]
+
+        # Open all leads for the specified variant
+        member_ds = xr.open_mfdataset(
+            variant_files,
+            combine="nested",
+            concat_dim="time",
+            preprocess=lambda ds: preprocess(ds), # define preprocess function
+            parallel=parallel,
+            engine=engine,
+            coords="minimal", # explicitly set coords to minimal
+            data_vars="minimal", # explicitly set data_vars to minimal
+            compat="override", # override the default behaviour
+        ).squeeze() # remove any dimensions of length 1
+
+        # if variant_label = set(variants)[0]
+        if variant == list(set(variants))[0]:
+            # Set new integer time axis
+            member_ds = set_integer_time_axis(
+                xro=member_ds,
+                frequency=frequency,
+                first_month_attr=True,
+            )
+        else:
+            # Set new integer time axis
+            member_ds = set_integer_time_axis(
+                xro=member_ds,
+                frequency=frequency,
+                first_month_attr=False,
+            )
+
+        # Append the member dataset to the list
+        member_list.append(member_ds)
+
+    # Concatenate the member list by the member dimension
+    ds = xr.concat(member_list, dim="member")
+
+    # extract the data for the variable
+    ds = ds[model_variable]
+
+    # Chunk the data
+    ds = ds.chunk({"time": "auto", "lat": "auto", "lon": "auto", "member": "auto"})
+
+    return ds
+
+# Define a function to perform the bias correction
 
 
 
@@ -411,7 +465,7 @@ def calc_national_wd_demand(
     reg_coeffs = pd.read_csv(fpath_reg_coefs)
 
     # Set the index to the first column
-    reg_coeffs.set_index('Unnamed: 0', inplace=True)
+    reg_coeffs.set_index("Unnamed: 0", inplace=True)
 
     # Loop over the columns in the DataFrame
     for reg_col in reg_coeffs.columns:
@@ -445,12 +499,13 @@ def calc_national_wd_demand(
 
     return df
 
+
 # Define a function to save the dataframe
 def save_df(
     df: pd.DataFrame,
     fname: str,
     fdir: str = "/gws/nopw/j04/canari/users/benhutch/met_to_energy_dfs",
-    ftype: str = "csv"
+    ftype: str = "csv",
 ) -> None:
     """
     Save the DataFrame.
@@ -483,8 +538,9 @@ def save_df(
         df.to_csv(f"{fdir}/{fname}.csv")
     else:
         raise NotImplementedError(f"File type {ftype} not implemented.")
-    
+
     return None
+
 
 # define a main function for testing
 def main():
@@ -496,7 +552,7 @@ def main():
     frequency = "day"
 
     # load the data
-    load_dcpp_data(
+    ds = load_dcpp_data(
         model_variable=model_variable,
         model=model,
         init_year=init_year,
@@ -505,6 +561,7 @@ def main():
     )
 
     return None
+
 
 # Run the main function
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ from typing import Any, Callable, Union, List
 
 
 # Path to modules
+sys.path.append("/home/users/benhutch/unseen_multi_year/")
 import dictionaries as dicts
 
 
