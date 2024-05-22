@@ -80,3 +80,11 @@ countries_nuts_id = {
     "Ukraine": "UA",
     "United_Kingdom": "UK",
 }
+
+# Europe grid to subset to
+eu_grid = {
+    "lon1": -40,  # degrees east
+    "lon2": 30,
+    "lat1": 30,  # degrees north
+    "lat2": 80,
+}

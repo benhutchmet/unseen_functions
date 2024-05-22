@@ -7,6 +7,8 @@ Before moving on to see whether decadal predictions can be used for this.
 """
 
 import glob
+import os
+import sys
 
 import numpy as np
 import cartopy.io.shapereader as shpreader
@@ -140,6 +142,140 @@ def load_clearheads(
     df.index = pd.to_datetime(df.index, unit=time_units, origin=start_date)
 
     return df
+
+# Write a function to load in the decadal prediction data for a given initialisation year
+def load_dcpp_data(
+    model_variable: str,
+    model: str,
+    init_year: int,
+    experiment: str = "dcppA-hindcast",
+    frequency: str = "day",
+    engine: str = "netcdf4",
+    parallel: bool = True,
+    grid: dict = udicts.eu_grid,
+    csv_fpath: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+) -> xr.Dataset:
+    """
+    Load the decadal prediction data for a given initialisation year.
+    Subsets the data to the European domain.
+    
+    Parameters
+    ----------
+    
+    model_variable: str
+        The variable to load from the model.
+        
+    model: str
+        The model to load the data from.
+        
+    init_year: int
+        The initialisation year to load the data for.
+        
+    experiment: str
+        The experiment to load the data from.
+        
+    frequency: str
+        The frequency of the data.
+        
+    engine: str
+        The engine to use to load the data.
+        
+    parallel: bool
+        Whether to load the data in parallel.
+        
+    grid: dict
+        The dictionary of the grid.
+        
+    csv_fpath: str
+        The file path for the CSV file.
+        
+    Returns
+    -------
+    
+    ds: xr.Dataset
+        The loaded decadal prediction data.
+        
+    """
+
+    # Try extracting the lat and lon bounds
+    try:
+        lon1, lon2 = grid["lon1"], grid["lon2"]
+        lat1, lat2 = grid["lat1"], grid["lat2"]
+    except KeyError:
+        raise KeyError("Cannot extract lat and lon bounds from grid dictionary.")
+    
+    # Check that the csv file exists
+    if not os.path.exists(csv_fpath):
+        raise FileNotFoundError(f"Cannot find the file {csv_fpath}")
+    
+    # Load in the csv file
+    csv_data = pd.read_csv(csv_fpath)
+
+    # Extract the path for the given model, experiment and variable
+    model_path = csv_data.loc[
+    (csv_data["model"] == model)
+    & (csv_data["experiment"] == experiment)
+    & (csv_data["variable"] == model_variable)
+    & (csv_data["frequency"] == frequency),
+    "path",
+    ].values[0]
+
+    # Assert that theb model path exists
+    assert os.path.exists(model_path), f"Cannot find the model path {model_path}"
+
+    # Assert that the model path is not empty
+    assert os.listdir(model_path), f"Model path {model_path} is empty"
+
+    # print the model path
+    print(f"Model path: {model_path}")
+
+    # Extract the root of the model path
+    model_path_root = model_path.split("/")[1]
+
+    # print the model path root
+    print(f"Model path root: {model_path_root}")
+
+    # Depending on the model path root, load the data differently
+    if model_path_root == "gws":
+        print("Loading data from JASMIN GWS")
+
+        # glob the files in the directory containing the initialisation year
+        files = glob.glob(os.path.join(model_path, f"*{init_year}*"))
+
+        # print the len of the files
+        print(f"Number of files: {len(files)}")
+
+        # Assert that there are files
+        assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+    elif model_path_root == "badc":
+        print("Loading data from BADC")
+
+        # Form the path to the data
+        year_path = f"{model_path}/s{init_year}-r*i?p?f?/{frequency}/{model_variable}/g?/files/d????????/*.nc"
+
+        # glob the files in the directory containing the initialisation year
+        files = glob.glob(year_path)
+
+        # print the len of the files
+        print(f"Number of files: {len(files)} for {init_year} in {model_path}")
+
+        # Assert that there are files
+        assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+    else:
+        raise ValueError(f"Model path root {model_path_root} not recognised.")
+    
+    # Extract the variants
+    variants = [file.split("/")[-1].split("_g")[0].split(f"_s{init_year}-")[1] for file in files]
+
+    # Print the unique variants
+    print(f"Unique variants: {set(variants)}")
+
+    # print that we are exiting the function
+    print("Exiting function")
+    sys.exit()
+
+    return None
+
 
 
 #  Calculate the heating degree days and cooling degree days
@@ -349,3 +485,27 @@ def save_df(
         raise NotImplementedError(f"File type {ftype} not implemented.")
     
     return None
+
+# define a main function for testing
+def main():
+    # set up the args
+    model_variable = "tas"
+    model = "HadGEM3-GC31-MM"
+    init_year = 1960
+    experiment = "dcppA-hindcast"
+    frequency = "day"
+
+    # load the data
+    load_dcpp_data(
+        model_variable=model_variable,
+        model=model,
+        init_year=init_year,
+        experiment=experiment,
+        frequency=frequency,
+    )
+
+    return None
+
+# Run the main function
+if __name__ == "__main__":
+    main()
