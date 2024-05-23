@@ -9,6 +9,7 @@ Before moving on to see whether decadal predictions can be used for this.
 import glob
 import os
 import sys
+import re
 
 import numpy as np
 import cartopy.io.shapereader as shpreader
@@ -152,7 +153,7 @@ def load_clearheads(
 def load_dcpp_data(
     model_variable: str,
     model: str,
-    init_year: int,
+    init_years: list[int],
     experiment: str = "dcppA-hindcast",
     frequency: str = "day",
     engine: str = "netcdf4",
@@ -173,8 +174,8 @@ def load_dcpp_data(
     model: str
         The model to load the data from.
 
-    init_year: int
-        The initialisation year to load the data for.
+    init_years: int
+        The initialisation years to load the data for.
 
     experiment: str
         The experiment to load the data from.
@@ -240,85 +241,124 @@ def load_dcpp_data(
     # print the model path root
     print(f"Model path root: {model_path_root}")
 
+    agg_files = []
+
     # Depending on the model path root, load the data differently
     if model_path_root == "gws":
         print("Loading data from JASMIN GWS")
 
-        # glob the files in the directory containing the initialisation year
-        files = glob.glob(os.path.join(model_path, f"*{init_year}*"))
+        # Loop over the initialisation years
+        for init_year in init_years:
+            # glob the files in the directory containing the initialisation year
+            files = glob.glob(os.path.join(model_path, f"*{init_year}*"))
 
-        # print the len of the files
-        print(f"Number of files: {len(files)}")
+            # # print the len of the files
+            # print(f"Number of files: {len(files)}")
 
-        # Assert that there are files
-        assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+            # Assert that there are files
+            assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+
+            # Append the files to the aggregated files list
+            agg_files.extend(files)
     elif model_path_root == "badc":
         print("Loading data from BADC")
 
-        # Form the path to the data
-        year_path = f"{model_path}/s{init_year}-r*i?p?f?/{frequency}/{model_variable}/g?/files/d????????/*.nc"
+        # Loop over the initialisation years
+        for init_year in init_years:
+            # Form the path to the data
+            year_path = f"{model_path}/s{init_year}-r*i?p?f?/{frequency}/{model_variable}/g?/files/d????????/*.nc"
 
-        # glob the files in the directory containing the initialisation year
-        files = glob.glob(year_path)
+            # glob the files in the directory containing the initialisation year
+            files = glob.glob(year_path)
 
-        # print the len of the files
-        print(f"Number of files: {len(files)} for {init_year} in {model_path}")
+            # # print the len of the files
+            # print(f"Number of files: {len(files)} for {init_year} in {model_path}")
 
-        # Assert that there are files
-        assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+            # Assert that there are files
+            assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+
+            # Append the files to the aggregated files list
+            agg_files.extend(files)
+
     else:
         raise ValueError(f"Model path root {model_path_root} not recognised.")
 
     # Extract the variants
     variants = [
-        file.split("/")[-1].split("_g")[0].split(f"_s{init_year}-")[1] for file in files
+        re.split(r'_s....-', agg_files.split("/")[-1].split("_g")[0])[1] for agg_files in files
     ]
 
     # Print the unique variants
     print(f"Unique variants: {set(variants)}")
 
-    # member list for the xr objects
-    member_list = []
+    # print the shape of the agg_files
+    print(f"Shape of agg_files: {len(agg_files)}")
 
-    # Load the data by looping over the unique variants
-    for variant in tqdm(set(variants), desc="Loading data"):
-        # Find the variant files
-        variant_files = [file for file in files if f"s{init_year}-{variant}" in file]
+    # Set up the init_year list
+    init_year_list = []
 
-        # Open all leads for the specified variant
-        member_ds = xr.open_mfdataset(
-            variant_files,
-            combine="nested",
-            concat_dim="time",
-            preprocess=lambda ds: preprocess(ds), # define preprocess function
-            parallel=parallel,
-            engine=engine,
-            coords="minimal", # explicitly set coords to minimal
-            data_vars="minimal", # explicitly set data_vars to minimal
-            compat="override", # override the default behaviour
-        ).squeeze() # remove any dimensions of length 1
+    # Loop over the initialisation years
+    for init_year in tqdm(init_years, desc="Loading data"):
+        # member list for the xr objects
+        member_list = []
 
-        # if variant_label = set(variants)[0]
-        if variant == list(set(variants))[0]:
-            # Set new integer time axis
-            member_ds = set_integer_time_axis(
-                xro=member_ds,
-                frequency=frequency,
-                first_month_attr=True,
-            )
-        else:
-            # Set new integer time axis
-            member_ds = set_integer_time_axis(
-                xro=member_ds,
-                frequency=frequency,
-                first_month_attr=False,
-            )
+        # Load the data by looping over the unique variants
+        for variant in set(variants):
+            # Find the variant files
+            variant_files = [file for file in agg_files if f"s{init_year}-{variant}" in file]
 
-        # Append the member dataset to the list
-        member_list.append(member_ds)
+            # Open all leads for the specified variant
+            member_ds = xr.open_mfdataset(
+                variant_files,
+                combine="nested",
+                concat_dim="time",
+                preprocess=lambda ds: preprocess(ds),  # define preprocess function
+                parallel=parallel,
+                engine=engine,
+                coords="minimal",  # explicitly set coords to minimal
+                data_vars="minimal",  # explicitly set data_vars to minimal
+                compat="override",  # override the default behaviour
+            ).squeeze()  # remove any dimensions of length 1
 
-    # Concatenate the member list by the member dimension
-    ds = xr.concat(member_list, dim="member")
+            # if variant_label = set(variants)[0]
+            if init_year == init_years[0] and variant == list(set(variants))[0]:
+                # Set new integer time axis
+                member_ds = set_integer_time_axis(
+                    xro=member_ds,
+                    frequency=frequency,
+                    first_month_attr=True,
+                )
+            else:
+                # Set new integer time axis
+                member_ds = set_integer_time_axis(
+                    xro=member_ds,
+                    frequency=frequency,
+                    first_month_attr=False,
+                )
+
+            # Append the member dataset to the list
+            member_list.append(member_ds)
+
+        # Concatenate the member list by the member dimension
+        ds = xr.concat(member_list, dim="member")
+
+        # Append the dataset to the init_year list
+        init_year_list.append(ds)
+    # Concatenate the init_year list by the init_year dimension
+    ds = xr.concat(init_year_list, "init").rename({"time": "lead"})
+
+    # Set up the members
+    ds["member"] = np.arange(1, ds.sizes["member"] + 1)
+    ds['init'] = init_years
+
+    # print the dataset
+    print(ds)
+
+    # print that we are exiting the script
+    print("Exiting the script.")
+    print("--------------------")
+    sys.exit()
+
 
     # extract the data for the variable
     ds = ds[model_variable]
@@ -328,8 +368,95 @@ def load_dcpp_data(
 
     return ds
 
-# Define a function to perform the bias correction
 
+# Define a function to perform the bias correction
+def calc_bc_coeffs(
+    model_variable: str,
+    model: str,
+    experiment: str,
+    start_year: int,
+    end_year: int,
+    month: int,
+    grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
+    rg_algo: str = "bilinear",
+    periodic: bool = True,
+    grid: dict = udicts.eu_grid,
+    lead_months: int = 17,  # For HadGEM3-GC31-MM all lead months until end of first ONDJFM winter
+    frequency: str = "day",
+    engine: str = "netcdf4",
+    parallel: bool = True,
+    csv_fpath: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+    obs_fpath: str = "DOWNLOAD_FILE",
+    obs_variable: str = "tas",
+) -> xr.DataArray:
+    """
+    Calculate the bias correction coefficients for each model, month, lat,
+    and lon for a given model and experiment.
+    Using the bias correction from Luo et al. (2018) (doi:10.3390/w10081046).
+
+    Parameters
+    ----------
+
+    model_variable: str
+        The variable to load from the model.
+
+    model: str
+        The model to load the data from.
+
+    experiment: str
+        The experiment to load the data from.
+
+    start_year: int
+        The start year for the bias correction.
+
+    end_year: int
+        The end year for the bias correction.
+
+    month: int
+        The month for the bias correction.
+
+    grid_bounds: list[float]
+        The grid bounds for the global grid.
+
+    rg_algo: str
+        The regridding algorithm to use.
+
+    periodic: bool
+        Whether the grid is periodic.
+
+    grid: dict
+        The dictionary of the grid.
+
+    lead_months: int
+        The number of lead months to load.
+
+    frequency: str
+        The frequency of the data.
+
+    engine: str
+        The engine to use to load the data.
+
+    parallel: bool
+        Whether to load the data in parallel.
+
+    csv_fpath: str
+        The file path for the CSV file.
+
+    obs_fpath: str
+        The file path for the observations.
+
+    obs_variable: str
+        The variable to load from the observations.
+
+    Returns
+    -------
+
+    bc_coeffs: xr.DataArray
+        The bias correction coefficients with shape (lat, lon).
+
+    """
+
+    # First load in the model data
 
 
 #  Calculate the heating degree days and cooling degree days
@@ -547,7 +674,7 @@ def main():
     # set up the args
     model_variable = "tas"
     model = "HadGEM3-GC31-MM"
-    init_year = 1960
+    init_years = np.arange(1960, 1965 + 1)
     experiment = "dcppA-hindcast"
     frequency = "day"
 
@@ -555,7 +682,7 @@ def main():
     ds = load_dcpp_data(
         model_variable=model_variable,
         model=model,
-        init_year=init_year,
+        init_years=init_years,
         experiment=experiment,
         frequency=frequency,
     )
