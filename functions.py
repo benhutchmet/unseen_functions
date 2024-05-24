@@ -1885,6 +1885,9 @@ def lead_time_avg(
         # Extract the indices of the sequence
         idx = [i for _, i in sequence]
 
+        # print the indices
+        print(f"The indices of sequence {i} are {idx}")
+
         # Take the mean over the sequence of lead
         seq_mean = ds.isel(lead=idx).mean(dim=lead_time_dim)
 
@@ -1997,9 +2000,27 @@ def select_months(
     return dates_df
 
 
-
-
 def get_sequences(mask, len_months):
+    """
+    Get the sequences of True values in the mask which have length equal to
+    the number of months in the mask list.
+    
+    Parameters
+    ----------
+    
+    mask: list[bool]
+        The mask of True and False values.
+        
+    len_months: int
+        The number of months in the mask list.
+
+    Returns
+    -------
+
+    sequences: list[list[tuple]]
+        A list of sequences of True values in the mask which have length equal to
+
+    """
     sequences = []
     sequence = []
     for i, value in enumerate(mask):
@@ -2069,7 +2090,11 @@ def independence_test(
     corr_matrix = np.zeros((n_leads, len(members), len(members)))
 
     # Loop over the lead times
-    for lead in tqdm(range(n_leads), desc="Calculating correlations"):
+    for lead in tqdm(range(1, n_leads + 1), desc="Calculating correlations"):
+
+        # print the lead index
+        print(f"Calculating correlations for lead {lead}")
+
         # Loop over the ensemble members
         for i, m1 in enumerate(members):
             for j, m2 in enumerate(members):
@@ -2093,7 +2118,7 @@ def independence_test(
                     corr = stats.spearmanr(m1_data, m2_data)[0]
 
                     # Store the correlation in the matrix
-                    corr_matrix[lead, i, j] = corr
+                    corr_matrix[lead - 1, i, j] = corr
 
     return corr_matrix
 
@@ -2139,13 +2164,13 @@ def plot_independence(
     ax.axhline(0, color="black", linestyle="--", linewidth=0.5, alpha=0.8)
 
     # Loop over the lead times
-    for lead in tqdm(range(corr_matrix.shape[0])):
+    for lead in tqdm(range(corr_matrix.shape[0]), desc="Plotting correlations"):
         # Flatten the correlation matrix
         corr_flat = corr_matrix[lead, :, :].flatten()
 
         # Plot the correlation matrix as a boxplot
         # using matplotlib
-        ax.boxplot(corr_flat, positions=[lead], widths=0.8, whis=[5, 95])
+        ax.boxplot(corr_flat, positions=[lead + 1], widths=0.8, whis=[5, 95])
 
     # Set the x-axis label
     ax.set_xlabel("Lead time")
@@ -2154,22 +2179,21 @@ def plot_independence(
     ax.set_ylabel("Spearman correlation")
 
     # Set the x-ticks
-    ax.set_xticks(range(corr_matrix.shape[0]))
-
+    ax.set_xticks(range(1, corr_matrix.shape[0] + 1))
     # Set the x-tick labels
     ax.set_xticklabels(range(1, corr_matrix.shape[0] + 1))
 
-    # # Set the current time
-    # now = datetime.now()
+    # Set the current time
+    now = datetime.now()
 
-    # # Set the current date
-    # date = now.strftime("%Y-%m-%d")
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
 
-    # # Set the current time
-    # time = now.strftime("%H:%M:%S")
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
 
-    # # Save the plot
-    # plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"corr_ensemble_members_{date}_{time}.pdf"))
 
     return
 
@@ -2708,6 +2732,14 @@ def model_stability_boot(
     # Add a legend
     plt.legend()
 
+    # Set up the time now
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"stability_EV_{today}_{time}.pdf"))
+
     # Show the plot
     plt.show()
 
@@ -2951,17 +2983,16 @@ def plot_fidelity(
             zorder=100,
         )
 
-    # show the plot
-    plt.show()
-
-    # Set up teh current time in d m y h m s
+    # # Set up teh current time in d m y h m s
     now = datetime.now()
     date = now.strftime("%Y-%m-%d")
     time = now.strftime("%H:%M:%S")
 
-    # FIXME: JASMIN GWS not working currently 15/05/24
     # # Save the plot
-    # plt.savefig(os.path.join(save_dir, f"fidelity_{date}_{time}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"fidelity_{date}_{time}.pdf"))
+
+    # show the plot
+    plt.show()
 
     return
 
@@ -3358,15 +3389,11 @@ def plot_events_ts_bp(
 
     axs[0].set_xticks(range(years[0], years[-1] + 1, 10))
     axs[0].set_xticklabels(range(years[0], years[-1] + 1, 10))
-
     # Set the legend
     axs[0].legend()
 
     # specify a tight layout
     plt.tight_layout()
-
-    # Show the plot
-    plt.show()
 
     # Set the current time
     now = datetime.now()
@@ -3378,7 +3405,10 @@ def plot_events_ts_bp(
     time = now.strftime("%H:%M:%S")
 
     # Save the plot
-    # plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+
+    # Show the plot
+    plt.show()
 
     return
 
