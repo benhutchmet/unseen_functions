@@ -14,6 +14,7 @@ import re
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
 import pandas as pd
 import xesmf as xe
 from tqdm import tqdm
@@ -369,6 +370,171 @@ def load_and_rg_obs(
     # return the regridded data
     return obs_rg
 
+
+# Define a function to calculate and plot the bias
+# saving the output
+def calc_and_plot_bias(
+    model_ds: xr.Dataset,
+    obs_ds: xr.Dataset,
+    month_idx: int,
+    lead_time: int,
+    init_years: list[int],
+    variable: str,
+    month_name: str,
+    figsize: tuple = (12, 6),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    save: bool = True,
+):
+    """
+    Calculate and plot the bias between the model and observed data.
+    for the mean and sigma. For a single variable and lead time.
+
+    Parameters
+    ----------
+
+    model_ds : xr.Dataset
+        The model dataset to calculate the bias for.
+    obs_ds : xr.Dataset
+        The observed dataset to calculate the bias for.
+    month_idx : int
+        The index of the month to calculate the bias for.
+    lead_time : int
+        The lead time to calculate the bias for.
+    variable : str
+        The variable to calculate the bias for.
+    month_name : str
+        The name of the month to calculate the bias for.
+    figsize : tuple, optional
+        The size of the figure to plot, by default (12, 6).
+    save_dir : str, optional
+        The directory to save the plots to, by default "/gws/nopw/j04/canari/users/benhutch/plots/".
+    save : bool, optional
+        Whether to save the plots, by default True.
+
+    Returns
+    -------
+
+    """
+
+    # Select the month idx from the model data
+    assert month_idx != 0, "Month index cannot be 0."
+
+    # Find the mean(dim=y) values of lon, which are not nan
+    lons = model_ds["lon"].mean(dim="y").dropna("x")
+
+    # print the lons
+    print(f"Lon min: {lons.min().values}, Lon max: {lons.max().values}")
+
+    # Find the mean(dim=x) values of lat, which are not nan
+    lats = model_ds["lat"].mean(dim="x").dropna("y")
+
+    # print the lats
+    print(f"Lats: {lats}")
+
+    # Select the month from the model data
+    model_month = model_ds.sel(lead=month_idx)
+
+    # Find the month at the correct month_idx in the obs
+    obs_month = obs_ds.time.dt.month[month_idx - 1]
+
+    # print the obs_month
+    print(f"Obs month: {obs_month}")
+
+    # Select the month from the obs data
+    obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
+
+    # Calculate the bias as model_mean - obs_mean
+    mean_bias = model_month.mean(
+        dim=["init", "member"], skipna=True
+    ) - obs_month_data.mean(dim="time")
+
+    # Calculate the bias as model_sigma - obs_sigma
+    sigma_bias = model_month.std(
+        dim=["init", "member"], skipna=True
+    ) - obs_month_data.std(dim="time")
+
+    # Find the lats at which the mean bias is not nan
+    
+
+    # drop the nan values
+    mean_bias = mean_bias.dropna("y", how="all").dropna("x", how="all")
+
+    # drop the nan values
+    sigma_bias = sigma_bias.dropna("y", how="all").dropna("x", how="all")
+
+    # Set up the figure
+    fig, ax = plt.subplots(1, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
+
+    # Plot the mean bias
+    # Plot the mean bias
+    mean_bias.plot(
+        ax=ax[0],
+        cmap="coolwarm",
+        add_colorbar=True,
+        vmin=-10,
+        vmax=10,
+        transform=ccrs.PlateCarree(),
+    )
+
+    # Plot the sigma bias
+    sigma_bias.plot(
+        ax=ax[1],
+        cmap="coolwarm",
+        add_colorbar=True,
+        vmin=-5,
+        vmax=5,
+        transform=ccrs.PlateCarree(),
+    )
+
+    # add coastlines
+    ax[0].coastlines()
+
+    # add coastlines
+    ax[1].coastlines()
+
+    # Set the title
+    ax[0].set_title(
+        f"mean bias"
+    )
+
+    # Set the title
+    ax[1].set_title(
+        f"sigma Bias"
+    )
+
+    # Set up the super title
+    fig.suptitle(
+        f"{variable} bias for {month_name} lead {lead_time} years {init_years[0]}-{init_years[-1]}"
+    )
+
+    # Set the xlabel
+    ax[0].set_xlabel("Longitude")
+
+    # Set the xlabel
+    ax[1].set_xlabel("Longitude")
+
+    # Set the ylabel
+    ax[0].set_ylabel("Latitude")
+
+    # Set up the current time
+    current_time = time.strftime("%Y%m%dT%H%M%S")
+
+    # Set up the fname
+    fname = f"{variable}_bias_{month_name}_lead{lead_time}_init{init_years[0]}-{init_years[-1]}_{current_time}.pdf"
+
+    # If save is True
+    if save and not os.path.exists(os.path.join(save_dir, fname)):
+        print(f"Saving figure to {os.path.join(save_dir, fname)}")
+        # Save the figure
+        fig.savefig(os.path.join(save_dir, fname))
+
+    # Show the plot
+    plt.show()
+
+    # return None
+    return None
+
+
 # define a main function for testing
 def main():
     # Start a timer
@@ -443,6 +609,20 @@ def main():
 
     # print the ds
     print(f"DS: {ds}")
+
+    # Test the plot bias function
+    calc_and_plot_bias(
+        model_ds=ds,
+        obs_ds=obs,
+        month_idx=1,
+        lead_time=lead_time,
+        init_years=init_years,
+        variable=variable,
+        month_name="November",
+        figsize=(12, 6),
+        save_dir="/gws/nopw/j04/canari/users/benhutch/plots/",
+        save=True,
+    )
 
     # End the timer
     end = time.time()
