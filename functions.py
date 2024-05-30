@@ -771,6 +771,10 @@ def regrid_ds(
     lat_res = (ds["lat"].max() - ds["lat"].min()) / (ds["lat"].count() - 1.0).values
     lon_res = (ds["lon"].max() - ds["lon"].min()) / (ds["lon"].count() - 1.0).values
 
+    # print the lat and lon res
+    print("Lat res:", lat_res)
+    print("Lon res:", lon_res)
+
     # Set up the 2d grid
     ds_out = xe.util.grid_2d(
         grid_bounds[0], grid_bounds[1], lon_res, grid_bounds[2], grid_bounds[3], lat_res

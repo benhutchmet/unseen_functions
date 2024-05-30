@@ -420,25 +420,24 @@ def calc_and_plot_bias(
     assert month_idx != 0, "Month index cannot be 0."
 
     # Find the mean(dim=y) values of lon, which are not nan
-    lons = model_ds["lon"].mean(dim="y").dropna("x")
+    lons = model_ds["lon"]
 
     # print the lons
     print(f"Lon min: {lons.min().values}, Lon max: {lons.max().values}")
 
     # Find the mean(dim=x) values of lat, which are not nan
-    lats = model_ds["lat"].mean(dim="x").dropna("y")
+    lats = obs_ds["lat"]
+    lons = obs_ds["lon"]
 
-    # print the lats
-    print(f"Lats: {lats}")
+    # pritn the shape of lats
+    print(f"Shape of lats: {np.shape(lats)}")
+    print(f"Shape of lons: {np.shape(lons)}")
 
     # Select the month from the model data
     model_month = model_ds.sel(lead=month_idx)
 
     # Find the month at the correct month_idx in the obs
     obs_month = obs_ds.time.dt.month[month_idx - 1]
-
-    # print the obs_month
-    print(f"Obs month: {obs_month}")
 
     # Select the month from the obs data
     obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
@@ -453,8 +452,25 @@ def calc_and_plot_bias(
         dim=["init", "member"], skipna=True
     ) - obs_month_data.std(dim="time")
 
-    # Find the lats at which the mean bias is not nan
-    
+    # Find the indices of x and y where the mean bias is not nan
+    mean_bias_idcs = np.where(~np.isnan(mean_bias.values))
+
+    # apply the first mean_bias_idcs to the lats
+    mean_bias_lats = lats[mean_bias_idcs[0]]
+
+    # apply the second mean_bias_idcs to the lons
+    mean_bias_lons = lons[mean_bias_idcs[1]]
+
+    lats_values = mean_bias_lats.values
+
+    # extract only the unique values
+    lats_values = np.unique(lats_values)
+
+    # print the lons
+    lons_values = mean_bias_lons.values
+
+    # extract only the unique values
+    lons_values = np.unique(lons_values)
 
     # drop the nan values
     mean_bias = mean_bias.dropna("y", how="all").dropna("x", how="all")
@@ -462,30 +478,68 @@ def calc_and_plot_bias(
     # drop the nan values
     sigma_bias = sigma_bias.dropna("y", how="all").dropna("x", how="all")
 
+    # add the y coordinates as the lats_values
+    mean_bias["y"] = lats_values
+    mean_bias["x"] = lons_values
+
+    # add the y coordinates as the lats_values
+    sigma_bias["y"] = lats_values
+    sigma_bias["x"] = lons_values
+
     # Set up the figure
     fig, ax = plt.subplots(1, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
 
     # Plot the mean bias
+    # ax[0].imshow(mean_bias.values, cmap="bwr", vmin=-10, vmax=10, transform=ccrs.PlateCarree(), interpolation='none')
+    # ax[0].set_title('Mean Bias')
+
+    # # Plot the sigma bias
+    # ax[1].imshow(sigma_bias.values, cmap="bwr", vmin=-5, vmax=5, transform=ccrs.PlateCarree(), interpolation='none')
+    # ax[1].set_title('Sigma Bias')
+
+    # set up the contour levels
+    # clevs = np.array([-10, -8, -6, -4, -2, 2, 4, 6, 8, 10])
+    clevs = np.array([-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    # set up the ticks
+    ticks_mean = np.array([-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10])
+
     # Plot the mean bias
-    mean_bias.plot(
+    # Plot the mean bias
+    contour_mean = mean_bias.plot.contourf(
         ax=ax[0],
-        cmap="coolwarm",
-        add_colorbar=True,
+        cmap="bwr",
+        levels=clevs,
+        add_colorbar=False,
         vmin=-10,
         vmax=10,
         transform=ccrs.PlateCarree(),
     )
 
+    cbar = plt.colorbar(contour_mean, ax=ax[0], ticks=ticks_mean)
+    cbar.set_label('Mean Bias')
+
+    # Set up the contour levels
+    # clevs = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+    clevs = np.array([-5, -4.5, -4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+
+    # Set the ticks manually
+    ticks_std = np.array([-5, -4, -3, -2, 0, 2, 3, 4, 5])
+
     # Plot the sigma bias
-    sigma_bias.plot(
+    contour_std = sigma_bias.plot.contourf(
         ax=ax[1],
-        cmap="coolwarm",
-        add_colorbar=True,
+        cmap="bwr",
+        levels=clevs,
+        add_colorbar=False,
         vmin=-5,
         vmax=5,
         transform=ccrs.PlateCarree(),
     )
 
+    cbar = plt.colorbar(contour_std, ax=ax[1], ticks=ticks_std)
+    cbar.set_label('Sigma Bias')
+    
     # add coastlines
     ax[0].coastlines()
 

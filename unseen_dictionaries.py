@@ -88,3 +88,10 @@ eu_grid = {
     "lat1": 30,  # degrees north
     "lat2": 80,
 }
+
+eu_grid_constrained = {
+    "lon1": -15,  # degrees east
+    "lon2": 30,
+    "lat1": 35,  # degrees north
+    "lat2": 70,
+}
