@@ -19,7 +19,10 @@ import xesmf as xe
 from tqdm import tqdm
 
 # Import specifically from functions
-from functions import set_integer_time_axis
+from functions import set_integer_time_axis, regrid_ds, select_gridbox
+
+# Import dictionaries
+import unseen_dictionaries as dicts
 
 
 # Define a function that will load the dcppA hindcast data
@@ -326,9 +329,9 @@ def load_and_rg_obs(
     )
 
     # If expver is present in the observations
-    if "expver" in obs.coords:
+    if "expver" in obs_ds.coords:
         # Combine the first two expver variables
-        obs = obs.sel(expver=1).combine_first(obs.sel(expver=5))
+        obs_ds = obs_ds.sel(expver=1).combine_first(obs_ds.sel(expver=5))
 
     # Set up the start and end years
     start_year = init_years[0]
@@ -374,14 +377,18 @@ def main():
     # Define the model, variable, and lead time
     model = "HadGEM3-GC31-MM"
     variable = "tas"
+    obs_variable = "t2m"
     lead_time = 1
-    init_years = np.arange(1960, 1970 + 1)
+    init_years = [1960]
+    # init_years = np.arange(1960, 1970 + 1)
     experiment = "dcppA-hindcast"
     frequency = "Amon"
     engine = "netcdf4"
     parallel = False
 
-    # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
+    test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
+
+    obs_fpath = "/home/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
 
     # test the load data function
     ds = load_dcpp_data_lead(
@@ -395,8 +402,47 @@ def main():
         parallel=parallel,
     )
 
-    # print the data
-    print(ds)
+    # regrid the data
+    ds = regrid_ds(
+        ds=ds,
+        variable=variable,
+    )
+
+    # Select the gridbox
+    ds = select_gridbox(
+        ds=ds,
+        grid=dicts.eu_grid,
+        calc_mean=False,
+    )
+
+    # Load the test ds
+    test_ds = xr.open_dataset(test_file)
+
+    # Test the load and regrid obs function
+    obs = load_and_rg_obs(
+        model_ds=test_ds,
+        obs_variable=obs_variable,
+        obs_path=obs_fpath,
+        init_years=init_years,
+        lead_time=lead_time,
+        rg_algo="bilinear",
+        grid_bounds=[-180.0, 180.0, -90.0, 90.0],
+        periodic=True,
+        parallel=False,
+    )
+
+    # select the gridbox for the obs
+    obs = select_gridbox(
+        ds=obs,
+        grid=dicts.eu_grid,
+        calc_mean=False,
+    )
+
+    # print the obs
+    print(f"Obs: {obs}")
+
+    # print the ds
+    print(f"DS: {ds}")
 
     # End the timer
     end = time.time()

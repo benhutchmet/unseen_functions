@@ -798,6 +798,7 @@ def select_gridbox(
     dim: tuple[str, str] = ("y", "x"),
     lat_name: str = "lat",
     lon_name: str = "lon",
+    calc_mean: bool = True,
 ) -> xr.Dataset:
     """
     Select the gridbox from the input dataset and calculate the mean over it.
@@ -817,6 +818,9 @@ def select_gridbox(
 
     lon_name: str, optional
         The name of the longitude coordinate in the input dataset. Default is "lon".
+
+    calc_mean: bool, optional
+        Whether to calculate the mean over the selected gridbox. Default is True.
 
     Returns:
     xr.Dataset
@@ -846,6 +850,10 @@ def select_gridbox(
     # Mask the dataset
     ds_masked = ds.where(mask)
 
+    if not calc_mean:
+        # Return the masked dataset
+        return ds_masked
+    
     # Calculate the mean of the masked dataset
     ds_mean = ds_masked.mean(dim=dim)
 
