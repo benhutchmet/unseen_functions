@@ -168,6 +168,7 @@ def load_dcpp_data_lead(
             # Open all leads for the specified variant
             member_ds = xr.open_mfdataset(
                 variant_files,
+                chunks={"time": 10},
                 combine="nested",
                 concat_dim="time",
                 preprocess=lambda ds: preprocess_lead(
@@ -247,14 +248,13 @@ def preprocess_lead(
         # Set up the indices to extract
         indices = np.arange(0, lead_time * 12)
 
-        # print the indices of time to extract
-        print(f"indices of time to extract: {indices}")
-
         # Extract the data
         ds = ds.isel(time=indices)
-
     elif frequency == "day":
         raise NotImplementedError("Daily data not yet implemented.")
+    else:
+        raise ValueError(f"Frequency {frequency} not recognised.")
+        
 
     # Return the preprocessed dataset
     return ds
@@ -262,36 +262,41 @@ def preprocess_lead(
 
 # define a main function for testing
 def main():
+    # Start a timer
+    start = time.time()
+    
     # Define the model, variable, and lead time
     model = "HadGEM3-GC31-MM"
     variable = "tas"
-    ds = None
-    frequency = "Amon"
     lead_time = 1
+    init_years = np.arange(1960, 1970 + 1)
+    experiment = "dcppA-hindcast"
+    frequency = "Amon"
+    engine = "netcdf4"
+    parallel = False
 
-    test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
+    # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
 
-    # laod the file
-    ds = xr.open_dataset(test_file)
-
-    # print the ds.time
-    print(f"ds.time: {ds.time}")
-
-    # print the length of the ds.time
-    print(f"len(ds.time): {len(ds.time)}")
-
-    # test the preprocess function
-    ds = preprocess(
-        ds=ds,
+    # test the load data function
+    ds = load_dcpp_data_lead(
+        model=model,
+        variable=variable,
         lead_time=lead_time,
+        init_years=init_years,
+        experiment=experiment,
         frequency=frequency,
+        engine=engine,
+        parallel=parallel,
     )
 
-    # print ds time
-    print(f"ds.time: {ds.time}")
+    # print the data
+    print(ds)
 
-    # print the length of the ds.time
-    print(f"len(ds.time): {len(ds.time)}")
+    # End the timer
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken: {end - start:.2f} seconds.")
 
     # Print that we are exiting the main function
     print("Exiting main function.")
