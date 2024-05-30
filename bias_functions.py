@@ -15,6 +15,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import pandas as pd
+import xesmf as xe
 from tqdm import tqdm
 
 # Import specifically from functions
@@ -254,17 +255,122 @@ def preprocess_lead(
         raise NotImplementedError("Daily data not yet implemented.")
     else:
         raise ValueError(f"Frequency {frequency} not recognised.")
-        
 
     # Return the preprocessed dataset
     return ds
 
 
+# Define a function to load the observed data
+def load_and_rg_obs(
+    model_ds: xr.Dataset,
+    obs_variable: str,
+    obs_path: str,
+    init_years: list[int],
+    lead_time: int,
+    rg_algo: str = "bilinear",
+    grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
+    periodic: bool = True,
+    parallel: bool = False,
+) -> xr.Dataset:
+    """
+    Load the dcppA hindcast data for a given model, variable, and lead time.
+
+    Parameters
+    ----------
+    model_ds : xr.Dataset
+        The dataset to regrid the obs to.
+    obs_variable : str
+        The name of the variable to load data for.
+    obs_path : str
+        The path to the observed data.
+    init_years : list[int]
+        The initialization years to load data for.
+    lead_time : int
+        The lead time to load data for.
+    rg_algo : str, optional
+        The regridding algorithm to use, by default 'bilinear'.
+    grid_bounds : list[float], optional
+        The grid bounds to use when regridding, by default [-180.0, 180.0, -90.0, 90.0].
+    periodic : bool, optional
+        Whether the grid is periodic, by default True.
+    parallel : bool, optional
+        Whether to load the data in parallel, by default False.
+
+    Returns
+    -------
+    xr.Dataset
+        The loaded observed data.
+    """
+
+    # Calculate the resolution of the input dataset
+    lat_res = (model_ds["lat"].max() - model_ds["lat"].min()) / (
+        model_ds["lat"].count() - 1.0
+    ).values
+    lon_res = (model_ds["lon"].max() - model_ds["lon"].min()) / (
+        model_ds["lon"].count() - 1.0
+    ).values
+
+    # Set up the 2d grid
+    ds_out = xe.util.grid_2d(
+        grid_bounds[0], grid_bounds[1], lon_res, grid_bounds[2], grid_bounds[3], lat_res
+    )
+
+    # Load the observed data
+    obs_ds = xr.open_mfdataset(
+        obs_path,
+        chunks={"time": 10},
+        combine="by_coords",
+        parallel=parallel,
+        engine="netcdf4",
+        coords="minimal",
+    )
+
+    # If expver is present in the observations
+    if "expver" in obs.coords:
+        # Combine the first two expver variables
+        obs = obs.sel(expver=1).combine_first(obs.sel(expver=5))
+
+    # Set up the start and end years
+    start_year = init_years[0]
+    end_year = init_years[-1] + lead_time
+
+    # Set up the first month
+    # Which is the same month as the first month of the model data
+    first_month = model_ds["time"].dt.month[0].values
+
+    # Set up the last month
+    last_month = first_month - 1  # e.g. for november (11), this would be october (10)
+
+    # restrict to between the start and end years
+    obs_ds = obs_ds.sel(
+        time=slice(
+            f"{start_year}-{first_month:02d}-01", f"{end_year}-{last_month:02d}-30"
+        )
+    )
+
+    # Convert the lat and lon to 1D
+    ds_out["lon"] = ds_out["lon"].mean(dim="y")
+    ds_out["lat"] = ds_out["lat"].mean(dim="x")
+
+    # Set up the regridder
+    regridder = xe.Regridder(
+        obs_ds,
+        ds_out,
+        rg_algo,
+        periodic=periodic,
+    )
+
+    # Regrid the data
+    obs_rg = regridder(obs_ds[obs_variable])
+
+    # return the regridded data
+    return obs_rg
+
 # define a main function for testing
 def main():
     # Start a timer
     start = time.time()
-    
+
     # Define the model, variable, and lead time
     model = "HadGEM3-GC31-MM"
     variable = "tas"

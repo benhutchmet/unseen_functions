@@ -865,6 +865,7 @@ def load_regrid_obs(
     rg_algo: str = "bilinear",
     grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
     periodic: bool = True,
+    parallel: bool = False,
     aggregate_worst_months: bool = False,
 ) -> xr.Dataset:
     """
@@ -903,6 +904,9 @@ def load_regrid_obs(
     periodic: bool, optional
         Whether the input data is on a periodic grid. Default is True.
 
+    parallel: bool, optional
+        Whether to use parallel processing. Default is False.
+
     aggregate_worst_months: bool, optional
         Whether to aggregate the worst months. Default is False.
 
@@ -934,7 +938,7 @@ def load_regrid_obs(
     obs = xr.open_mfdataset(
         obs_path,
         combine="by_coords",
-        parallel=True,
+        parallel=parallel,
     )
 
     # restrict to between the start and end years
