@@ -279,7 +279,6 @@ def load_dcpp_data(
 
             # Append the files to the aggregated files list
             agg_files.extend(files)
-
     else:
         raise ValueError(f"Model path root {model_path_root} not recognised.")
 
