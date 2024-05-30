@@ -10,6 +10,7 @@ import sys
 import glob
 import time
 import re
+import argparse
 
 import numpy as np
 import xarray as xr
@@ -18,6 +19,7 @@ import cartopy.crs as ccrs
 import pandas as pd
 import xesmf as xe
 from tqdm import tqdm
+from dask.diagnostics import ProgressBar
 
 # Import specifically from functions
 from functions import set_integer_time_axis, regrid_ds, select_gridbox
@@ -54,7 +56,7 @@ def load_dcpp_data_lead(
     lead_time : int
         The lead time to load data for.
     init_years : list[int]
-        The initialization years to load data for.
+        The initialization years to load data for.O
     experiment : str, optional
         The name of the experiment to load data for, by default 'dcppA-hindcast'.
     frequency : str, optional
@@ -111,13 +113,21 @@ def load_dcpp_data_lead(
         # Loop over the initialisation years
         for init_year in init_years:
             # glob the files in the directory containing the initialisation year
-            files = glob.glob(os.path.join(model_path, f"*{init_year}*"))
+            files = glob.glob(os.path.join(model_path, f"*s{init_year}*"))
 
             # # print the len of the files
             # print(f"Number of files: {len(files)}")
 
             # Assert that there are files
             assert len(files) > 0, f"No files found for {init_year} in {model_path}"
+
+            # # print the len of files for each year
+            # print(f"Number of files: {len(files)} for {init_year}")
+
+            # # if the length of the files is greater than 10
+            # if len(files) > 10:
+            #     # print the first 10 files
+            #     print(f"files: {files}")
 
             # Append the files to the aggregated files list
             agg_files.extend(files)
@@ -251,7 +261,15 @@ def preprocess_lead(
     # if the frequency is 'Amon'
     if frequency == "Amon":
         # Set up the indices to extract
-        indices = np.arange(0, lead_time * 12)
+        if lead_time == 1:
+            # Extract the indices
+            indices = np.arange(0, 12)
+        else:
+            # Extract the indices
+            indices = np.arange(((lead_time - 1) * 12), lead_time * 12)
+
+        # print the indices
+        print(f"indices: {indices}")
 
         # Extract the data
         ds = ds.isel(time=indices)
@@ -369,6 +387,95 @@ def load_and_rg_obs(
 
     # return the regridded data
     return obs_rg
+
+# Create a function for saving the data
+def save_data(
+    model_ds: xr.Dataset,
+    obs_ds: xr.Dataset,
+    model: str,
+    experiment: str,
+    frequency: str,
+    variable: str,
+    init_years: list[int],
+    lead_time: int,
+    save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
+):
+    """
+    Save the model and observed data to netcdf files.
+    
+    Parameters
+    ----------
+    model_ds : xr.Dataset
+        The model dataset to save.
+    obs_ds : xr.Dataset
+        The observed dataset to save.
+    model : str
+        The model to save.
+    experiment : str
+        The experiment to save.
+    frequency : str
+        The frequency to save.
+    variable : str
+        The variable to save.
+    init_years : list[int]
+        The initialization years to save.
+    lead_time : int
+        The lead time to save.
+    save_dir : str, optional
+        The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
+    
+    Returns
+    -------
+
+    """
+
+    # If the save directory does not exist
+    if not os.path.exists(save_dir):
+        # Make the directory
+        os.makedirs(save_dir)
+
+    # Set up the current date, hour and minute
+    current_time = time.strftime("%Y%m%dT%H%M%S")
+
+    # Set up the model file name
+    model_fname = f"{model}_{experiment}_{variable}_s{init_years[0]}-{init_years[-1]}_lead{lead_time}_{frequency}_{current_time}.nc"
+
+    # Set up the obs file name
+    obs_fname = f"obs_{variable}_s{init_years[0]}-{init_years[-1]}_{frequency}_{current_time}.nc"
+
+    # Set up the model file path
+    model_fpath = os.path.join(save_dir, model_fname)
+
+    # Set up the obs file path
+    obs_fpath = os.path.join(save_dir, obs_fname)
+
+    # Set up the delayed model object
+    delayed_model = model_ds.to_netcdf(model_fpath, compute=False)
+
+    # Set up the delayed obs object
+    delayed_obs = obs_ds.to_netcdf(obs_fpath, compute=False)
+
+    try:
+        # Compute the delayed model object
+        with ProgressBar():
+            print("Saving model data.")
+            results = delayed_model.compute()
+    except:
+        print("Model data not saved.")
+
+    try:
+        # Compute the delayed obs object
+        with ProgressBar():
+            print("Saving obs data.")
+            results = delayed_obs.compute()
+    except:
+        print("Obs data not saved.")
+
+    print(f"Model data saved to {model_fpath}")
+    print(f"Obs data saved to {obs_fpath}")
+
+    return None
+        
 
 
 # Define a function to calculate and plot the bias
@@ -576,6 +683,11 @@ def calc_and_plot_bias(
     # Set up the fname
     fname = f"{variable}_bias_{month_name}_lead{lead_time}_init{init_years[0]}-{init_years[-1]}_{current_time}.pdf"
 
+    # if the save_dir does not exist
+    if not os.path.exists(save_dir):
+        # make the directory
+        os.makedirs(save_dir)
+
     # If save is True
     if save and not os.path.exists(os.path.join(save_dir, fname)):
         print(f"Saving figure to {os.path.join(save_dir, fname)}")
@@ -594,17 +706,105 @@ def main():
     # Start a timer
     start = time.time()
 
-    # Define the model, variable, and lead time
-    model = "HadGEM3-GC31-MM"
-    variable = "tas"
-    obs_variable = "t2m"
-    lead_time = 1
-    init_years = [1960]
-    # init_years = np.arange(1960, 1970 + 1)
-    experiment = "dcppA-hindcast"
-    frequency = "Amon"
-    engine = "netcdf4"
-    parallel = False
+    # Set up the parser
+    parser = argparse.ArgumentParser(description="Test the bias functions.")
+
+    # Add the arguments
+    parser.add_argument(
+        "--model",
+        type=str,
+        help="The model to load data for.",
+        default="HadGEM3-GC31-MM",
+    )
+
+    parser.add_argument(
+        "--variable",
+        type=str,
+        help="The variable to load data for.",
+        default="tas",
+    )
+
+    parser.add_argument(
+        "--obs_variable",
+        type=str,
+        help="The observed variable to load data for.",
+        default="t2m",
+    )
+
+    parser.add_argument(
+        "--lead_time",
+        type=int,
+        help="The lead time to load data for.",
+        default=1,
+    )
+
+    parser.add_argument(
+        "--start_year",
+        type=int,
+        help="The start year to load data for.",
+    )
+
+    parser.add_argument(
+        "--end_year",
+        type=int,
+        help="The end year to load data for.",
+    )
+
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        help="The experiment to load data for.",
+        default="dcppA-hindcast",
+    )
+
+    parser.add_argument(
+        "--frequency",
+        type=str,
+        help="The frequency to load data for.",
+        default="Amon",
+    )
+
+    parser.add_argument(
+        "--engine",
+        type=str,
+        help="The engine to use when loading the data.",
+        default="netcdf4",
+    )
+
+    parser.add_argument(
+        "--parallel",
+        type=bool,
+        help="Whether to load the data in parallel.",
+        default=False,
+    )
+
+    # Set up the args
+    args = parser.parse_args()
+
+    # print the args
+    print(f"Model: {args.model}")
+    print(f"Variable: {args.variable}")
+    print(f"Obs Variable: {args.obs_variable}")
+    print(f"Lead Time: {args.lead_time}")
+    print(f"Start Year: {args.start_year}")
+    print(f"End Year: {args.end_year}")
+    print(f"Experiment: {args.experiment}")
+    print(f"Frequency: {args.frequency}")
+    print(f"Engine: {args.engine}")
+    print(f"Parallel: {args.parallel}")
+
+    # Set up the init years
+    init_years = np.arange(args.start_year, args.end_year + 1)
+
+    # Set the variables
+    model = args.model
+    variable = args.variable
+    obs_variable = args.obs_variable
+    lead_time = args.lead_time
+    experiment = args.experiment
+    frequency = args.frequency
+    engine = args.engine
+    parallel = args.parallel
 
     test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
 
@@ -664,26 +864,39 @@ def main():
     # print the ds
     print(f"DS: {ds}")
 
-    # Test the plot bias function
-    calc_and_plot_bias(
+    # Save the data
+    save_data(
         model_ds=ds,
         obs_ds=obs,
-        month_idx=1,
-        lead_time=lead_time,
-        init_years=init_years,
+        model=model,
+        experiment=experiment,
+        frequency=frequency,
         variable=variable,
-        month_name="November",
-        figsize=(12, 6),
-        save_dir="/gws/nopw/j04/canari/users/benhutch/plots/",
-        save=True,
+        init_years=init_years,
+        lead_time=lead_time,
+        save_dir="/work/scratch-nopw2/benhutch/test_nc/",
     )
+
+    # # Test the plot bias function
+    # calc_and_plot_bias(
+    #     model_ds=ds,
+    #     obs_ds=obs,
+    #     month_idx=1,
+    #     lead_time=lead_time,
+    #     init_years=init_years,
+    #     variable=variable,
+    #     month_name="November",
+    #     figsize=(12, 6),
+    #     save_dir="/gws/nopw/j04/canari/users/benhutch/plots/",
+    #     save=True,
+    # )
 
     # End the timer
     end = time.time()
 
     # Print the time taken
     print(f"Time taken: {end - start:.2f} seconds.")
-
+        
     # Print that we are exiting the main function
     print("Exiting main function.")
     sys.exit()
