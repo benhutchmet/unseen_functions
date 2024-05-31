@@ -700,6 +700,181 @@ def calc_and_plot_bias(
     # return None
     return None
 
+# Calculate and plot 6 rows x 2 columns for the mean or std for each lead month
+def calc_and_plot_bias_all_months(
+    model_ds: xr.Dataset,
+    obs_ds: xr.Dataset,
+    lead_time: int,
+    init_years: list[int],
+    variable: str,
+    month_names: list[str],
+    mean_or_std: str = "mean",
+    figsize: tuple = (12, 6),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    save: bool = True,
+):
+    """
+    Calculate and plot the bias between the model and observed data.
+    for the mean or sigma. For a single variable and lead time.
+
+    Parameters
+    ----------
+
+    model_ds : xr.Dataset
+        The model dataset to calculate the bias for.
+    obs_ds : xr.Dataset
+        The observed dataset to calculate the bias for.
+    lead_time : int
+        The lead time to calculate the bias for.
+    init_years : list[int]
+        The initialization years to calculate the bias for.
+    variable : str
+        The variable to calculate the bias for.
+    month_names : list[str]
+        The names of the months to calculate the bias for.
+    mean_or_std : str, optional
+        Whether to calculate the mean or standard deviation, by default "mean".
+        Only takes values of "mean" or "std".
+    figsize : tuple, optional
+        The size of the figure to plot, by default (12, 6).
+    save_dir : str, optional
+        The directory to save the plots to, by default "/gws/nopw/j04/canari/users/benhutch/plots/".
+    save : bool, optional
+        Whether to save the plots, by default True.
+
+    Returns
+    -------
+
+    """
+
+    # Extract the lats and lons from the obs
+    lats = obs_ds["lat"]
+    lons = obs_ds["lon"]
+
+    # Set up the figure
+    fig, ax = plt.subplots(6, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
+
+    # Loop over the month names
+    for i, month_name in enumerate(month_names):
+        print(f"plotting {month_name} at index {i}")
+
+        # Select the month idx from the model data
+        model_ds_month = model_ds.sel(lead=i + 1)
+
+        # Find the month at the correct month_idx in the obs
+        obs_month = obs_ds.time.dt.month[i - 1]
+
+        # Select the month from the obs data
+        obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
+
+        # if the mean_or_std is mean
+        if mean_or_std == "mean":
+            # Calculate the bias as model_mean - obs_mean
+            bias = model_ds_month.mean(
+                dim=["init", "member"], skipna=True
+            ) - obs_month_data.mean(dim="time")
+
+            # Set up the contour levels
+            clevs = np.array([-10, -8, -6, -4, -2, 2, 4, 6, 8, 10])
+
+            # Set up the ticks
+            ticks = np.array([-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10])
+        elif mean_or_std == "std":
+            # Calculate the bias as model_sigma - obs_sigma
+            bias = model_ds_month.std(
+                dim=["init", "member"], skipna=True
+            ) - obs_month_data.std(dim="time")
+
+            # Set up the contour levels
+            clevs = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+
+            # Set up the ticks
+            ticks = np.array([-5, -4, -3, -2, 0, 2, 3, 4, 5])
+        else:
+            raise ValueError(f"mean_or_std {mean_or_std} not recognised.")
+        
+        # Find the indices of x and y where the mean bias is not nan
+        bias_idcs = np.where(~np.isnan(bias.values))
+
+        # apply the first bias_idcs to the lats
+        bias_lats = lats[bias_idcs[0]]
+
+        # apply the second bias_idcs to the lons
+        bias_lons = lons[bias_idcs[1]]
+
+        lats_values = bias_lats.values
+
+        # extract only the unique values
+        lats_values = np.unique(lats_values)
+
+        # print the lons
+        lons_values = bias_lons.values
+
+        # extract only the unique values
+        lons_values = np.unique(lons_values)
+
+        # drop the nan values
+        bias = bias.dropna("y", how="all").dropna("x", how="all")
+
+        # add the y coordinates as the lats_values
+        bias["y"] = lats_values
+
+        # add the y coordinates as the lats_values
+        bias["x"] = lons_values
+
+        # Plot the bias
+        contour = bias.plot.contourf(
+            ax=ax[i // 2, i % 2],
+            cmap="bwr",
+            levels=clevs,
+            add_colorbar=False,
+            transform=ccrs.PlateCarree(),
+        )
+
+        cbar = plt.colorbar(contour, ax=ax[i // 2, i % 2], ticks=ticks, shrink=0.8)
+        cbar.set_label(f"{mean_or_std.capitalize()} Bias")
+
+        # add coastlines
+        ax[i // 2, i % 2].coastlines()
+
+        # Set the title
+        ax[i // 2, i % 2].set_title(
+            f"{month_name}"
+        )
+
+        # Set the xlabel
+        ax[i // 2, i % 2].set_xlabel("Lon")
+
+        # Set the ylabel
+        ax[i // 2, i % 2].set_ylabel("Lat")
+
+    # Set up the super title
+    fig.suptitle(
+        f"{variable} {mean_or_std.capitalize()} bias for lead {lead_time} years {init_years[0]}-{init_years[-1]}"
+    )
+
+    # Set up the current time
+    current_time = time.strftime("%Y%m%dT%H%M%S")
+
+    # Set up the fname
+    fname = f"{variable}_{mean_or_std}_bias_lead{lead_time}_init{init_years[0]}-{init_years[-1]}_{current_time}.pdf"
+
+    # if the save_dir does not exist
+    if not os.path.exists(save_dir):
+        # make the directory
+        os.makedirs(save_dir)
+
+    # If save is True
+    if save and not os.path.exists(os.path.join(save_dir, fname)):
+        print(f"Saving figure to {os.path.join(save_dir, fname)}")
+        # Save the figure
+        fig.savefig(os.path.join(save_dir, fname))
+
+    # Show the plot
+    plt.show()
+
+    # return None
+    return None
 
 # define a main function for testing
 def main():
