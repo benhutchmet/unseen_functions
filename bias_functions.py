@@ -754,6 +754,9 @@ def calc_and_plot_bias_all_months(
     # Set up the figure
     fig, ax = plt.subplots(6, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
 
+    # Create a colorbar axes
+    cbar_ax = fig.add_axes([0.1, 0.1, 0.8, 0.02])
+
     # Loop over the month names
     for i, month_name in enumerate(month_names):
         print(f"plotting {month_name} at index {i}")
@@ -831,8 +834,8 @@ def calc_and_plot_bias_all_months(
             transform=ccrs.PlateCarree(),
         )
 
-        cbar = plt.colorbar(contour, ax=ax[i // 2, i % 2], ticks=ticks, shrink=0.8)
-        cbar.set_label(f"{mean_or_std.capitalize()} Bias")
+        # cbar = plt.colorbar(contour, ax=ax[i // 2, i % 2], ticks=ticks, shrink=0.8)
+        # cbar.set_label(f"{mean_or_std.capitalize()} Bias")
 
         # add coastlines
         ax[i // 2, i % 2].coastlines()
@@ -847,6 +850,10 @@ def calc_and_plot_bias_all_months(
 
         # Set the ylabel
         ax[i // 2, i % 2].set_ylabel("Lat")
+
+    # Create a colorbar for the whole figure
+    cbar = fig.colorbar(contour, cax=cbar_ax, orientation='horizontal', ticks=ticks)
+    cbar.set_label(f"{mean_or_std.capitalize()} Bias")
 
     # Set up the super title
     fig.suptitle(

@@ -95,3 +95,19 @@ eu_grid_constrained = {
     "lat1": 35,  # degrees north
     "lat2": 70,
 }
+
+# month names for HadGEM3
+month_names_HadGEM3 = [
+    "November",
+    "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+]
