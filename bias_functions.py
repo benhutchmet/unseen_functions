@@ -388,6 +388,7 @@ def load_and_rg_obs(
     # return the regridded data
     return obs_rg
 
+
 # Create a function for saving the data
 def save_data(
     model_ds: xr.Dataset,
@@ -402,7 +403,7 @@ def save_data(
 ):
     """
     Save the model and observed data to netcdf files.
-    
+
     Parameters
     ----------
     model_ds : xr.Dataset
@@ -423,7 +424,7 @@ def save_data(
         The lead time to save.
     save_dir : str, optional
         The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
-    
+
     Returns
     -------
 
@@ -475,7 +476,6 @@ def save_data(
     print(f"Obs data saved to {obs_fpath}")
 
     return None
-        
 
 
 # Define a function to calculate and plot the bias
@@ -594,7 +594,9 @@ def calc_and_plot_bias(
     sigma_bias["x"] = lons_values
 
     # Set up the figure
-    fig, ax = plt.subplots(1, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
+    fig, ax = plt.subplots(
+        1, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()}
+    )
 
     # Plot the mean bias
     # ax[0].imshow(mean_bias.values, cmap="bwr", vmin=-10, vmax=10, transform=ccrs.PlateCarree(), interpolation='none')
@@ -606,7 +608,9 @@ def calc_and_plot_bias(
 
     # set up the contour levels
     # clevs = np.array([-10, -8, -6, -4, -2, 2, 4, 6, 8, 10])
-    clevs = np.array([-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    clevs = np.array(
+        [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    )
 
     # set up the ticks
     ticks_mean = np.array([-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10])
@@ -624,11 +628,32 @@ def calc_and_plot_bias(
     )
 
     cbar = plt.colorbar(contour_mean, ax=ax[0], ticks=ticks_mean)
-    cbar.set_label('Mean Bias')
+    cbar.set_label("Mean Bias")
 
     # Set up the contour levels
     # clevs = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
-    clevs = np.array([-5, -4.5, -4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+    clevs = np.array(
+        [
+            -5,
+            -4.5,
+            -4.0,
+            -3.5,
+            -3.0,
+            -2.5,
+            -2.0,
+            -1.5,
+            -1.0,
+            1.0,
+            1.5,
+            2.0,
+            2.5,
+            3.0,
+            3.5,
+            4.0,
+            4.5,
+            5.0,
+        ]
+    )
 
     # Set the ticks manually
     ticks_std = np.array([-5, -4, -3, -2, 0, 2, 3, 4, 5])
@@ -645,8 +670,8 @@ def calc_and_plot_bias(
     )
 
     cbar = plt.colorbar(contour_std, ax=ax[1], ticks=ticks_std)
-    cbar.set_label('Sigma Bias')
-    
+    cbar.set_label("Sigma Bias")
+
     # add coastlines
     ax[0].coastlines()
 
@@ -654,14 +679,10 @@ def calc_and_plot_bias(
     ax[1].coastlines()
 
     # Set the title
-    ax[0].set_title(
-        f"mean bias"
-    )
+    ax[0].set_title(f"mean bias")
 
     # Set the title
-    ax[1].set_title(
-        f"sigma Bias"
-    )
+    ax[1].set_title(f"sigma Bias")
 
     # Set up the super title
     fig.suptitle(
@@ -700,6 +721,7 @@ def calc_and_plot_bias(
     # return None
     return None
 
+
 # Calculate and plot 6 rows x 2 columns for the mean or std for each lead month
 def calc_and_plot_bias_all_months(
     model_ds: xr.Dataset,
@@ -708,10 +730,14 @@ def calc_and_plot_bias_all_months(
     init_years: list[int],
     variable: str,
     month_names: list[str],
+    freq: str = "Amon",
     mean_or_std: str = "mean",
     figsize: tuple = (12, 6),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
     save: bool = True,
+    constrained_grid: dict = dicts.eu_grid_constrained,
+    vmin_set: float = -9999.0,
+    vmax_set: float = 9999.0,
 ):
     """
     Calculate and plot the bias between the model and observed data.
@@ -732,6 +758,8 @@ def calc_and_plot_bias_all_months(
         The variable to calculate the bias for.
     month_names : list[str]
         The names of the months to calculate the bias for.
+    freq : str, optional
+        The frequency of the data, by default "Amon".
     mean_or_std : str, optional
         Whether to calculate the mean or standard deviation, by default "mean".
         Only takes values of "mean" or "std".
@@ -741,6 +769,12 @@ def calc_and_plot_bias_all_months(
         The directory to save the plots to, by default "/gws/nopw/j04/canari/users/benhutch/plots/".
     save : bool, optional
         Whether to save the plots, by default True.
+    constrained_grid : dict, optional
+        The dictionary containing the constrained grid, by default dicts.eu_grid_constrained.
+    vmin_set : float, optional
+        The minimum value for the colorbar, by default -9999.0.
+    vmax_set : float, optional
+        The maximum value for the colorbar, by default 9999.0.
 
     Returns
     -------
@@ -752,13 +786,124 @@ def calc_and_plot_bias_all_months(
     lons = obs_ds["lon"]
 
     # Set up the figure
-    fig, ax = plt.subplots(6, 2, figsize=figsize, subplot_kw={"projection": ccrs.PlateCarree()})
+    fig, ax = plt.subplots(
+        4,
+        3,
+        figsize=figsize,
+        subplot_kw={"projection": ccrs.PlateCarree()},
+        constrained_layout=True,
+    )
 
-    # Create a colorbar axes
-    cbar_ax = fig.add_axes([0.1, 0.1, 0.8, 0.02])
+    # # Create a colorbar axes
+    # cbar_ax = fig.add_axes([0.1, 0.2, 0.8, 0.02])
+
+    # if the variable is rsds
+    if variable == "rsds" and freq == "Amon":
+        print("Convert rsds to W/m^2 from J/m^2")
+
+        # Divide the obs data by 86400 (to convert from J/m^2 to W/m^2 in days)
+        obs_ds = obs_ds / 86400
+
+
+    # Initialize global vmin and vmax
+    global_vmin = np.inf
+    global_vmax = -np.inf
+
+    # Iterate over all data to find global vmin and vmax
+    for i, month_name in tqdm(enumerate(month_names), desc="Calculating vmin and vmax"):
+        
+        # Select the month idx from the model data
+        model_ds_month = model_ds.sel(lead=i + 1)
+
+        # Find the month at the correct month_idx in the obs
+        obs_month = obs_ds.time.dt.month[i - 1]
+
+        # Select the month from the obs data
+        obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
+        
+        # Calculate the bias
+        if mean_or_std == "mean":
+            bias = model_ds_month.mean(dim=["init", "member"], skipna=True) - obs_month_data.mean(dim="time")
+        elif mean_or_std == "std":
+            bias = model_ds_month.std(dim=["init", "member"], skipna=True) - obs_month_data.std(dim="time")
+
+        # Update global vmin and vmax
+        vmin = np.floor(bias.min())
+        vmax = np.ceil(bias.max())
+        global_vmin = min(global_vmin, vmin)
+        global_vmax = max(global_vmax, vmax)
+
+
+        if variable == "tas":
+            if mean_or_std == "mean":
+                # set up clev_int
+                clev_int = 1
+
+                # ticks
+                ticks_int = 2
+            else:
+                # set up clev_int
+                clev_int = 0.25
+
+                # ticks
+                ticks_int = 1
+        elif variable == "sfcWind":
+            if mean_or_std == "mean":
+                # set up clev_int
+                clev_int = 0.25
+
+                # ticks
+                ticks_int = 2
+            elif mean_or_std == "std":
+                # set up clev_int
+                clev_int = 0.0625
+
+                # ticks
+                ticks_int = 0.5
+        elif variable == "rsds":
+            if mean_or_std == "mean":
+                # set up clev_int
+                clev_int = 10
+
+                # # ticks
+                ticks_int = 20
+            elif mean_or_std == "std":
+                # set up clev_int
+                clev_int = 2
+
+                # # ticks
+                ticks_int = 4
+
+    if abs(global_vmin) > global_vmax:
+        # Then set vmax to abs vmin
+        global_vmax = abs(global_vmin)
+    else:
+        # Set vmin to -vmax
+        global_vmin = -global_vmax
+
+    # if vmin and vmax are not -9999 and 9999
+    if vmin_set != -9999.0 and vmax_set != 9999.0:
+        # Set the vmin and vmax
+        global_vmin = vmin_set
+        global_vmax = vmax_set
+
+    # print the global vmin and vmax
+    print(f"Global vmin: {global_vmin}, Global vmax: {global_vmax}")
+
+    # Set up the contour levels using global vmin and vmax
+    clevs = np.arange(global_vmin, global_vmax + clev_int, clev_int)
+
+    # print the clevs
+    print(f"clevs: {clevs}")
+
+    # Set up the ticks
+    ticks = np.arange(global_vmin, global_vmax + ticks_int, ticks_int)
+
+    # print the ticks   
+    print(f"ticks: {ticks}")
 
     # Loop over the month names
-    for i, month_name in enumerate(month_names):
+    for i, month_name in tqdm(enumerate(month_names), desc="Plotting"):
         print(f"plotting {month_name} at index {i}")
 
         # Select the month idx from the model data
@@ -770,32 +915,91 @@ def calc_and_plot_bias_all_months(
         # Select the month from the obs data
         obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
 
+        # print that we have selected months
+        print(f"Selected months for {month_name}")
+
         # if the mean_or_std is mean
         if mean_or_std == "mean":
+            print(f"Calculating mean bias for {month_name}")
             # Calculate the bias as model_mean - obs_mean
             bias = model_ds_month.mean(
                 dim=["init", "member"], skipna=True
             ) - obs_month_data.mean(dim="time")
+            print(f"Calculated mean bias for {month_name}")
 
-            # Set up the contour levels
-            clevs = np.array([-10, -8, -6, -4, -2, 2, 4, 6, 8, 10])
+            # # Set up the contour levels
+            # #         clevs = np.array(
+            # #     [-8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]
+            # # )
 
-            # Set up the ticks
-            ticks = np.array([-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10])
+            # # # Set up the ticks
+            # # ticks = np.array([-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10])
+
+            # # print(f"Calculating vmin and vmax for {month_name}")
+            # # Set the vmin and vmax
+            # vmin = np.floor(bias.min())
+            # vmax = np.ceil(bias.max())
+
+            # # if abs vmin > vmax
+            # if abs(vmin) > vmax:
+            #     # Then set vmax to abs vmin
+            #     vmax = abs(vmin)
+            # else:
+            #     # Set vmin to -vmax
+            #     vmin = -vmax
+
+            # # print the vmin and vmax
+            # print(f"vmin: {vmin}, vmax: {vmax} for {month_name} and {mean_or_std}")
+
+            # # Set up the interval depending on the range
+            # if variable == "tas":
+            #     # set up clev_int
+            #     clev_int = 1
+
+            #     # ticks
+            #     ticks = np.arange(vmin, vmax + 1, 2)
+
+            # elif variable == "sfcWind":
+            #     # set up clev_int
+            #     clev_int = 0.25
+
+            #     # ticks
+            #     ticks = np.arange(vmin, vmax + 1, 2)
+            # elif variable == "rsds":
+            #     # set up clev_int
+            #     clev_int = 5
+
+            #     # # ticks
+            #     # ticks = np.arange(vmin, vmax + 1, 10)
+
+            # # # print the clev_int
+            # # print(f"clev_int: {clev_int} for {month_name} and {mean_or_std}")
+
+            # # Set up the contour levels
+            # clevs = np.arange(vmin, vmax + clev_int, clev_int)
+
+            # # Set up the ticks
+            # ticks = np.arange(vmin, vmax + 1, 2)
+
         elif mean_or_std == "std":
+            print(f"Calculating std bias for {month_name}")
             # Calculate the bias as model_sigma - obs_sigma
             bias = model_ds_month.std(
                 dim=["init", "member"], skipna=True
             ) - obs_month_data.std(dim="time")
+            print(f"Calculated std bias for {month_name}")
 
-            # Set up the contour levels
-            clevs = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+            # print the clev_int
+            print(f"clev_int: {clev_int} for {month_name} and {mean_or_std}")
 
-            # Set up the ticks
-            ticks = np.array([-5, -4, -3, -2, 0, 2, 3, 4, 5])
+            # # Set up the contour levels
+            # clevs = np.arange(vmin, vmax + clev_int, clev_int)
+
+            # # Set up the ticks
+            # ticks = np.arange(vmin, vmax + 0.25, 0.5)
         else:
             raise ValueError(f"mean_or_std {mean_or_std} not recognised.")
-        
+
         # Find the indices of x and y where the mean bias is not nan
         bias_idcs = np.where(~np.isnan(bias.values))
 
@@ -827,44 +1031,50 @@ def calc_and_plot_bias_all_months(
 
         # Plot the bias
         contour = bias.plot.contourf(
-            ax=ax[i // 2, i % 2],
+            ax=ax[i // 3, i % 3],
             cmap="bwr",
             levels=clevs,
+            vmin=global_vmin,
+            vmax=global_vmax,
             add_colorbar=False,
             transform=ccrs.PlateCarree(),
         )
+
+        # Set the x and y limits to the desired domain
+        ax[i // 3, i % 3].set_xlim([constrained_grid['lon1'],constrained_grid['lon2']])
+        ax[i // 3, i % 3].set_ylim([constrained_grid['lat1'],constrained_grid['lat2']])
 
         # cbar = plt.colorbar(contour, ax=ax[i // 2, i % 2], ticks=ticks, shrink=0.8)
         # cbar.set_label(f"{mean_or_std.capitalize()} Bias")
 
         # add coastlines
-        ax[i // 2, i % 2].coastlines()
+        ax[i // 3, i % 3].coastlines()
 
         # Set the title
-        ax[i // 2, i % 2].set_title(
-            f"{month_name}"
-        )
+        ax[i // 3, i % 3].set_title(f"{month_name}")
 
         # Set the xlabel
-        ax[i // 2, i % 2].set_xlabel("Lon")
+        ax[i // 3, i % 3].set_xlabel("Lon")
 
         # Set the ylabel
-        ax[i // 2, i % 2].set_ylabel("Lat")
+        ax[i // 3, i % 3].set_ylabel("Lat")
 
     # Create a colorbar for the whole figure
-    cbar = fig.colorbar(contour, cax=cbar_ax, orientation='horizontal', ticks=ticks)
+    cbar = fig.colorbar(contour, ax=ax, orientation="vertical", ticks=ticks, shrink=0.6, extend="both")
     cbar.set_label(f"{mean_or_std.capitalize()} Bias")
+
+    # fig.subplots_adjust(bottom=0.25)
 
     # Set up the super title
     fig.suptitle(
-        f"{variable} {mean_or_std.capitalize()} bias for lead {lead_time} years {init_years[0]}-{init_years[-1]}"
+        f"{variable} {mean_or_std.capitalize()} bias for lead {lead_time} years {init_years[0]}-{init_years[-1]} and {freq}"
     )
 
     # Set up the current time
     current_time = time.strftime("%Y%m%dT%H%M%S")
 
     # Set up the fname
-    fname = f"{variable}_{mean_or_std}_bias_lead{lead_time}_init{init_years[0]}-{init_years[-1]}_{current_time}.pdf"
+    fname = f"{variable}_{mean_or_std}_bias_lead{lead_time}_init{init_years[0]}-{init_years[-1]}_freq{freq}_{current_time}.pdf"
 
     # if the save_dir does not exist
     if not os.path.exists(save_dir):
@@ -882,6 +1092,7 @@ def calc_and_plot_bias_all_months(
 
     # return None
     return None
+
 
 # define a main function for testing
 def main():
@@ -1078,7 +1289,7 @@ def main():
 
     # Print the time taken
     print(f"Time taken: {end - start:.2f} seconds.")
-        
+
     # Print that we are exiting the main function
     print("Exiting main function.")
     sys.exit()
