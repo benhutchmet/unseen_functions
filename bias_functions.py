@@ -20,6 +20,8 @@ import pandas as pd
 import xesmf as xe
 from tqdm import tqdm
 from dask.diagnostics import ProgressBar
+import cftime
+import netCDF4
 
 # Import specifically from functions
 from functions import set_integer_time_axis, regrid_ds, select_gridbox
@@ -159,8 +161,11 @@ def load_dcpp_data_lead(
         for agg_files in files
     ]
 
+    # Extract the unique variants
+    variants = list(set(variants))
+
     # Print the unique variants
-    print(f"Unique variants: {set(variants)}")
+    print(f"Unique variants: {variants}")
 
     # print the shape of the agg_files
     print(f"Shape of agg_files: {len(agg_files)}")
@@ -174,7 +179,7 @@ def load_dcpp_data_lead(
         member_list = []
 
         # Load the data by looping over the unique variants
-        for variant in set(variants):
+        for variant in variants:
             # Find the variant files
             variant_files = [
                 file for file in agg_files if f"s{init_year}-{variant}" in file
@@ -221,6 +226,133 @@ def load_dcpp_data_lead(
         init_year_list.append(member_ds)
     # Concatenate the init_year_list along the init_year dimension
     ds = xr.concat(init_year_list, "init").rename({"time": "lead"})
+
+    # If the frequency is 'day'
+    # We have to extract the correct leads after the data has been loaded
+    if frequency == "day":
+        if ds.attrs["time_axis_type"] == "Datetime360Day":
+            print("Converting the lead times to days assuming datetime360 day frequency.")
+            
+            # Set up the dates list
+            dates = []
+
+            # Set up the first day
+            first_day = pd.to_datetime(ds.attrs["first_month"])
+
+            # Loop over the lead times
+            for i in range(len(ds["lead"])):
+                # Calculate the number of years, months, and days to add
+                years_to_add = i // 360
+                months_to_add = (i % 360) // 30
+                days_to_add = (i % 360) % 30
+
+                # Calculate the new lead time
+                new_year = first_day.year + years_to_add
+                new_month = first_day.month + months_to_add
+                new_day = first_day.day + days_to_add
+
+                # Calculate the new date
+                new_year = first_day.year + years_to_add
+                new_month = first_day.month + months_to_add
+                new_day = first_day.day + days_to_add
+
+                # Handle overflow of days
+                if new_day > 30:
+                    new_day -= 30
+                    new_month += 1
+
+                # Handle overflow of months
+                if new_month > 12:
+                    new_month -= 12
+                    new_year += 1
+
+                new_date = cftime.Datetime360Day(new_year, new_month, new_day)
+
+                # Add the new date to the list
+                dates.append(new_date)
+        else:
+            raise ValueError(f"Time axis type {ds.attrs['time_axis_type']} not recognised.")
+        
+        # print the first date
+        print(f"First date: {dates[0]}")
+
+        # Print the last date
+        print(f"Last date: {dates[-1]}")
+
+        # loop over and print all of the attributes
+        # print theb time units
+        first_file = agg_files[0]
+
+        # Open the NetCDF file
+        dataset = netCDF4.Dataset(first_file)
+
+        # Access the time variable
+        time = dataset.variables['time']
+
+        # Print the characteristics of time
+        print(f"bounds: {time.bounds}")
+        print(f"units: {time.units}")
+        print(f"calendar: {time.calendar}")
+        print(f"axis: {time.axis}")
+        print(f"long_name: {time.long_name}")
+        print(f"standard_name: {time.standard_name}")
+
+        # extract time.units as a string
+        time_units = str(time.units)
+
+        # extract the calendar as string
+        calendar = str(dates[0].calendar)
+            
+        # print dates[0].calendar
+        print(f"dates[0].calendar: {dates[0].calendar}")
+        # prtin time_units
+        print(f"time_units: {time_units}")
+
+        # Set up the first day to constrain
+        first_day = cftime.date2num(dates[0], time_units, calendar,
+                                    has_year_zero=True)
+        # Print the first day
+        print(f"First day: {first_day}")
+
+        # print the lead time
+        print(f"Lead time: {lead_time}")
+
+        if lead_time != 1:
+            print("Lead time is not 1")
+            # Add the lead time to the first day
+            add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True) + (lead_time - 1) * 360
+        else:
+            print("Lead time is 1")
+            add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
+
+        # Print the add time
+        print(f"Add time: {add_time}")
+
+        # Convert from num to date
+        add_time_date = cftime.num2date(add_time, time_units, calendar, has_year_zero=True)
+
+        # print the add time date
+        print(f"Add time date: {add_time_date}")
+
+        # print that we are xiting
+        print("Exiting")
+        sys.exit()
+
+
+        # Set up the last day to constrain
+        last_day = cftime.num2date(cftime.date2num(dates[0], time_units) - 1 + lead_time * 360, calendar)
+
+        # print the last day
+        print(f"Last day: {last_day}")
+
+        # Extract the indices of these dates in the dates list
+        indices = np.where((dates >= first_day) & (dates <= last_day))[0]
+
+        # Print the indices
+        print(f"indices: {indices}")
+
+
+
 
     # Set up the members
     ds["member"] = variants
@@ -273,10 +405,12 @@ def preprocess_lead(
 
         # Extract the data
         ds = ds.isel(time=indices)
-    elif frequency == "day":
-        raise NotImplementedError("Daily data not yet implemented.")
-    else:
-        raise ValueError(f"Frequency {frequency} not recognised.")
+
+    # Not sure how best to implement this yet
+    # elif frequency == "day":
+    #     raise NotImplementedError("Daily data not yet implemented.")
+    # else:
+    #     raise ValueError(f"Frequency {frequency} not recognised.")
 
     # Return the preprocessed dataset
     return ds
@@ -1222,6 +1356,9 @@ def main():
         engine=engine,
         parallel=parallel,
     )
+
+    # Print the ds
+    print(f"DS: {ds}")
 
     # End the timer
     end = time.time()
