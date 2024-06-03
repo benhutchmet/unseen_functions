@@ -1199,9 +1199,17 @@ def main():
     engine = args.engine
     parallel = args.parallel
 
-    test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
+    # Test file for monthtly data
+    # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
 
-    obs_fpath = "/home/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
+    # Test file for daily data
+    test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/tas/gn/files/d20200417/tas_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
+
+    # Monthly obs filepath - multi var
+    # obs_fpath = "/home/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
+
+    # Daily obs fpath - single var - t2m
+    obs_fpath = "/home/users/benhutch/ERA5/ERA5_t2m_daily_1950_2020.nc"
 
     # test the load data function
     ds = load_dcpp_data_lead(
@@ -1214,6 +1222,17 @@ def main():
         engine=engine,
         parallel=parallel,
     )
+
+    # End the timer
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken: {end - start:.2f} seconds.")
+
+    # Print that we are exiting the main function
+    print("Exiting main function.")
+    sys.exit()
+
 
     # regrid the data
     ds = regrid_ds(
@@ -1284,15 +1303,6 @@ def main():
     #     save=True,
     # )
 
-    # End the timer
-    end = time.time()
-
-    # Print the time taken
-    print(f"Time taken: {end - start:.2f} seconds.")
-
-    # Print that we are exiting the main function
-    print("Exiting main function.")
-    sys.exit()
 
 
 if __name__ == "__main__":
