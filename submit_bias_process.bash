@@ -3,8 +3,8 @@
 #SBATCH --partition=short-serial
 #SBATCH --mem=30000
 #SBATCH --time=500:00
-#SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-bias-%A_%a.out
-#SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-bias-%A_%a.err
+#SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.out
+#SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.err
 
 # Set up the usage messages
 usage="Usage: ${model} ${variable} ${obs_variable} ${lead_time} ${start_year} ${end_year} ${experiment} ${frequency} ${month_bc}"

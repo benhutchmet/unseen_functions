@@ -1778,6 +1778,8 @@ def main():
     # Set up the args
     args = parser.parse_args()
 
+    # sbatch submit_bias_process.bash HadGEM3-GC31-MM tas t2m 2 1960 1960 dcppA-hindcast Amon 12
+
     # print the args
     print(f"Model: {args.model}")
     print(f"Variable: {args.variable}")
