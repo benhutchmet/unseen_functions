@@ -231,8 +231,10 @@ def load_dcpp_data_lead(
     # We have to extract the correct leads after the data has been loaded
     if frequency == "day":
         if ds.attrs["time_axis_type"] == "Datetime360Day":
-            print("Converting the lead times to days assuming datetime360 day frequency.")
-            
+            print(
+                "Converting the lead times to days assuming datetime360 day frequency."
+            )
+
             # Set up the dates list
             dates = []
 
@@ -271,8 +273,10 @@ def load_dcpp_data_lead(
                 # Add the new date to the list
                 dates.append(new_date)
         else:
-            raise ValueError(f"Time axis type {ds.attrs['time_axis_type']} not recognised.")
-        
+            raise ValueError(
+                f"Time axis type {ds.attrs['time_axis_type']} not recognised."
+            )
+
         # print the first date
         print(f"First date: {dates[0]}")
 
@@ -287,7 +291,7 @@ def load_dcpp_data_lead(
         dataset = netCDF4.Dataset(first_file)
 
         # Access the time variable
-        time = dataset.variables['time']
+        time = dataset.variables["time"]
 
         # Print the characteristics of time
         print(f"bounds: {time.bounds}")
@@ -302,7 +306,7 @@ def load_dcpp_data_lead(
 
         # extract the calendar as string
         calendar = str(dates[0].calendar)
-            
+
         # # print dates[0].calendar
         # print(f"dates[0].calendar: {dates[0].calendar}")
         # # prtin time_units
@@ -312,36 +316,50 @@ def load_dcpp_data_lead(
         print(f"First value of time: {dataset.variables['time'][0]}")
 
         # Set up the first day to constrain
-        first_day = cftime.date2num(dates[0], time_units, calendar,
-                                    has_year_zero=True)
+        first_day = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
 
         if lead_time != 1:
             print("Lead time is not 1")
             # Add the lead time to the first day
-            add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True) + (lead_time - 1) * 360
+            add_time = (
+                cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
+                + (lead_time - 1) * 360
+            )
 
         else:
             print("Lead time is 1")
-            add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
+            add_time = cftime.date2num(
+                dates[0], time_units, calendar, has_year_zero=True
+            )
 
         # Set up the end time
-        end_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True) - 1 + (lead_time * 360)
+        end_time = (
+            cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
+            - 1
+            + (lead_time * 360)
+        )
 
         # Convert from num to date
-        add_time_date = cftime.num2date(add_time, time_units, calendar, has_year_zero=True)
+        add_time_date = cftime.num2date(
+            add_time, time_units, calendar, has_year_zero=True
+        )
 
         # num 2 date for the end time
-        end_time_date = cftime.num2date(end_time, time_units, calendar, has_year_zero=True)
+        end_time_date = cftime.num2date(
+            end_time, time_units, calendar, has_year_zero=True
+        )
 
         # print the first day
         print(f"First day: {add_time_date}")
         print(f"Last day: {end_time_date}")
-        
+
         # Convert dates to a numpy array
         dates_array = np.array(dates)
 
         # Extract the indices of these dates in the dates list
-        indices = np.where((dates_array >= add_time_date) & (dates_array <= end_time_date))[0]
+        indices = np.where(
+            (dates_array >= add_time_date) & (dates_array <= end_time_date)
+        )[0]
 
         # Use these indices to extract the data for lead at these indices
         # Extract the values of lead
@@ -947,14 +965,13 @@ def calc_and_plot_bias_all_months(
         # Divide the obs data by 86400 (to convert from J/m^2 to W/m^2 in days)
         obs_ds = obs_ds / 86400
 
-
     # Initialize global vmin and vmax
     global_vmin = np.inf
     global_vmax = -np.inf
 
     # Iterate over all data to find global vmin and vmax
     for i, month_name in tqdm(enumerate(month_names), desc="Calculating vmin and vmax"):
-        
+
         # Select the month idx from the model data
         model_ds_month = model_ds.sel(lead=i + 1)
 
@@ -963,19 +980,22 @@ def calc_and_plot_bias_all_months(
 
         # Select the month from the obs data
         obs_month_data = obs_ds.where(obs_ds.time.dt.month == obs_month, drop=True)
-        
+
         # Calculate the bias
         if mean_or_std == "mean":
-            bias = model_ds_month.mean(dim=["init", "member"], skipna=True) - obs_month_data.mean(dim="time")
+            bias = model_ds_month.mean(
+                dim=["init", "member"], skipna=True
+            ) - obs_month_data.mean(dim="time")
         elif mean_or_std == "std":
-            bias = model_ds_month.std(dim=["init", "member"], skipna=True) - obs_month_data.std(dim="time")
+            bias = model_ds_month.std(
+                dim=["init", "member"], skipna=True
+            ) - obs_month_data.std(dim="time")
 
         # Update global vmin and vmax
         vmin = np.floor(bias.min())
         vmax = np.ceil(bias.max())
         global_vmin = min(global_vmin, vmin)
         global_vmax = max(global_vmax, vmax)
-
 
         if variable == "tas":
             if mean_or_std == "mean":
@@ -1042,7 +1062,7 @@ def calc_and_plot_bias_all_months(
     # Set up the ticks
     ticks = np.arange(global_vmin, global_vmax + ticks_int, ticks_int)
 
-    # print the ticks   
+    # print the ticks
     print(f"ticks: {ticks}")
 
     # Loop over the month names
@@ -1184,8 +1204,8 @@ def calc_and_plot_bias_all_months(
         )
 
         # Set the x and y limits to the desired domain
-        ax[i // 3, i % 3].set_xlim([constrained_grid['lon1'],constrained_grid['lon2']])
-        ax[i // 3, i % 3].set_ylim([constrained_grid['lat1'],constrained_grid['lat2']])
+        ax[i // 3, i % 3].set_xlim([constrained_grid["lon1"], constrained_grid["lon2"]])
+        ax[i // 3, i % 3].set_ylim([constrained_grid["lat1"], constrained_grid["lat2"]])
 
         # cbar = plt.colorbar(contour, ax=ax[i // 2, i % 2], ticks=ticks, shrink=0.8)
         # cbar.set_label(f"{mean_or_std.capitalize()} Bias")
@@ -1203,7 +1223,9 @@ def calc_and_plot_bias_all_months(
         ax[i // 3, i % 3].set_ylabel("Lat")
 
     # Create a colorbar for the whole figure
-    cbar = fig.colorbar(contour, ax=ax, orientation="vertical", ticks=ticks, shrink=0.6, extend="both")
+    cbar = fig.colorbar(
+        contour, ax=ax, orientation="vertical", ticks=ticks, shrink=0.6, extend="both"
+    )
     cbar.set_label(f"{mean_or_std.capitalize()} Bias")
 
     # fig.subplots_adjust(bottom=0.25)
@@ -1235,6 +1257,7 @@ def calc_and_plot_bias_all_months(
 
     # return None
     return None
+
 
 # define a function to calculate the bias correction coefficients
 # for each point of the grid
@@ -1323,7 +1346,15 @@ def calc_and_save_bias_coeffs(
     print(f"Shape of obs_month_np: {np.shape(obs_month_np)}")
 
     # set up a list to store the bias corrected model data
-    bc_model_data_month = np.zeros([np.shape(model_ds_month_np)[0], np.shape(model_ds_month_np)[1], np.shape(model_ds_month_np)[2], np.shape(model_ds_month_np)[3], np.shape(model_ds_month_np)[4]])
+    bc_model_data_month = np.zeros(
+        [
+            np.shape(model_ds_month_np)[0],
+            np.shape(model_ds_month_np)[1],
+            np.shape(model_ds_month_np)[2],
+            np.shape(model_ds_month_np)[3],
+            np.shape(model_ds_month_np)[4],
+        ]
+    )
 
     # print the shape of the bc_model_data_month
     print(f"Shape of bc_model_data_month: {np.shape(bc_model_data_month)}")
@@ -1339,10 +1370,17 @@ def calc_and_save_bias_coeffs(
             model_month_np_point = model_ds_month_np[:, :, :, y, x].flatten()
 
             # if all obs values and model values are nan, then continue
-            if np.all(np.isnan(obs_month_np_point)) and np.all(np.isnan(model_month_np_point)):
+            if np.all(np.isnan(obs_month_np_point)) and np.all(
+                np.isnan(model_month_np_point)
+            ):
                 # Reshape the model_month_np_point to the original shape in Nans
                 bc_model_data_month[:, :, :, y, x] = np.reshape(
-                    model_month_np_point, (1, 10, 30)
+                    model_month_np_point,
+                    (
+                        np.shape(model_month_np_point)[0],
+                        np.shape(model_month_np_point)[1],
+                        np.shape(model_month_np_point)[2],
+                    ),
                 )
                 continue
 
@@ -1373,16 +1411,22 @@ def calc_and_save_bias_coeffs(
             # but we want to get it back to the original shape (1, 10, 30)
             # then append the data to the bc_model_data_month
             bc_model_data_month[:, :, :, y, x] = np.reshape(
-                model_month_np_point_norm, (1, 10, 30)
+                model_month_np_point_norm,
+                (
+                    np.shape(model_month_np_point)[0],
+                    np.shape(model_month_np_point)[1],
+                    np.shape(model_month_np_point)[2],
+                ),
             )
 
     # PRINT THE SHAPE OF THE BC_MODEL_DATA_MONTH
     print(f"Shape of bc_model_data_month: {np.shape(bc_model_data_month)}")
-            
+
     # print the bc_model_data_month
     print(f"BC Model Data Month: {bc_model_data_month}")
 
     return bc_model_data_month
+
 
 # Define a function for plotting and comparing the mean and bc data
 def verify_bc_plot(
@@ -1398,7 +1442,7 @@ def verify_bc_plot(
     save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
 ):
     """
-    
+
     Plots the spatial bias as the model - obs for the mean or standard deviation
     for both the original data (left) and the bias corrected data (right).
 
@@ -1431,8 +1475,6 @@ def verify_bc_plot(
     -------
 
     """
-
-    
 
 
 # define a main function for testing
@@ -1662,7 +1704,6 @@ def main():
     #     save_dir="/gws/nopw/j04/canari/users/benhutch/plots/",
     #     save=True,
     # )
-
 
 
 if __name__ == "__main__":
