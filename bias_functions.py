@@ -1236,6 +1236,204 @@ def calc_and_plot_bias_all_months(
     # return None
     return None
 
+# define a function to calculate the bias correction coefficients
+# for each point of the grid
+# and then output them to a netcdf file
+def calc_and_save_bias_coeffs(
+    model_ds: xr.Dataset,
+    obs_ds: xr.Dataset,
+    lead_time: int,
+    month: int,
+    init_years: list[int],
+    variable: str,
+    model_name: str,
+    save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
+):
+    """
+    Calculates the bias correction coefficients for the provided data using the
+    method from Luo et al. (2018) and saves them to a netcdf file.
+
+    Parameters
+    ----------
+
+    model_ds : xr.Dataset
+        The model dataset to calculate the bias for.
+    obs_ds : xr.Dataset
+        The observed dataset to calculate the bias for.
+    lead_time : int
+        The lead time to calculate the bias for.
+    month : int
+        The index of the month to calculate the bias for.
+    init_years : list[int]
+        The initialization years to calculate the bias for.
+    variable : str
+        The variable to calculate the bias for.
+    model_name : str
+        The name of the model to calculate the bias for.
+    save_dir : str, optional
+        The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
+
+    Returns
+    -------
+
+    """
+
+    if month in [11, 12]:
+        # Set up the leads to select
+        leads_sel = np.arange(((month - 11) * 30) + 1, ((month - 11) * 30) + 31)
+    elif month in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+        # Set up the leads to select
+        leads_sel = np.arange(60 + ((month - 1) * 30) + 1, 60 + ((month - 1) * 30) + 31)
+    else:
+        raise ValueError(f"Month {month} not recognised.")
+
+    # print the leads to sel
+    print(f"Leads to select: {leads_sel}")
+
+    # Select the leads
+    model_ds_month = model_ds.sel(lead=leads_sel)
+
+    # Select the obs data for the given month
+    obs_month = obs_ds.sel(time=obs_ds.time.dt.month == month)
+
+    # print the obs month
+    print(f"Obs month: {obs_month}")
+
+    # print the model month
+    print(f"Model month: {model_ds_month}")
+
+    # extract the lats and lons
+    lats = obs_month["lat"].values
+    lons = obs_month["lon"].values
+
+    # # print the lats and lons
+    # print(f"Lats: {lats}")
+    # print(f"Lons: {lons}")
+
+    # Extract the model_ds_month as numpy array
+    model_ds_month_np = model_ds_month.values
+
+    # Extract the obs_month as numpy array
+    obs_month_np = obs_month.values
+
+    # print the shape of the model_ds_month_np
+    print(f"Shape of model_ds_month_np: {np.shape(model_ds_month_np)}")
+
+    # print the shape of the obs_month_np
+    print(f"Shape of obs_month_np: {np.shape(obs_month_np)}")
+
+    # set up a list to store the bias corrected model data
+    bc_model_data_month = np.zeros([np.shape(model_ds_month_np)[0], np.shape(model_ds_month_np)[1], np.shape(model_ds_month_np)[2], np.shape(model_ds_month_np)[3], np.shape(model_ds_month_np)[4]])
+
+    # print the shape of the bc_model_data_month
+    print(f"Shape of bc_model_data_month: {np.shape(bc_model_data_month)}")
+
+    # Loop over the lats
+    for x, lon in tqdm(enumerate(lons), desc="Calculating bias coefficients lon"):
+        for y, lat in enumerate(lats):
+
+            # Select the obs data for the given lat and lon
+            obs_month_np_point = obs_month_np[:, y, x]
+
+            # Select the model data for the given lat and lon
+            model_month_np_point = model_ds_month_np[:, :, :, y, x].flatten()
+
+            # if all obs values and model values are nan, then continue
+            if np.all(np.isnan(obs_month_np_point)) and np.all(np.isnan(model_month_np_point)):
+                # Reshape the model_month_np_point to the original shape in Nans
+                bc_model_data_month[:, :, :, y, x] = np.reshape(
+                    model_month_np_point, (1, 10, 30)
+                )
+                continue
+
+            # # print the values of model_month_np_point
+            # print(f"Model month np point: {model_month_np_point}")
+
+            # Apply the linear scaling method to the mean
+            model_month_np_point_ls = model_month_np_point + (
+                np.mean(obs_month_np_point) - np.mean(model_month_np_point)
+            )
+
+            # normalise the model_month_np_point_ls to a zero mean
+            model_month_np_point_norm = model_month_np_point_ls - np.mean(
+                model_month_np_point_ls
+            )
+
+            # Scale the variance
+            model_month_np_point_norm = (
+                np.std(obs_month_np_point) / np.std(model_month_np_point_norm)
+            ) * model_month_np_point_norm
+
+            # Add the mean back
+            model_month_np_point_norm = model_month_np_point_norm + np.mean(
+                model_month_np_point_ls
+            )
+
+            # if the data has been flattened to shape (300,)
+            # but we want to get it back to the original shape (1, 10, 30)
+            # then append the data to the bc_model_data_month
+            bc_model_data_month[:, :, :, y, x] = np.reshape(
+                model_month_np_point_norm, (1, 10, 30)
+            )
+
+    # PRINT THE SHAPE OF THE BC_MODEL_DATA_MONTH
+    print(f"Shape of bc_model_data_month: {np.shape(bc_model_data_month)}")
+            
+    # print the bc_model_data_month
+    print(f"BC Model Data Month: {bc_model_data_month}")
+
+    return bc_model_data_month
+
+# Define a function for plotting and comparing the mean and bc data
+def verify_bc_plot(
+    model_ds: xr.Dataset,
+    obs_ds: xr.Dataset,
+    bc_model_data: np.ndarray,
+    lead_time: int,
+    month: int,
+    init_years: list[int],
+    variable: str,
+    model_name: str,
+    mean_or_std: str = "mean",
+    save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
+):
+    """
+    
+    Plots the spatial bias as the model - obs for the mean or standard deviation
+    for both the original data (left) and the bias corrected data (right).
+
+    Parameters
+    ----------
+
+    model_ds : xr.Dataset
+        The model dataset to calculate the bias for.
+    obs_ds : xr.Dataset
+        The observed dataset to calculate the bias for.
+    bc_model_data : np.ndarray
+        The bias corrected model data.
+    lead_time : int
+        The lead time to calculate the bias for.
+    month : int
+        The index of the month to calculate the bias for.
+    init_years : list[int]
+        The initialization years to calculate the bias for.
+    variable : str
+        The variable to calculate the bias for.
+    model_name : str
+        The name of the model to calculate the bias for.
+    mean_or_std : str, optional
+        Whether to calculate the mean or standard deviation, by default "mean".
+        Only takes values of "mean" or "std".
+    save_dir : str, optional
+        The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
+
+    Returns
+    -------
+
+    """
+
+    
+
 
 # define a main function for testing
 def main():
@@ -1379,18 +1577,8 @@ def main():
         calc_mean=False,
     )
 
-    # Print the ds
-    print(f"DS: {ds}")
-
-    # End the timer
-    end = time.time()
-
-    # Print the time taken
-    print(f"Time taken: {end - start:.2f} seconds.")
-
-    # Print that we are exiting the main function
-    print("Exiting main function.")
-    sys.exit()
+    # # Print the ds
+    # print(f"DS: {ds}")
 
     # Load the test ds
     test_ds = xr.open_dataset(test_file)
@@ -1414,6 +1602,33 @@ def main():
         grid=dicts.eu_grid,
         calc_mean=False,
     )
+
+    # print the obs
+    print(f"Obs: {obs}")
+
+    # print ds
+    print(f"DS: {ds}")
+
+    # test the calc and plot bias function
+    calc_and_save_bias_coeffs(
+        model_ds=None,
+        obs_ds=None,
+        lead_time=None,
+        month=10,
+        init_years=init_years,
+        variable=variable,
+        model_name=None,
+    )
+
+    # End the timer
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken: {end - start:.2f} seconds.")
+
+    # Print that we are exiting the main function
+    print("Exiting main function.")
+    sys.exit()
 
     # print the obs
     print(f"Obs: {obs}")
