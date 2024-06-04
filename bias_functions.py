@@ -1270,6 +1270,7 @@ def calc_and_save_bias_coeffs(
     init_years: list[int],
     variable: str,
     model_name: str,
+    save_flag: bool = False,
     save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
 ):
     """
@@ -1293,6 +1294,8 @@ def calc_and_save_bias_coeffs(
         The variable to calculate the bias for.
     model_name : str
         The name of the model to calculate the bias for.
+    save_flag : bool, optional
+        Whether to save the bias coefficients, by default False.
     save_dir : str, optional
         The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
 
@@ -1377,9 +1380,9 @@ def calc_and_save_bias_coeffs(
                 bc_model_data_month[:, :, :, y, x] = np.reshape(
                     model_month_np_point,
                     (
-                        np.shape(model_month_np_point)[0],
-                        np.shape(model_month_np_point)[1],
-                        np.shape(model_month_np_point)[2],
+                        np.shape(model_ds_month_np)[0],
+                        np.shape(model_ds_month_np)[1],
+                        np.shape(model_ds_month_np)[2],
                     ),
                 )
                 continue
@@ -1413,9 +1416,9 @@ def calc_and_save_bias_coeffs(
             bc_model_data_month[:, :, :, y, x] = np.reshape(
                 model_month_np_point_norm,
                 (
-                    np.shape(model_month_np_point)[0],
-                    np.shape(model_month_np_point)[1],
-                    np.shape(model_month_np_point)[2],
+                    np.shape(model_ds_month_np)[0],
+                    np.shape(model_ds_month_np)[1],
+                    np.shape(model_ds_month_np)[2],
                 ),
             )
 
@@ -1424,6 +1427,44 @@ def calc_and_save_bias_coeffs(
 
     # print the bc_model_data_month
     print(f"BC Model Data Month: {bc_model_data_month}")
+
+    # if save_flag is True
+    if save_flag:
+
+        # if the save_dir does not exist
+        if not os.path.exists(save_dir):
+            # make the directory
+            os.makedirs(save_dir)
+
+        # Set up the filename
+        fname = f"{variable}_bias_correction_{model_name}_lead{lead_time}_month{month}_init{init_years[0]}-{init_years[-1]}.nc"
+
+        # Set up the array as a xarray dataset
+        bc_model_data_month_ds = xr.DataArray(
+            bc_model_data_month,
+            dims=["init", "member", "lead", "lat", "lon"],
+            coords={
+                "lead": model_ds_month.lead.values,
+                "init": model_ds_month.init.values,
+                "member": model_ds_month.member.values,
+                "lat": lats,
+                "lon": lons,
+            },
+        )
+
+        # Set up the path
+        save_path = os.path.join(save_dir, fname)
+
+        # save the file
+        delayed_obj = bc_model_data_month_ds.to_netcdf(save_path, compute=False)
+
+        try:
+            with ProgressBar():
+                print("Saving bias corrected data")
+                results = delayed_obj.compute()
+        except e as Exception:
+            print(f"Error saving file: {e}")
+
 
     return bc_model_data_month
 
@@ -1475,6 +1516,174 @@ def verify_bc_plot(
     -------
 
     """
+
+    # Select the leads to plot
+    if month in [11, 12]:
+        # Set up the leads to select
+        leads_sel = np.arange(((month - 11) * 30) + 1, ((month - 11) * 30) + 31)
+    elif month in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+        # Set up the leads to select
+        leads_sel = np.arange(60 + ((month - 1) * 30) + 1, 60 + ((month - 1) * 30) + 31)
+    else:
+        raise ValueError(f"Month {month} not recognised.")
+
+    # print the leads to sel
+    print(f"Leads to select: {leads_sel}")
+
+    # Select the leads
+    model_ds_month = model_ds.sel(lead=leads_sel)
+
+    # Select the obs data for the given month
+    obs_month = obs_ds.sel(time=obs_ds.time.dt.month == month)
+
+    # print the obs month
+    print(f"Obs month: {obs_month}")
+
+    # print the model month
+    print(f"Model month: {model_ds_month}")
+
+    # extract the lats and lons
+    lats = obs_month["lat"].values
+    lons = obs_month["lon"].values
+
+    # extract the values
+    obs_month_np = obs_month.values
+
+    # extract the values
+    model_month_np = model_ds_month.values
+
+    # print the shape
+    print(f"Shape of model_month_np: {np.shape(model_month_np)}")
+
+    # print the shape
+    print(f"Shape of obs_month_np: {np.shape(obs_month_np)}")
+
+    # assert that not all of the values are Nan
+    assert not np.all(np.isnan(model_month_np)), "All values of model_month_np are nan"
+
+    # assert that not all of the values are Nan
+    assert not np.all(np.isnan(obs_month_np)), "All values of obs_month_np are nan"
+
+    # # if the mean_or_std is mean
+    if mean_or_std == "mean":
+        # Calculate the bias as model_mean - obs_mean
+        bias = np.nanmean(model_month_np, axis=(0, 1, 2)) - np.nanmean(obs_month_np, axis=0)
+
+        # calculate the bias corrected bias
+        bc_bias = np.nanmean(bc_model_data, axis=(0, 1, 2)) - np.nanmean(obs_month_np, axis=0)
+
+    elif mean_or_std == "std":
+        # Calculate the bias as model_sigma - obs_sigma
+        bias = np.nanstd(model_month_np, axis=(0, 1, 2)) - np.nanstd(obs_month_np, axis=0)
+
+        # calculate the bias corrected bias
+        bc_bias = np.nanstd(bc_model_data, axis=(0, 1, 2)) - np.nanstd(obs_month_np, axis=0)
+    else:
+        raise ValueError(f"mean_or_std {mean_or_std} not recognised.")
+    
+    # print the shapes of the bias and bc_bias
+    print(f"Shape of bias: {np.shape(bias)}")
+
+    # print the shapes of the bias and bc_bias
+    print(f"Shape of bc_bias: {np.shape(bc_bias)}")
+
+    # assert that not all of the values are Nan
+    assert not np.all(np.isnan(bias)), "All values of bias are nan"
+
+    # assert that not all of the values are Nan
+    assert not np.all(np.isnan(bc_bias)), "All values of bc_bias are nan"
+
+    fig, axs = plt.subplots(
+        nrows=1, ncols=2, figsize=(12, 6), subplot_kw={"projection": ccrs.PlateCarree()}
+    )
+
+    # print the min and max of the bias
+    print(f"Min bias: {bias.min()}, Max bias: {bias.max()}")
+
+    # print the min and max of the bc_bias
+    print(f"Min bc_bias: {bc_bias.min()}, Max bc_bias: {bc_bias.max()}")
+
+    if mean_or_std == "mean":
+        # Set up the contour levels
+        clevs = np.arange(-5, 5.5, 0.5)
+        # Set up the ticks
+        ticks = np.arange(-5, 5.5, 1)
+    else:
+        # Set up the contour levels
+        clevs = np.arange(-3, 3.5, 0.5)
+        # Set up the ticks
+        ticks = np.arange(-3, 3.5, 1)
+
+    # remove 0 from the clevs
+    clevs = clevs[clevs != 0]
+
+    # remove 0 from the ticks
+    ticks = ticks[ticks != 0]
+
+    # Set up the first contourf object
+    contour_bias = axs[0].contourf(
+        lons,
+        lats,
+        bias,
+        clevs,
+        transform=ccrs.PlateCarree(),
+        cmap="bwr",
+        extend="both",
+    )
+
+    # set the x and y lims to the desired domain
+    axs[0].set_xlim([dicts.eu_grid_constrained["lon1"], dicts.eu_grid_constrained["lon2"]])
+    axs[0].set_ylim([dicts.eu_grid_constrained["lat1"], dicts.eu_grid_constrained["lat2"]])
+
+    # Set up the second contourf object
+    contour_bc = axs[1].contourf(
+        lons,
+        lats,
+        bc_bias,
+        clevs,
+        transform=ccrs.PlateCarree(),
+        cmap="bwr",
+        extend="both",
+    )
+
+    # set the x and y lims to the desired domain
+    axs[1].set_xlim([dicts.eu_grid_constrained["lon1"], dicts.eu_grid_constrained["lon2"]])
+    axs[1].set_ylim([dicts.eu_grid_constrained["lat1"], dicts.eu_grid_constrained["lat2"]])
+
+    # Add coastlines
+    axs[0].coastlines()
+
+    # Add coastlines
+    axs[1].coastlines()
+
+    # Set the title
+    axs[0].set_title(f"Mean Bias {model_name}")
+
+    # Set the title
+    axs[1].set_title(f"Mean Bias BC {model_name}")
+
+    # set up the cbar
+    cbar = plt.colorbar(contour_bias, ax=axs, ticks=ticks, shrink=0.8,orientation='horizontal')
+    cbar.set_label(f"{mean_or_std.capitalize()} Bias")
+
+    fig.subplots_adjust(bottom=0.3)
+
+    # set up the super title
+    fig.suptitle(
+        f"{variable} {mean_or_std.capitalize()} bias for lead {lead_time} years {init_years[0]}-{init_years[-1]} month {month}"
+    )
+
+    # move the subtitle closer to the plot
+    plt.subplots_adjust(top=0.9)
+
+    # show the plot
+    plt.show()
+
+
+
+
+    return None
+
 
 
 # define a main function for testing
