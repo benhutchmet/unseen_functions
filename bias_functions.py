@@ -1455,15 +1455,20 @@ def calc_and_save_bias_coeffs(
         # Set up the path
         save_path = os.path.join(save_dir, fname)
 
-        # save the file
-        delayed_obj = bc_model_data_month_ds.to_netcdf(save_path, compute=False)
+        # if save_path exists
+        if os.path.exists(save_path):
+            # print that the file already exists
+            print(f"File {save_path} already exists.")        
+        else:
+            # save the file
+            delayed_obj = bc_model_data_month_ds.to_netcdf(save_path, compute=False)
 
-        try:
-            with ProgressBar():
-                print("Saving bias corrected data")
-                results = delayed_obj.compute()
-        except e as Exception:
-            print(f"Error saving file: {e}")
+            try:
+                with ProgressBar():
+                    print("Saving bias corrected data")
+                    results = delayed_obj.compute()
+            except e as Exception:
+                print(f"Error saving file: {e}")
 
 
     return bc_model_data_month
@@ -1763,6 +1768,13 @@ def main():
         default=False,
     )
 
+    parser.add_argument(
+        "--month_bc",
+        type=int,
+        help="The month to calculate the bias correction for.",
+        default=11, # November, the first month
+    )
+
     # Set up the args
     args = parser.parse_args()
 
@@ -1777,6 +1789,7 @@ def main():
     print(f"Frequency: {args.frequency}")
     print(f"Engine: {args.engine}")
     print(f"Parallel: {args.parallel}")
+    print(f"Month BC: {args.month_bc}")
 
     # Set up the init years
     init_years = np.arange(args.start_year, args.end_year + 1)
@@ -1790,6 +1803,7 @@ def main():
     frequency = args.frequency
     engine = args.engine
     parallel = args.parallel
+    month_bc = args.month_bc
 
     # Test file for monthtly data
     # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
@@ -1824,7 +1838,7 @@ def main():
     # Select the gridbox
     ds = select_gridbox(
         ds=ds,
-        grid=dicts.eu_grid,
+        grid=dicts.eu_grid_constrained,
         calc_mean=False,
     )
 
@@ -1850,26 +1864,30 @@ def main():
     # select the gridbox for the obs
     obs = select_gridbox(
         ds=obs,
-        grid=dicts.eu_grid,
+        grid=dicts.eu_grid_constrained,
         calc_mean=False,
     )
 
-    # print the obs
-    print(f"Obs: {obs}")
+    # # print the obs
+    # print(f"Obs: {obs}")
 
-    # print ds
-    print(f"DS: {ds}")
+    # # print ds
+    # print(f"DS: {ds}")
 
     # test the calc and plot bias function
-    calc_and_save_bias_coeffs(
-        model_ds=None,
-        obs_ds=None,
-        lead_time=None,
-        month=10,
+    bc_data = calc_and_save_bias_coeffs(
+        model_ds=ds,
+        obs_ds=obs,
+        lead_time=lead_time,
+        month=month_bc,
         init_years=init_years,
         variable=variable,
-        model_name=None,
+        model_name=model,
+        save_flag=True,
     )
+
+    # print the shape of bc data
+    print(f"Shape of bc_data: {np.shape(bc_data)}")
 
     # End the timer
     end = time.time()
@@ -1877,42 +1895,9 @@ def main():
     # Print the time taken
     print(f"Time taken: {end - start:.2f} seconds.")
 
-    # Print that we are exiting the main function
-    print("Exiting main function.")
-    sys.exit()
-
-    # print the obs
-    print(f"Obs: {obs}")
-
-    # print the ds
-    print(f"DS: {ds}")
-
-    # Save the data
-    save_data(
-        model_ds=ds,
-        obs_ds=obs,
-        model=model,
-        experiment=experiment,
-        frequency=frequency,
-        variable=variable,
-        init_years=init_years,
-        lead_time=lead_time,
-        save_dir="/work/scratch-nopw2/benhutch/test_nc/",
-    )
-
-    # # Test the plot bias function
-    # calc_and_plot_bias(
-    #     model_ds=ds,
-    #     obs_ds=obs,
-    #     month_idx=1,
-    #     lead_time=lead_time,
-    #     init_years=init_years,
-    #     variable=variable,
-    #     month_name="November",
-    #     figsize=(12, 6),
-    #     save_dir="/gws/nopw/j04/canari/users/benhutch/plots/",
-    #     save=True,
-    # )
+    # # Print that we are exiting the main function
+    # print("Exiting main function.")
+    # sys.exit()
 
 
 if __name__ == "__main__":
