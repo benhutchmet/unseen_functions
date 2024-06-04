@@ -303,56 +303,65 @@ def load_dcpp_data_lead(
         # extract the calendar as string
         calendar = str(dates[0].calendar)
             
-        # print dates[0].calendar
-        print(f"dates[0].calendar: {dates[0].calendar}")
-        # prtin time_units
-        print(f"time_units: {time_units}")
+        # # print dates[0].calendar
+        # print(f"dates[0].calendar: {dates[0].calendar}")
+        # # prtin time_units
+        # print(f"time_units: {time_units}")
+
+        # print the first value of dates
+        print(f"First value of time: {dataset.variables['time'][0]}")
 
         # Set up the first day to constrain
         first_day = cftime.date2num(dates[0], time_units, calendar,
                                     has_year_zero=True)
-        # Print the first day
-        print(f"First day: {first_day}")
-
-        # print the lead time
-        print(f"Lead time: {lead_time}")
 
         if lead_time != 1:
             print("Lead time is not 1")
             # Add the lead time to the first day
             add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True) + (lead_time - 1) * 360
+
         else:
             print("Lead time is 1")
             add_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True)
 
-        # Print the add time
-        print(f"Add time: {add_time}")
+        # Set up the end time
+        end_time = cftime.date2num(dates[0], time_units, calendar, has_year_zero=True) - 1 + (lead_time * 360)
 
         # Convert from num to date
         add_time_date = cftime.num2date(add_time, time_units, calendar, has_year_zero=True)
 
-        # print the add time date
-        print(f"Add time date: {add_time_date}")
+        # num 2 date for the end time
+        end_time_date = cftime.num2date(end_time, time_units, calendar, has_year_zero=True)
 
-        # print that we are xiting
-        print("Exiting")
-        sys.exit()
-
-
-        # Set up the last day to constrain
-        last_day = cftime.num2date(cftime.date2num(dates[0], time_units) - 1 + lead_time * 360, calendar)
-
-        # print the last day
-        print(f"Last day: {last_day}")
+        # print the first day
+        print(f"First day: {add_time_date}")
+        print(f"Last day: {end_time_date}")
+        
+        # Convert dates to a numpy array
+        dates_array = np.array(dates)
 
         # Extract the indices of these dates in the dates list
-        indices = np.where((dates >= first_day) & (dates <= last_day))[0]
+        indices = np.where((dates_array >= add_time_date) & (dates_array <= end_time_date))[0]
 
-        # Print the indices
-        print(f"indices: {indices}")
+        # Use these indices to extract the data for lead at these indices
+        # Extract the values of lead
+        lead_values = ds["lead"].values
 
+        # Extract the values of lead at the indices
+        lead_values = lead_values[indices]
 
+        # Extract the indices of these dates in the dates list
+        ds = ds.isel(lead=lead_values)
 
+        # Add the first day and last day as an attribute
+        ds.attrs["first_day"] = add_time_date
+        ds.attrs["last_day"] = end_time_date
+
+        # print ds
+        print(f"ds: {ds}")
+
+        # Set up the lead values
+        ds["lead"] = np.arange(1, len(ds["lead"]) + 1)
 
     # Set up the members
     ds["member"] = variants
@@ -1357,20 +1366,6 @@ def main():
         parallel=parallel,
     )
 
-    # Print the ds
-    print(f"DS: {ds}")
-
-    # End the timer
-    end = time.time()
-
-    # Print the time taken
-    print(f"Time taken: {end - start:.2f} seconds.")
-
-    # Print that we are exiting the main function
-    print("Exiting main function.")
-    sys.exit()
-
-
     # regrid the data
     ds = regrid_ds(
         ds=ds,
@@ -1383,6 +1378,19 @@ def main():
         grid=dicts.eu_grid,
         calc_mean=False,
     )
+
+    # Print the ds
+    print(f"DS: {ds}")
+
+    # End the timer
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken: {end - start:.2f} seconds.")
+
+    # Print that we are exiting the main function
+    print("Exiting main function.")
+    sys.exit()
 
     # Load the test ds
     test_ds = xr.open_dataset(test_file)
