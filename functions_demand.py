@@ -782,20 +782,8 @@ def calc_national_wd_demand(
             if reg_col != "Unnamed: 0":
                 # split the column by regression
                 country = reg_col.split("_regression")[0]
-
-                print(f"Calculating demand for {country}")
-
-                # print the df cols
-                print(f"DF cols: {df.columns}")
-
-                # pint the country_name hdd_name and cdd_name
-                print(f"Country name: {country_name}_{hdd_name}")
-
-                print(f"Country name: {country_name}_{cdd_name}")
-
                 # if df contains f{country}_hdd and f{country}_cdd
                 if f"{country_name}_hdd" in df.columns and f"{country_name}_cdd" in df.columns:
-                    print(f"Calculating demand for {country_name}")
                     # Extract the time coefficient for col
                     time_coeff = reg_coeffs.loc["time", reg_col]
 
