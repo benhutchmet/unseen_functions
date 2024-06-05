@@ -313,6 +313,8 @@ def apply_country_mask(
     ds: xr.Dataset,
     country: str,
     pop_weights: int = 0,
+    lon_name: str = "longitude",
+    lat_name: str = "latitude",
 ) -> xr.Dataset:
     """
     Apply a mask to the data for a specific country.
@@ -369,19 +371,43 @@ def apply_country_mask(
     # # Print the mask
     # print(f"Country mask: {country_mask_poly}")
 
+    # # print the data
+    # print(ds)
+
+    # # print ds.isel(time=0)
+    # print(ds.isel(time=0))
+
+    print("Pre-country mask")
+
+    # seelct the first time
+    ds_init = ds.isel(time=0)
+
+    # print ds_init
+    print(ds_init)
+
+    # print ds_init[lon_name]
+    print(ds_init[lon_name].values)
+
+    # print ds_init[lat_name]
+    print(ds_init[lat_name].values)
+
     # Select the first timestep of the data
-    country_mask = country_mask_poly.mask(
-        ds.isel(time=0), lon_name="longitude", lat_name="latitude"
-    )
+    country_mask = country_mask_poly.mask(ds_init[lon_name].values, ds_init[lat_name].values)
+
+    # # print the country mask
+    # print(f"Country mask: {country_mask}")
+
+    # # print the country mask coords
+    # print(f"Country mask coords: {country_mask.coords}")
 
     if country == "United Kingdom":
         print("Masking out Northern Ireland.")
         # If the country is the UK then mask out Northern Ireland
         country_mask = country_mask.where(
             ~(
-                (country_mask.latitude < 55.3)
-                & (country_mask.latitude > 54.0)
-                & (country_mask.longitude < -5.0)
+                (country_mask[lat_name] < 55.3)
+                & (country_mask[lat_name] > 54.0)
+                & (country_mask[lon_name] < -5.0)
             ),
             other=np.nan,
         )
@@ -390,19 +416,29 @@ def apply_country_mask(
     # print(f"Country mask: {country_mask}")
 
     # Extract the lat and lon values
-    mask_lats = country_mask.latitude.values
-    mask_lons = country_mask.longitude.values
+    mask_lats = country_mask[lat_name].values
+    mask_lons = country_mask[lon_name].values
 
     ID_REGION = 1  # only 1 region in this instance
 
     # Select mask for specific region
     sel_country_mask = country_mask.where(country_mask == ID_REGION).values
 
+    # # # print the selected country mask
+    # print(f"Selected country mask: {sel_country_mask}")
+
+    # print ds
+    print(ds)
+
     # Select the data within the mask
-    out_ds = ds.compute().where(country_mask == ID_REGION)
+    out_ds = ds.compute().where(sel_country_mask == ID_REGION)
 
     # print the data
-    print(out_ds)
+    print("output dataset:", out_ds)
+
+    # # print that we are exiting the script
+    # print("Exiting the script.")
+    # sys.exit()
 
     return out_ds
 
