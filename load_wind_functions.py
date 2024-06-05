@@ -379,8 +379,16 @@ def apply_country_mask(
 
     print("Pre-country mask")
 
-    # seelct the first time
-    ds_init = ds.isel(time=0)
+    # if time is not a dimension in ds
+    if "time" not in ds.dims:
+        ds_init = ds.isel(
+            init=0,
+            lead=0,
+            member=0,
+        )
+    else:
+        # seelct the first time
+        ds_init = ds.isel(time=0)
 
     # print ds_init
     print(ds_init)

@@ -418,19 +418,36 @@ def calc_spatial_mean(
     # print the shape of the data
     print(f"Shape of the data: {data.shape}")
 
-    # Take the mean over the lat and lon dimensions
-    data_mean = np.nanmean(data, axis=(1, 2))
+    # if the shape has length 3
+    if len(data.shape) != 3:
+        print("Processing observed data")
 
-    # Set up the time index
-    time_index = ds.time.values
+        # Take the mean over the lat and lon dimensions
+        data_mean = np.nanmean(data, axis=(1, 2))
 
-    # Set up the DataFrame
-    df = pd.DataFrame(data_mean, index=time_index, columns=[f"{country}_{variable}"])
+        # Set up the time index
+        time_index = ds.time.values
 
-    # If convert_kelv_to_cel is True
-    if convert_kelv_to_cel:
-        # Convert the data from Kelvin to Celsius
-        df[f"{country}_{variable}"] = df[f"{country}_{variable}"] - 273.15
+        # Set up the DataFrame
+        df = pd.DataFrame(data_mean, index=time_index, columns=[f"{country}_{variable}"])
+
+        # If convert_kelv_to_cel is True
+        if convert_kelv_to_cel:
+            # Convert the data from Kelvin to Celsius
+            df[f"{country}_{variable}"] = df[f"{country}_{variable}"] - 273.15
+    elif len(data.shape) == 5:
+        print("Processing model data")
+
+        # Take the mean over the lat and lon dimensions
+        data_mean = np.nanmean(data, axis=(3, 4))
+
+        # Set the name for the ds
+        ds.name = f"{country}_{variable}"
+
+        # convert to a dataframe
+        df = data_mean.to_dataframe()
+    else:
+        raise ValueError("Data shape not recognised.")
 
     return df
 
