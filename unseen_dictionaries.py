@@ -111,3 +111,7 @@ month_names_HadGEM3 = [
     "September",
     "October",
 ]
+
+
+# country list Nuts 0
+country_list_nuts0 = ['Austria','Albania','Belarus','Belgium','Bosnia and Herzegovina','Bulgaria','Croatia','Czech Republic','Denmark','Estonia','Finland','France','Germany','Greece','Hungary','Ireland','Italy','Kosovo','Latvia','Lithuania','Luxembourg','Macedonia','Moldova','Montenegro','Netherlands','Norway','Poland','Portugal','Romania','Serbia','Slovakia','Slovenia','Spain','Sweden','Switzerland','Turkey','Ukraine','United Kingdom']

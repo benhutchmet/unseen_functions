@@ -353,10 +353,10 @@ def load_dcpp_data(
     # print the dataset
     print(ds)
 
-    # print that we are exiting the script
-    print("Exiting the script.")
-    print("--------------------")
-    sys.exit()
+    # # print that we are exiting the script
+    # print("Exiting the script.")
+    # print("--------------------")
+    # sys.exit()
 
 
     # extract the data for the variable
@@ -368,94 +368,152 @@ def load_dcpp_data(
     return ds
 
 
-# Define a function to perform the bias correction
-def calc_bc_coeffs(
-    model_variable: str,
-    model: str,
-    experiment: str,
-    start_year: int,
-    end_year: int,
-    month: int,
-    grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
-    rg_algo: str = "bilinear",
-    periodic: bool = True,
-    grid: dict = udicts.eu_grid,
-    lead_months: int = 17,  # For HadGEM3-GC31-MM all lead months until end of first ONDJFM winter
-    frequency: str = "day",
-    engine: str = "netcdf4",
-    parallel: bool = True,
-    csv_fpath: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
-    obs_fpath: str = "DOWNLOAD_FILE",
-    obs_variable: str = "tas",
-) -> xr.DataArray:
+# Define a function to calculate the spatial mean of a masked dataset
+# and convert to a dataframe
+def calc_spatial_mean(
+    ds: xr.Dataset,
+    country: str,
+    variable: str,
+    convert_kelv_to_cel: bool = True,
+) -> pd.DataFrame:
     """
-    Calculate the bias correction coefficients for each model, month, lat,
-    and lon for a given model and experiment.
-    Using the bias correction from Luo et al. (2018) (doi:10.3390/w10081046).
+    Calculate the spatial mean of a masked dataset and convert to a DataFrame.
 
     Parameters
     ----------
 
-    model_variable: str
-        The variable to load from the model.
+    ds: xr.Dataset
+        The dataset to calculate the spatial mean from.
 
-    model: str
-        The model to load the data from.
+    country: str
+        The country to calculate the spatial mean for.
 
-    experiment: str
-        The experiment to load the data from.
+    variable: str
+        The variable to calculate the spatial mean for.
 
-    start_year: int
-        The start year for the bias correction.
-
-    end_year: int
-        The end year for the bias correction.
-
-    month: int
-        The month for the bias correction.
-
-    grid_bounds: list[float]
-        The grid bounds for the global grid.
-
-    rg_algo: str
-        The regridding algorithm to use.
-
-    periodic: bool
-        Whether the grid is periodic.
-
-    grid: dict
-        The dictionary of the grid.
-
-    lead_months: int
-        The number of lead months to load.
-
-    frequency: str
-        The frequency of the data.
-
-    engine: str
-        The engine to use to load the data.
-
-    parallel: bool
-        Whether to load the data in parallel.
-
-    csv_fpath: str
-        The file path for the CSV file.
-
-    obs_fpath: str
-        The file path for the observations.
-
-    obs_variable: str
-        The variable to load from the observations.
+    convert_kelv_to_cel: bool
+        Whether to convert the data from Kelvin to Celsius.
 
     Returns
     -------
 
-    bc_coeffs: xr.DataArray
-        The bias correction coefficients with shape (lat, lon).
+    df: pd.DataFrame
+        The DataFrame of the spatial mean.
 
     """
 
-    # First load in the model data
+    # Extract the data for the country
+    ds = ds[variable]
+
+    # Convert to a numpy array
+    data = ds.values
+
+    # Take the mean over the lat and lon dimensions
+    data_mean = np.nanmean(data, axis=(1, 2))
+
+    # Set up the time index
+    time_index = ds.time.values
+
+    # Set up the DataFrame
+    df = pd.DataFrame(data_mean, index=time_index, columns=[f"{country}_{variable}"])
+
+    # If convert_kelv_to_cel is True
+    if convert_kelv_to_cel:
+        # Convert the data from Kelvin to Celsius
+        df[f"{country}_{variable}"] = df[f"{country}_{variable}"] - 273.15
+
+    return df
+
+# # Define a function to perform the bias correction
+# def calc_bc_coeffs(
+#     model_variable: str,
+#     model: str,
+#     experiment: str,
+#     start_year: int,
+#     end_year: int,
+#     month: int,
+#     grid_bounds: list[float] = [-180.0, 180.0, -90.0, 90.0],
+#     rg_algo: str = "bilinear",
+#     periodic: bool = True,
+#     grid: dict = udicts.eu_grid,
+#     lead_months: int = 17,  # For HadGEM3-GC31-MM all lead months until end of first ONDJFM winter
+#     frequency: str = "day",
+#     engine: str = "netcdf4",
+#     parallel: bool = True,
+#     csv_fpath: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+#     obs_fpath: str = "DOWNLOAD_FILE",
+#     obs_variable: str = "tas",
+# ) -> xr.DataArray:
+#     """
+#     Calculate the bias correction coefficients for each model, month, lat,
+#     and lon for a given model and experiment.
+#     Using the bias correction from Luo et al. (2018) (doi:10.3390/w10081046).
+
+#     Parameters
+#     ----------
+
+#     model_variable: str
+#         The variable to load from the model.
+
+#     model: str
+#         The model to load the data from.
+
+#     experiment: str
+#         The experiment to load the data from.
+
+#     start_year: int
+#         The start year for the bias correction.
+
+#     end_year: int
+#         The end year for the bias correction.
+
+#     month: int
+#         The month for the bias correction.
+
+#     grid_bounds: list[float]
+#         The grid bounds for the global grid.
+
+#     rg_algo: str
+#         The regridding algorithm to use.
+
+#     periodic: bool
+#         Whether the grid is periodic.
+
+#     grid: dict
+#         The dictionary of the grid.
+
+#     lead_months: int
+#         The number of lead months to load.
+
+#     frequency: str
+#         The frequency of the data.
+
+#     engine: str
+#         The engine to use to load the data.
+
+#     parallel: bool
+#         Whether to load the data in parallel.
+
+#     csv_fpath: str
+#         The file path for the CSV file.
+
+#     obs_fpath: str
+#         The file path for the observations.
+
+#     obs_variable: str
+#         The variable to load from the observations.
+
+#     Returns
+#     -------
+
+#     bc_coeffs: xr.DataArray
+#         The bias correction coefficients with shape (lat, lon).
+
+#     """
+
+#     # First load in the model data
+
+#     return None
 
 
 #  Calculate the heating degree days and cooling degree days
