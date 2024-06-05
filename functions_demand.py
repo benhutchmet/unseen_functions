@@ -649,8 +649,8 @@ def calc_hdd_cdd(
         assert variable_name is not None, "Variable name must be provided."
 
         # Set up the hdd_col
-        hdd_col = f"{country_name}_{variable_name}_{hdd_suffix}"
-        cdd_col = f"{country_name}_{variable_name}_{cdd_suffix}"
+        hdd_col = f"{country_name}_{hdd_suffix}"
+        cdd_col = f"{country_name}_{cdd_suffix}"
 
         # Calculate the heating degree days
         df[hdd_col] = df[f"{country_name}_{variable_name}"].apply(lambda x: max(0, hdd_base - x))
@@ -667,6 +667,7 @@ def calc_hdd_cdd(
 # Based on the heating and cooling degree days and the demand coefficients
 def calc_national_wd_demand(
     df: pd.DataFrame,
+    country_name: str = None,
     fpath_reg_coefs: str = "/home/users/benhutch/ERA5_energy_update/ERA5_Regression_coeffs_demand_model.csv",
     demand_year: float = 2017.0,
     country_names: dict = udicts.countries_nuts_id,
@@ -681,6 +682,9 @@ def calc_national_wd_demand(
 
     df: pd.DataFrame
         The CLEARHEADS data.
+
+    country_name: str
+        The name of the country.
 
     fpath_reg_coefs: str
         The file path for the regression coefficients.
@@ -706,58 +710,107 @@ def calc_national_wd_demand(
 
     """
 
-    # Loop over the columns in the DataFrame
-    for col in df.columns:
-        # Loop over the country names
-        for country_name, country_id in country_names.items():
-            # print(f"Calculating demand for {country_name}")
-            # print(f"Country ID: {country_id}")
-            # if the country id is in the column name
-            if country_id in col:
-                # Split the column name by _
-                col_split = col.split("_")
+    # if lead is not in df.columns
+    if "lead" not in df.columns:
+        print("Processing observed data")
+        # Loop over the columns in the DataFrame
+        for col in df.columns:
+            # Loop over the country names
+            for country_name, country_id in country_names.items():
+                # print(f"Calculating demand for {country_name}")
+                # print(f"Country ID: {country_id}")
+                # if the country id is in the column name
+                if country_id in col:
+                    # Split the column name by _
+                    col_split = col.split("_")
 
-                # Set up the new column name
-                new_col = f"{country_name}_{col_split[1]}"
+                    # Set up the new column name
+                    new_col = f"{country_name}_{col_split[1]}"
 
-                # Update the column name
-                df = df.rename(columns={col: new_col})
+                    # Update the column name
+                    df = df.rename(columns={col: new_col})
 
-    # Load int the regression coefficients data
-    reg_coeffs = pd.read_csv(fpath_reg_coefs)
+        # Load int the regression coefficients data
+        reg_coeffs = pd.read_csv(fpath_reg_coefs)
 
-    # Set the index to the first column
-    reg_coeffs.set_index("Unnamed: 0", inplace=True)
+        # Set the index to the first column
+        reg_coeffs.set_index("Unnamed: 0", inplace=True)
 
-    # Loop over the columns in the DataFrame
-    for reg_col in reg_coeffs.columns:
-        if reg_col != "Unnamed: 0":
-            # Split the column name by _regression
-            # e.g. Austria
-            country = reg_col.split("_regression")[0]
+        # Loop over the columns in the DataFrame
+        for reg_col in reg_coeffs.columns:
+            if reg_col != "Unnamed: 0":
+                # Split the column name by _regression
+                # e.g. Austria
+                country = reg_col.split("_regression")[0]
 
-            # if df contains f{country}_hdd and f{country}_cdd
-            if f"{country}_hdd" in df.columns and f"{country}_cdd" in df.columns:
-                # Extract the time coefficient for col
-                time_coeff = reg_coeffs.loc["time", reg_col]
+                # if df contains f{country}_hdd and f{country}_cdd
+                if f"{country}_hdd" in df.columns and f"{country}_cdd" in df.columns:
+                    # Extract the time coefficient for col
+                    time_coeff = reg_coeffs.loc["time", reg_col]
 
-                # Extract the hdd coefficient for col
-                hdd_coeff = reg_coeffs.at[hdd_name, reg_col]
+                    # Extract the hdd coefficient for col
+                    hdd_coeff = reg_coeffs.at[hdd_name, reg_col]
 
-                # Extract the cdd coefficient for col
-                cdd_coeff = reg_coeffs.at[cdd_name, reg_col]
+                    # Extract the cdd coefficient for col
+                    cdd_coeff = reg_coeffs.at[cdd_name, reg_col]
 
-                # print the coefficients
-                # print(f"Time coefficient: {time_coeff}")
-                # print(f"HDD coefficient: {hdd_coeff}")
-                # print(f"CDD coefficient: {cdd_coeff}")
+                    # print the coefficients
+                    # print(f"Time coefficient: {time_coeff}")
+                    # print(f"HDD coefficient: {hdd_coeff}")
+                    # print(f"CDD coefficient: {cdd_coeff}")
 
-                # Calculate the demand
-                df[f"{country}_demand"] = (
-                    (time_coeff * demand_year)
-                    + (hdd_coeff * df[f"{country}_hdd"])
-                    + (cdd_coeff * df[f"{country}_cdd"])
-                )
+                    # Calculate the demand
+                    df[f"{country}_demand"] = (
+                        (time_coeff * demand_year)
+                        + (hdd_coeff * df[f"{country}_hdd"])
+                        + (cdd_coeff * df[f"{country}_cdd"])
+                    )
+    elif "lead" in df.columns:
+        print("Processing model data")
+
+        # assert that country name is not none
+        assert country_name is not None, "Country name must be provided."
+
+        # Load int the regression coefficients data
+        reg_coeffs = pd.read_csv(fpath_reg_coefs)
+
+        # Set the index to the first column
+        reg_coeffs.set_index("Unnamed: 0", inplace=True)
+
+        # Loop over the columns in the DataFrame
+        for reg_col in reg_coeffs.columns:
+            if reg_col != "Unnamed: 0":
+                # split the column by regression
+                country = reg_col.split("_regression")[0]
+
+                print(f"Calculating demand for {country}")
+
+                # print the df cols
+                print(f"DF cols: {df.columns}")
+
+                # pint the country_name hdd_name and cdd_name
+                print(f"Country name: {country_name}_{hdd_name}")
+
+                print(f"Country name: {country_name}_{cdd_name}")
+
+                # if df contains f{country}_hdd and f{country}_cdd
+                if f"{country_name}_hdd" in df.columns and f"{country_name}_cdd" in df.columns:
+                    print(f"Calculating demand for {country_name}")
+                    # Extract the time coefficient for col
+                    time_coeff = reg_coeffs.loc["time", reg_col]
+
+                    # Extract the hdd coefficient for col
+                    hdd_coeff = reg_coeffs.at[hdd_name, reg_col]
+
+                    # Extract the cdd coefficient for col
+                    cdd_coeff = reg_coeffs.at[cdd_name, reg_col]
+
+                    # Calculate the demand
+                    df[f"{country_name}_demand"] = (
+                        (time_coeff * demand_year)
+                        + (hdd_coeff * df[f"{country_name}_hdd"])
+                        + (cdd_coeff * df[f"{country_name}_cdd"])
+                    )
 
     return df
 
