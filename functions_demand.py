@@ -402,11 +402,21 @@ def calc_spatial_mean(
 
     """
 
-    # Extract the data for the country
-    ds = ds[variable]
+    # if the type of ds is xarray.DataArray
+    if isinstance(ds, xr.DataArray):
+        # # raise an error
+        # raise ValueError("Input data must be a Dataset.")
 
-    # Convert to a numpy array
-    data = ds.values
+        # extract the values
+        data = ds.values
+    else:
+        ds = ds[variable]
+
+        # Convert to a numpy array
+        data = ds.values
+
+    # print the shape of the data
+    print(f"Shape of the data: {data.shape}")
 
     # Take the mean over the lat and lon dimensions
     data_mean = np.nanmean(data, axis=(1, 2))
