@@ -374,6 +374,7 @@ def calc_spatial_mean(
     ds: xr.Dataset,
     country: str,
     variable: str,
+    variable_name: str = None,
     convert_kelv_to_cel: bool = True,
 ) -> pd.DataFrame:
     """
@@ -391,6 +392,9 @@ def calc_spatial_mean(
     variable: str
         The variable to calculate the spatial mean for.
 
+    variable_name: str
+        The name of the variable in the dataset.
+
     convert_kelv_to_cel: bool
         Whether to convert the data from Kelvin to Celsius.
 
@@ -402,6 +406,9 @@ def calc_spatial_mean(
 
     """
 
+    # set up data as none
+    data = None
+
     # if the type of ds is xarray.DataArray
     if isinstance(ds, xr.DataArray):
         # # raise an error
@@ -412,14 +419,11 @@ def calc_spatial_mean(
     else:
         ds = ds[variable]
 
-        # Convert to a numpy array
-        data = ds.values
-
-    # print the shape of the data
-    print(f"Shape of the data: {data.shape}")
+        # # Convert to a numpy array
+        # data = ds.values
 
     # if the shape has length 3
-    if len(data.shape) != 3:
+    if isinstance(data, np.ndarray) and len(data.shape) == 3:
         print("Processing observed data")
 
         # Take the mean over the lat and lon dimensions
@@ -435,17 +439,31 @@ def calc_spatial_mean(
         if convert_kelv_to_cel:
             # Convert the data from Kelvin to Celsius
             df[f"{country}_{variable}"] = df[f"{country}_{variable}"] - 273.15
-    elif len(data.shape) == 5:
+    elif isinstance(ds, xr.DataArray):
         print("Processing model data")
 
+        # assert that variable name is not none
+        assert variable_name is not None, "Variable name must be provided."
+
         # Take the mean over the lat and lon dimensions
-        data_mean = np.nanmean(data, axis=(3, 4))
+        ds_mean = ds.mean(dim=["lat", "lon"])
 
         # Set the name for the ds
-        ds.name = f"{country}_{variable}"
+        ds.name = f"{country}_{variable_name}"
 
         # convert to a dataframe
-        df = data_mean.to_dataframe()
+        df = ds_mean.to_dataframe()
+
+        # Rename the column at index 0
+        df.columns = [f"{country}_{variable_name}"]
+
+        # Reset the index
+        df = df.reset_index()
+
+        # if variable_name is tas or t2m
+        if variable_name == "tas" or variable_name == "t2m":
+            # Convert the data from Kelvin to Celsius
+            df[f"{country}_{variable_name}"] = df[f"{country}_{variable_name}"] - 273.15
     else:
         raise ValueError("Data shape not recognised.")
 
@@ -546,6 +564,8 @@ def calc_spatial_mean(
 #  Calculate the heating degree days and cooling degree days
 def calc_hdd_cdd(
     df: pd.DataFrame,
+    country_name: str = None,
+    variable_name: str = None,
     hdd_base: float = 15.5,
     cdd_base: float = 22.0,
     temp_suffix: str = "t2m",
@@ -560,6 +580,12 @@ def calc_hdd_cdd(
 
     df: pd.DataFrame
         The CLEARHEADS data.
+
+    country_name: str
+        The name of the country.
+
+    variable_name: str
+        The name of the variable.
 
     hdd_base: float
         The base temperature for the heating degree days.
@@ -583,31 +609,56 @@ def calc_hdd_cdd(
         The CLEARHEADS data with the heating degree days and cooling degree days.
 
     """
+    # if lead is not one of the columns
+    if "lead" not in df.columns:
+        print("lead not in columns, processing observed data")
+        # if the data is not already in daily format, resample to daily
+        if df.index.freq != "D":
+            print("Resampling to daily")
 
-    # if the data is not already in daily format, resample to daily
-    if df.index.freq != "D":
-        print("Resampling to daily")
+            # Resample the data
+            df = df.resample("D").mean()
 
-        # Resample the data
-        df = df.resample("D").mean()
+        # add the temperature suffix to the columns
+        df.columns = [f"{col}_{temp_suffix}" for col in df.columns]
 
-    # add the temperature suffix to the columns
-    df.columns = [f"{col}_{temp_suffix}" for col in df.columns]
+        # Loop over the columns
+        for col in df.columns:
+            # strip t2m from the column name
+            col_raw = col.replace(f"_{temp_suffix}", "")
 
-    # Loop over the columns
-    for col in df.columns:
-        # strip t2m from the column name
-        col_raw = col.replace(f"_{temp_suffix}", "")
+            # set up the column names
+            hdd_col = f"{col_raw}_{hdd_suffix}"
+            cdd_col = f"{col_raw}_{cdd_suffix}"
 
-        # set up the column names
-        hdd_col = f"{col_raw}_{hdd_suffix}"
-        cdd_col = f"{col_raw}_{cdd_suffix}"
+            # Calculate the heating degree days
+            df[hdd_col] = df[col].apply(lambda x: max(0, hdd_base - x))
+
+            # Calculate the cooling degree days
+            df[cdd_col] = df[col].apply(lambda x: max(0, x - cdd_base))
+    elif "lead" in df.columns:
+        # assert the the len unique leads is greater then 12
+        assert len(df["lead"].unique()) > 12, "Lead column not found."
+
+        print("Model data already in daily format.")
+
+        # assert that country name is not none
+        assert country_name is not None, "Country name must be provided."
+
+        # assert that variable name is not none
+        assert variable_name is not None, "Variable name must be provided."
+
+        # Set up the hdd_col
+        hdd_col = f"{country_name}_{variable_name}_{hdd_suffix}"
+        cdd_col = f"{country_name}_{variable_name}_{cdd_suffix}"
 
         # Calculate the heating degree days
-        df[hdd_col] = df[col].apply(lambda x: max(0, hdd_base - x))
+        df[hdd_col] = df[f"{country_name}_{variable_name}"].apply(lambda x: max(0, hdd_base - x))
 
         # Calculate the cooling degree days
-        df[cdd_col] = df[col].apply(lambda x: max(0, x - cdd_base))
+        df[cdd_col] = df[f"{country_name}_{variable_name}"].apply(lambda x: max(0, x - cdd_base))
+    else:
+        raise ValueError("Data not in daily format and lead column not found.")
 
     return df
 
