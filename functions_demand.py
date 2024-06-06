@@ -837,8 +837,24 @@ def save_df(
 
     # If the file type is csv
     if ftype == "csv":
-        # Save the DataFrame as a CSV
-        df.to_csv(f"{fdir}/{fname}.csv")
+        # if the fpath ends with csv
+        if not fname.endswith(".csv"):
+            # append csv to the fpath
+            fname = f"{fname}.csv"
+    
+        # if the path does not exist
+        if not os.path.exists(fdir):
+            # create the directory
+            os.makedirs(fdir)
+
+        # if the file does not exist
+        if not os.path.exists(f"{fdir}/{fname}"):
+            # save the dataframe as a csv
+            df.to_csv(f"{fdir}/{fname}", index=False)
+        else:
+            # raise an error
+            raise FileExistsError(f"File {fname} already exists in {fdir}")
+
     else:
         raise NotImplementedError(f"File type {ftype} not implemented.")
 
