@@ -138,7 +138,7 @@ def main():
         # if the file does not exist, continue
         if not os.path.exists(os.path.join(base_dir, fname)):
             raise FileNotFoundError(f"File {fname} not found in {base_dir}")
-        
+
         # Apply the country mask to the data
         model_mon_this = apply_country_mask(
             ds=xr.open_dataset(os.path.join(base_dir, fname)),
@@ -155,3 +155,42 @@ def main():
             variable_name=args.variable,
             convert_kelv_to_cel=True,
         )
+
+        # Combine the dataframes
+        combined_df = pd.concat([combined_df, model_mon_this], ignore_index=True)
+
+    # Calculate the HDD and CDD
+    combined_df = calc_hdd_cdd(
+        df=combined_df, country_name=country_name, variable_name=args.variable
+    )
+
+    # Calculate the weather dependent demand
+    wd_demand = calc_national_wd_demand(
+        df=combined_df, country_name=country_name,
+    )
+
+    # Print the head of the dataframe
+    print(f"Head of the dataframe for {args.country}:")
+    print(wd_demand.head())
+
+    # Set up the fname for the file
+    fname = (
+        f"wd_demand_{args.model}_months_11-10_lead{args.lead_time}_"
+        f"init_{args.first_year}-{args.last_year}_{args.country}.csv"
+    )
+
+    # Save the dataframe
+    save_df(df=wd_demand, fname=fname)
+
+    # Print the time taken in hours minutes and seconds
+    print(
+        f"Time taken: {time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))}"
+    )
+
+    # print that the script has finished
+    print("Script finished.")
+    
+    return
+
+if __name__ == "__main__":
+    main()
