@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=sub-form-df
-#SBATCH --partition=high-mem
-#SBATCH --mem=100000
+#SBATCH --partition=short-serial
 #SBATCH --time=1000:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-form-df-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-form-df-%A_%a.err
@@ -41,9 +40,9 @@ echo "Country: ${country}"
 # Run the script
 #!/bin/bash
 python ${process_script} \
-    --model ${model} \
-    --variable ${variable} \
-    --first_year ${first_year} \
-    --last_year ${last_year} \
-    --lead_time ${lead_time} \
-    --country ${country} 
+    --model "${model}" \
+    --variable "${variable}" \
+    --first_year "${first_year}" \
+    --last_year "${last_year}" \
+    --lead_time "${lead_time}" \
+    --country "${country}" 

@@ -70,7 +70,7 @@ def main():
     # Set up the hard coded variables
     base_dir = "/work/scratch-nopw2/benhutch/test_nc/"
     variable_saved = "__xarray_dataarray_variable__"
-    months_list = [11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    months_list = [11, 12]
     lon_name = "lon"
     lat_name = "lat"
 
@@ -130,7 +130,7 @@ def main():
     for month_idx in tqdm(months_list, desc="Loading months"):
         # Set up the fname
         fname = (
-            f"{args.variable}_bias_corrected_{args.model}"
+            f"{args.variable}_bias_correction_{args.model}"
             f"_lead{args.lead_time}_month{month_idx}_"
             f"init{args.first_year}-{args.last_year}.nc"
         )
