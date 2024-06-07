@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=sub-form-df
-#SBATCH --partition=short-serial
+#SBATCH --partition=high-mem
+#SBATCH --mem=100000
 #SBATCH --time=1000:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-form-df-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-form-df-%A_%a.err

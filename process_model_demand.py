@@ -70,7 +70,7 @@ def main():
     # Set up the hard coded variables
     base_dir = "/work/scratch-nopw2/benhutch/test_nc/"
     variable_saved = "__xarray_dataarray_variable__"
-    months_list = [11, 12]
+    months_list = [11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     lon_name = "lon"
     lat_name = "lat"
 
