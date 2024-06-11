@@ -38,6 +38,21 @@ from functions_demand import (
     save_df,
 )
 
+# Set up the R home environment variable
+os.environ["R_HOME"] = "/apps/jasmin/jaspy/miniforge_envs/jasr4.3/mf3-23.11.0-0/envs/jasr4.3-mf3-23.11.0-0-r20240320/lib/R"
+
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+
+pandas2ri.activate()
+r_mgcv = importr('mgcv')
+base = importr('base')
+stats = importr('stats')
+
+# print("success")
+# sys.exit(0)
+
 # Define a main function
 def main():
     
@@ -67,8 +82,8 @@ def main():
 
     # # restrict to the first year
     # # For initial testing
-    wind_obs_10m = wind_obs_10m.sel(time=slice("1960-01-01", "2020-12-31"))
-    wind_obs_100m_bc = wind_obs_100m_bc.sel(time=slice("1960-01-01", "2020-12-31"))
+    wind_obs_10m = wind_obs_10m.sel(time=slice("1960-01-01", "1960-12-31"))
+    wind_obs_100m_bc = wind_obs_100m_bc.sel(time=slice("1960-01-01", "1960-12-31"))
 
     # apply the country mask for the UK
     wind_obs_10m_uk = apply_country_mask(
@@ -110,6 +125,34 @@ def main():
     # print the 100m wind speeds
     print(f"100m wind speeds for the UK:", wind_obs_100m_bc_uk)
 
+    # join the two dataframes by the index
+    wind_obs_10m_100m_bc_uk = pd.concat([wind_obs_10m_uk, wind_obs_100m_bc_uk], axis=1)
+
+
+    # print the joined dataframe
+    print(f"Joined dataframe:", wind_obs_10m_100m_bc_uk)
+
+    # convert to R dataframe
+    r_df = ro.conversion.py2rpy(wind_obs_10m_100m_bc_uk)
+
+    # investigate the R dataframe
+    print(f"R dataframe:", r_df)
+
+    # Define the GAM functions for location and scale
+    modparams = []
+
+    # United_Kingdom_si10 United_Kingdom_si100_bc
+    # We want to estimate the 100m wind speed from the 10m wind speed
+    modparams.append("United_Kingdom_si100_bc ~ ti(United_Kingdom_si10, k=15, bs='tp')")
+
+    # append the scale function
+    modparams.append("~ 1")
+
+    # fit the GAM
+    gamFit = r_mgcv.gam([ro.Formula(modparams[0]), ro.Formula(modparams[1])], data=r_df, family="gaulss", method="REML")
+
+    # print the GAM fit
+    print(f"GAM fit:", gamFit)
 
     # # Select the first time step for si10
     # si10 = wind_obs["si10"].isel(time=0)
@@ -155,7 +198,7 @@ def main():
     plt.scatter(summer_10m, summer_100m_bc, color="blue", label="Summer")
 
     # set the title
-    plt.title("10m vs 100m wind speeds for the UK from 1960-2020")
+    plt.title("10m vs 100m wind speeds for the UK")
 
     # set the x-axis label
     plt.xlabel("10m wind speed (m/s)")

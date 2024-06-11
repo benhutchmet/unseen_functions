@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=sub-plot-scatter
 #SBATCH --partition=high-mem
-#SBATCH --mem=20000
+#SBATCH --mem=50000
 #SBATCH --time=30:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-plot-scatter-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-plot-scatter-%A_%a.err
