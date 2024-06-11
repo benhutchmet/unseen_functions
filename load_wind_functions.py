@@ -402,11 +402,18 @@ def apply_country_mask(
     # Select the first timestep of the data
     country_mask = country_mask_poly.mask(ds_init[lon_name].values, ds_init[lat_name].values)
 
-    # # print the country mask
-    # print(f"Country mask: {country_mask}")
+    # print the country mask
+    print(f"Country mask: {country_mask}")
 
-    # # print the country mask coords
-    # print(f"Country mask coords: {country_mask.coords}")
+    # print the country mask coords
+    print(f"Country mask coords: {country_mask.coords}")
+
+    # if longitude and latitude are not in the coords
+    if lon_name not in country_mask.coords:
+        lon_name = "lon"
+
+    if lat_name not in country_mask.coords:
+        lat_name = "lat"
 
     if country == "United Kingdom":
         print("Masking out Northern Ireland.")
