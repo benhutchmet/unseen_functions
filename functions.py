@@ -2867,8 +2867,14 @@ def plot_fidelity(
 
     # Loop over the number of bootstraps
     for iboot in tqdm(range(nboot), desc="Calculating bootstrap statistics"):
-        # Create the time index
-        idx_time_this = range(0, n_years)
+        
+        # Updating for random year indexes
+        if iboot == 0: # raw data
+            # Create the time index
+            idx_time_this = range(0, n_years)
+        else: # random samples
+            # Create an array containing 
+            
 
         # Create an empty array to store the bootstrapped values
         model_boot = np.zeros([n_years])
