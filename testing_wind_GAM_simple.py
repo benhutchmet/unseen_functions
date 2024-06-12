@@ -63,71 +63,96 @@ def main():
     # TODO: will also have to be regridded to the same grid as the demand data
     # like for the demand from temperature data
     # Set up hard coded variables
-    wind_obs_path = "/home/users/benhutch/ERA5/ERA5_wind_daily_1960_2020.nc"
+    wind_obs_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_wind_daily_1960_2020.nc"
     country = "United Kingdom"
     country_name = "United_Kingdom"
+    start_date = "1960-01-01"
+    end_date = "1970-12-31"
 
-    # assert that this file exist
-    assert os.path.exists(wind_obs_path), f"File {wind_obs_path} does not exist."
+    # set up a fname for the output file
+    fname_10_100 = os.path.join(os.getcwd(), "csv_dir", f"wind_speeds_10m_100m_{country_name}_{start_date}_{end_date}.csv")
 
-    # load the file with xarray
-    wind_obs = xr.open_dataset(wind_obs_path, chunks={"time":"auto", "latitude": "auto", "longitude": "auto"})
-                                                      
-    # print the wind obs
-    print(wind_obs)
+    # if the file exists, then print that it does
+    if os.path.exists(fname_10_100):
+        print(f"File {fname_10_100} already exists.")
+        print("Loading the file.")
 
-    # Select the data
-    wind_obs_10m = wind_obs["si10"]
-    wind_obs_100m_bc = wind_obs["si100_bc"]
+        # load the file
+        wind_obs_10m_100m_bc_uk = pd.read_csv(fname_10_100, index_col=0)
+    else:
+        print(f"File {fname_10_100} does not exist.")
+        print("Processinf from .nc")
 
-    # # restrict to the first year
-    # # For initial testing
-    wind_obs_10m = wind_obs_10m.sel(time=slice("1960-01-01", "1960-12-31"))
-    wind_obs_100m_bc = wind_obs_100m_bc.sel(time=slice("1960-01-01", "1960-12-31"))
+        # if the csv_dir does not exist, create it
+        if not os.path.exists(os.path.join(os.getcwd(), "csv_dir")):
+            os.makedirs(os.path.join(os.getcwd(), "csv_dir"))
 
-    # apply the country mask for the UK
-    wind_obs_10m_uk = apply_country_mask(
-        ds=wind_obs_10m,
-        country=country,
-        lon_name="longitude",
-        lat_name="latitude",
-    )
+        # assert that this file exist
+        assert os.path.exists(wind_obs_path), f"File {wind_obs_path} does not exist."
 
-    # Apply the country mask for the UK
-    wind_obs_100m_bc_uk = apply_country_mask(
-        ds=wind_obs_100m_bc,
-        country=country,
-        lon_name="longitude",
-        lat_name="latitude",
-    )
+        # load the file with xarray
+        wind_obs = xr.open_dataset(wind_obs_path, chunks={"time":"auto", "latitude": "auto", "longitude": "auto"})
+                                                        
+        # print the wind obs
+        print(wind_obs)
 
-    # Calculate the spatial mean
-    wind_obs_10m_uk = calc_spatial_mean(
-        ds=wind_obs_10m_uk,
-        country=country_name,
-        variable="si10",
-        variable_name="si10",
-        convert_kelv_to_cel=False,
-    )
+        # Select the data
+        wind_obs_10m = wind_obs["si10"]
+        wind_obs_100m_bc = wind_obs["si100_bc"]
 
-    # Calculate the spatial mean
-    wind_obs_100m_bc_uk = calc_spatial_mean(
-        ds=wind_obs_100m_bc_uk,
-        country=country_name,
-        variable="si100_bc",
-        variable_name="si100_bc",
-        convert_kelv_to_cel=False,
-    )
+        # # restrict to the first year
+        # # For initial testing
+        wind_obs_10m = wind_obs_10m.sel(time=slice(start_date, end_date))
+        wind_obs_100m_bc = wind_obs_100m_bc.sel(time=slice(start_date, end_date))
 
-    # print the 10m wind speeds
-    print(f"10m wind speeds for the UK:", wind_obs_10m_uk)
+        # apply the country mask for the UK
+        wind_obs_10m_uk = apply_country_mask(
+            ds=wind_obs_10m,
+            country=country,
+            lon_name="longitude",
+            lat_name="latitude",
+        )
 
-    # print the 100m wind speeds
-    print(f"100m wind speeds for the UK:", wind_obs_100m_bc_uk)
+        # Apply the country mask for the UK
+        wind_obs_100m_bc_uk = apply_country_mask(
+            ds=wind_obs_100m_bc,
+            country=country,
+            lon_name="longitude",
+            lat_name="latitude",
+        )
 
-    # join the two dataframes by the index
-    wind_obs_10m_100m_bc_uk = pd.concat([wind_obs_10m_uk, wind_obs_100m_bc_uk], axis=1)
+        # Calculate the spatial mean
+        wind_obs_10m_uk = calc_spatial_mean(
+            ds=wind_obs_10m_uk,
+            country=country_name,
+            variable="si10",
+            variable_name="si10",
+            convert_kelv_to_cel=False,
+        )
 
+        # Calculate the spatial mean
+        wind_obs_100m_bc_uk = calc_spatial_mean(
+            ds=wind_obs_100m_bc_uk,
+            country=country_name,
+            variable="si100_bc",
+            variable_name="si100_bc",
+            convert_kelv_to_cel=False,
+        )
+
+        # print the 10m wind speeds
+        print(f"10m wind speeds for the UK:", wind_obs_10m_uk)
+
+        # print the 100m wind speeds
+        print(f"100m wind speeds for the UK:", wind_obs_100m_bc_uk)
+
+        # join the two dataframes by the index
+        wind_obs_10m_100m_bc_uk = pd.concat([wind_obs_10m_uk, wind_obs_100m_bc_uk], axis=1)
+
+        # add a new column for day of the year
+        wind_obs_10m_100m_bc_uk["day_of_year"] = wind_obs_10m_100m_bc_uk.index.dayofyear
+
+        # save the joined dataframe as a csv
+        wind_obs_10m_100m_bc_uk.to_csv(fname_10_100, index=True)
 
     # print the joined dataframe
     print(f"Joined dataframe:", wind_obs_10m_100m_bc_uk)
@@ -135,8 +160,8 @@ def main():
     # convert to R dataframe
     r_df = ro.conversion.py2rpy(wind_obs_10m_100m_bc_uk)
 
-    # investigate the R dataframe
-    print(f"R dataframe:", r_df)
+    # # investigate the R dataframe
+    # print(f"R dataframe:", r_df)
 
     # Define the GAM functions for location and scale
     modparams = []
@@ -166,62 +191,62 @@ def main():
     # # print the values
     # print(si100_bc.values)
 
-    # plot the 10m wind speeds against the 100m wind speeds for the year
-    plt.figure()
+    # # plot the 10m wind speeds against the 100m wind speeds for the year
+    # plt.figure()
 
-    # subset the data by season
-    # winter = DJF
-    # autum = SON
-    # spring = MAM
-    # summer = JJA
-    winter_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([12, 1, 2])]
-    winter_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([12, 1, 2])]
+    # # subset the data by season
+    # # winter = DJF
+    # # autum = SON
+    # # spring = MAM
+    # # summer = JJA
+    # winter_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([12, 1, 2])]
+    # winter_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([12, 1, 2])]
 
-    autumn_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([9, 10, 11])]
-    autumn_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([9, 10, 11])]
+    # autumn_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([9, 10, 11])]
+    # autumn_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([9, 10, 11])]
 
-    spring_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([3, 4, 5])]
-    spring_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([3, 4, 5])]
+    # spring_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([3, 4, 5])]
+    # spring_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([3, 4, 5])]
 
-    summer_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([6, 7, 8])]
-    summer_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([6, 7, 8])]
+    # summer_10m = wind_obs_10m_uk[wind_obs_10m_uk.index.month.isin([6, 7, 8])]
+    # summer_100m_bc = wind_obs_100m_bc_uk[wind_obs_100m_bc_uk.index.month.isin([6, 7, 8])]
 
-    # plot the 10m wind speeds against the 100m wind speeds as a scatter plot
-    # with different colours for the different seasons
-    # autumn orange
-    # spring green
-    # summer blue
-    # winter purple
-    plt.scatter(winter_10m, winter_100m_bc, color="purple", label="Winter")
-    plt.scatter(autumn_10m, autumn_100m_bc, color="orange", label="Autumn")
-    plt.scatter(spring_10m, spring_100m_bc, color="green", label="Spring")
-    plt.scatter(summer_10m, summer_100m_bc, color="blue", label="Summer")
+    # # plot the 10m wind speeds against the 100m wind speeds as a scatter plot
+    # # with different colours for the different seasons
+    # # autumn orange
+    # # spring green
+    # # summer blue
+    # # winter purple
+    # plt.scatter(winter_10m, winter_100m_bc, color="purple", label="Winter")
+    # plt.scatter(autumn_10m, autumn_100m_bc, color="orange", label="Autumn")
+    # plt.scatter(spring_10m, spring_100m_bc, color="green", label="Spring")
+    # plt.scatter(summer_10m, summer_100m_bc, color="blue", label="Summer")
 
-    # set the title
-    plt.title("10m vs 100m wind speeds for the UK")
+    # # set the title
+    # plt.title("10m vs 100m wind speeds for the UK")
 
-    # set the x-axis label
-    plt.xlabel("10m wind speed (m/s)")
+    # # set the x-axis label
+    # plt.xlabel("10m wind speed (m/s)")
 
-    # set the y-axis label
-    plt.ylabel("100m wind speed bc (m/s)")
+    # # set the y-axis label
+    # plt.ylabel("100m wind speed bc (m/s)")
 
-    # include the legend in the top left
-    plt.legend(loc="upper left")
+    # # include the legend in the top left
+    # plt.legend(loc="upper left")
 
-    # set up the dir
-    # the current dir + testing_plots
-    plot_dir = os.path.join(os.getcwd(), "testing_plots")
+    # # set up the dir
+    # # the current dir + testing_plots
+    # plot_dir = os.path.join(os.getcwd(), "testing_plots")
 
-    # if this does not exist, create it
-    if not os.path.exists(plot_dir):
-        os.makedirs(plot_dir)
+    # # if this does not exist, create it
+    # if not os.path.exists(plot_dir):
+    #     os.makedirs(plot_dir)
 
-    # set up the current time
-    current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+    # # set up the current time
+    # current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
 
-    # save the plot
-    plt.savefig(os.path.join(plot_dir, "scatter_plot_10m_100m_wind_speeds_" + current_time + ".png"))
+    # # save the plot
+    # plt.savefig(os.path.join(plot_dir, "scatter_plot_10m_100m_wind_speeds_" + current_time + ".png"))
 
     # end the timer
     print(f"Time taken: {time.time() - start_time} seconds.")

@@ -13,6 +13,9 @@ __pycache__/
 logs/*.out
 logs/*.err
 
+# Ignore the csv files created
+csv_dir/*.csv
+
 # Distribution / packaging
 .Python
 build/
