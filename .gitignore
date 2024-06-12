@@ -16,6 +16,9 @@ logs/*.err
 # Ignore the csv files created
 csv_dir/*.csv
 
+# ignore the npy files
+npy_dir/*.npy
+
 # Distribution / packaging
 .Python
 build/
