@@ -251,7 +251,7 @@ def main():
         # United_Kingdom_si10 United_Kingdom_si100_bc
         # We want to estimate the 100m wind speed from the 10m wind speed and day of the year
         modparams.append(
-            "United_Kingdom_si100_bc ~ ti(United_Kingdom_si10, k=15, bs='tp') + ti(day_of_year, k=15, bs='tp')"
+            "United_Kingdom_si100_bc ~ s(United_Kingdom_si10) + s(day_of_year)"
         )
 
         # append the scale function
@@ -277,6 +277,8 @@ def main():
         # # use ggplot to plot the GAM smooths
         # ggplot2.ggplot(gamFit)
 
+        
+
         # ptrint the coefficients of the base model
         coeffs = stats.coef(gamFit)
 
@@ -286,7 +288,14 @@ def main():
         # print the model predictions
         print(f"Model predictions:", model_preds)
 
-        sys.exit(0)
+        # # set up the plotting object
+        # p_obj = r_mgcv.plot.gam(gamFit)
+
+        # # extract the first component of the plot object
+        # p_obj_1 = p_obj[0]
+
+        # # print the plot object
+        # print(f"Plot object:", p_obj_1)
 
         # print the coefficients
         print(f"Coefficients shape:", np.shape(coeffs))
@@ -315,7 +324,6 @@ def main():
 
         # print the values of the betas
         print(f"Betas values:", betas)
-        
 
         # extract the linear predictor matrix
         # vector of linear predictor values (minus any offest)
@@ -323,6 +331,16 @@ def main():
         X = stats.predict(
             gamFit, newdata=r_df_test, type="lpmatrix"
         )
+
+        X_test = stats.predict(
+            gamFit, fit=True,
+        )
+
+        # print the X_test
+        print(f"X_test shape:", np.shape(X_test))
+        print(f"X_test:", X_test)
+
+        sys.exit(0)
 
         # calculate the GAM mean and sd
         Mean = np.dot(X[:, 0 : int(nknots[0])], np.transpose(betas[:, 0 : int(nknots[0])]))
