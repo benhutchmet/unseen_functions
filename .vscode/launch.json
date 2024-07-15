@@ -18,10 +18,10 @@
                 "--start_year", "1960",
                 "--end_year", "1960",
                 "--experiment", "dcppA-hindcast",
-                "--frequency", "Amon",
+                "--frequency", "day",
                 "--engine", "netcdf4",
-                "--parallel", "False",
                 "--month_bc", "1"
-            ]
+            ] 
+        }
     ]
 }

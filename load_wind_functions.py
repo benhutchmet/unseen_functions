@@ -599,10 +599,12 @@ def create_wind_power_data(
     onshore_curve_file: str = "/home/users/pn832950/100m_wind/power_curve/powercurve.csv",
     offshore_curve_file: str = "/home/users/pn832950/100m_wind/power_curve/powercurve.csv",
     installed_capacities_dir: str = "/storage/silver/S2S4E/zd907959/MERRA2_wind_model/python_version/",
+    lat_name: str = "lat",
+    lon_name: str = "lon",
 ) -> xr.Dataset:
     """
     Loads in datasets containing the 100m wind speed data from ERA5 (in the first
-    version) and converts this into an array of wind power capacity factor.
+    version) and converts this into an array of wind power generation.
 
     Parameters
     ----------
@@ -639,8 +641,8 @@ def create_wind_power_data(
     Returns
     -------
 
-    ds : xarray.Dataset
-        The dataset containing the wind power capacity factor data.
+    cfs: np.ndarray
+        The array of wind power generation. 
 
     """
 
@@ -650,6 +652,26 @@ def create_wind_power_data(
     installed_capacities_file = os.path.join(
         installed_capacities_dir, f"{country}windfarm_dist.nc"
     )
+
+
+    # depending on the ofs ons flag
+    if ons_ofs == "ons":
+        print("Loading in the installed capacities for onshore wind farms.")
+
+        # Installed capacties
+        installed_capacities_file = os.path.join(
+            installed_capacities_dir, f"{country}windfarm_dist_ons_2021.nc"
+        )
+    elif ons_ofs == "ofs":
+        print("Loading in the installed capacities for offshore wind farms.")
+
+        # Installed capacties
+        installed_capacities_file = os.path.join(
+            installed_capacities_dir, f"{country}windfarm_dist_ofs_2021.nc"
+        )
+    else:
+        print("Invalid wind farm type. Please choose either onshore or offshore.")
+        sys.exit()
 
     # glob the file
     installed_capacities_files = glob.glob(installed_capacities_file)
@@ -680,8 +702,8 @@ def create_wind_power_data(
     ic_lat = installed_capacities["lat"].values
     ic_lon = installed_capacities["lon"].values
 
-    ds_lat = ds["latitude"].values
-    ds_lon = ds["longitude"].values
+    ds_lat = ds[lat_name].values
+    ds_lon = ds[lon_name].values
 
     # if the lats and lons are not the same, interpolate the installed capacities
     if not np.array_equal(ic_lat, ds_lat) or not np.array_equal(ic_lon, ds_lon):
@@ -690,17 +712,39 @@ def create_wind_power_data(
             "Interpolating installed capacities to the same grid as the wind speed data."
         )
 
-        # convert ds from xarray object to iris object
-        ds_cube = cubes_from_xarray(ds)
+        # # convert ds from xarray object to iris object
+        # ds_cube = cubes_from_xarray(ds, eng
+
+        # convert installed capacities from xarray object to iris object
+        ds_cube = ds.to_iris()
+
+        # # print ds_cube
+        # print("ds_cube:", ds_cube)
 
         # convert installed capacities from xarray object to iris object
         ic_cube = cubes_from_xarray(installed_capacities)
 
         # extract the bc_si100_name cube
-        bc_si100_cube = ds_cube.extract(bc_si100_name)[0]
+        bc_si100_cube = ds_cube
 
         # extract the totals cube
         ic_cube = ic_cube.extract("totals")[0]
+
+        # promote the latitude and longitude to dimension coordinates
+        # bc_si100_cube = bc_si100_cube.rename(
+        #     {lat_name: "latitude", lon_name: "longitude"}
+        # )
+
+        # promote the latitude and longitude to dimension coordinates
+        # promote the latitude and longitude to dimension coordinates
+        lat_coord = iris.coords.DimCoord(bc_si100_cube.coord(lat_name).points, standard_name='latitude', units='degrees')
+        lon_coord = iris.coords.DimCoord(bc_si100_cube.coord(lon_name).points, standard_name='longitude', units='degrees')
+
+        bc_si100_cube.remove_coord(lat_name)
+        bc_si100_cube.remove_coord(lon_name)
+
+        bc_si100_cube.add_dim_coord(lat_coord, 1)
+        bc_si100_cube.add_dim_coord(lon_coord, 2)
 
         # if the coords
         if ic_cube.coords != bc_si100_cube.coords:
@@ -709,16 +753,23 @@ def create_wind_power_data(
             ic_cube.coord("lon").rename("longitude")
 
         # Ensure the units of the coordinates match
-        ic_cube.coord("latitude").units = bc_si100_cube.coord("latitude").units
-        ic_cube.coord("longitude").units = bc_si100_cube.coord("longitude").units
+        ic_cube.coord("latitude").units = bc_si100_cube.coord('latitude').units
+        ic_cube.coord("longitude").units = bc_si100_cube.coord('longitude').units
 
         # Ensure the attributes of the coordinates match
         ic_cube.coord("latitude").attributes = bc_si100_cube.coord(
-            "latitude"
+            'latitude'
         ).attributes
         ic_cube.coord("longitude").attributes = bc_si100_cube.coord(
-            "longitude"
+            'longitude'
         ).attributes
+
+
+        # print the ic_cube
+        print("ic_cube:", ic_cube)
+
+        # print the bc_si100_cube
+        print("bc_si100_cube:", bc_si100_cube)
 
         # regrid the installed capacities to the same grid as the wind speed data
         ic_cube_regrid = ic_cube.regrid(bc_si100_cube, iris.analysis.Linear())
@@ -738,22 +789,34 @@ def create_wind_power_data(
         print("Loading in the onshore power curve.")
 
         # Load in the onshore power curve
-        power_curve = pd.read_csv(onshore_curve_file, header=None)
+        power_curve = pd.read_csv(onshore_curve_file, header=None, sep="  ")
 
     elif ons_ofs == "ofs":
         print("Loading in the offshore power curve.")
 
         # Load in the offshore power curve
-        power_curve = pd.read_csv(offshore_curve_file, header=None)
+        power_curve = pd.read_csv(offshore_curve_file, header=None, sep="  ")
     else:
         print("Invalid wind farm type. Please choose either onshore or offshore.")
         sys.exit()
+
+    # print the power curve
+    print("Power curve:", power_curve)
+
+    # print the shape of the power curve
+    print("Power curve shape:", power_curve.shape)
 
     # Add column names to the power curve
     power_curve.columns = ["Wind speed (m/s)", "Power (W)"]
 
     # Generate an array for wind speeds
     pc_winds = np.linspace(0, 50, 501)
+
+    # print the power curve
+    print("Power curve:", power_curve)
+
+    # print the pcwinds
+    print("pc_winds:", pc_winds)
 
     # Using np.interp, find the power output for each wind speed
     pc_power = np.interp(
@@ -763,20 +826,23 @@ def create_wind_power_data(
     # Add these to a new dataframe
     pc_df = pd.DataFrame({"Wind speed (m/s)": pc_winds, "Power (W)": pc_power})
 
+    # print ds
+    print(ds)
+
     # Extract the wind speed data from the dataset
-    wind_speed = ds[bc_si100_name].values
+    # wind_speed = ds[bc_si100_name].values
 
     # Extract the values of the wind speed
-    wind_speed_vals = ds[f"si100_{ons_ofs}"].values
+    wind_speed_vals = ds.values
 
     # Create an empty array to store the power data
-    cfs = np.zeros(np.shape(wind_speed))
+    cfs = np.zeros(np.shape(wind_speed_vals))
 
     # Extract total MW as the array values of the installed capacities regrid
     total_MW = ic_cube_regrid.data
 
     # Loop over the time axis
-    for i in tqdm(range(0, np.shape(wind_speed)[0]), desc="Creating wind power data"):
+    for i in tqdm(range(0, np.shape(wind_speed_vals)[0]), desc="Creating wind power data"):
         # Extract the wind speed data for the current timestep
         wind_speed_vals_i = wind_speed_vals[i, :, :]
 
@@ -811,11 +877,19 @@ def create_wind_power_data(
         # Set any values below the minimum capacity factor to the minimum capacity factor
         cfs_i[cfs_i < min_cf] = 0.0
 
-        # Multiply by the installed capacity in MW
-        cfs[i, :, :] = cfs_i * total_MW
+        # raise an error if any of the cfs_i values are greater than 1.0
+        if np.any(cfs_i > 1.0):
+            raise ValueError("Capacity factor greater than 1.0.")
+
+        # # Multiply by the installed capacity in MW
+        # cfs[i, :, :] = cfs_i * total_MW
+        cfs[i, :, :] = cfs_i
+        
 
     # Where cfs are 0.0, set to NaN
     cfs[cfs == 0.0] = np.nan
+
+    # then multiply by the total MW?
 
     # Take the spatial mean
     cfs = np.nanmean(cfs, axis=(1, 2))
