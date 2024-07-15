@@ -905,6 +905,12 @@ def create_wind_power_data(
         # create an empty dataarray to store the power data
         cfs = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
 
+        # wind speed empty array
+        wind_speed_pre = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+
+        # wind speed post
+        wind_speed_post = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+
         # Loop over the members
         for m in tqdm(range(0, nmems), desc="Creating wind power data for model"):
             # Select the wind speed data for the current member
@@ -912,6 +918,8 @@ def create_wind_power_data(
             for i in range(0, np.shape(wind_speed_vals)[2]):
                 # Extract values for the current timestep
                 wind_speed_vals_i = wind_speed_vals_mem_this[i, :, :]
+
+                wind_speed_pre[m, i, :, :] = wind_speed_vals_i
 
                 # depending whether onshore or offshore, scale to height (from 10m!)
                 if ons_ofs == "ons":
@@ -923,6 +931,8 @@ def create_wind_power_data(
 
                 # Set any NaN values to zero
                 wind_speed_vals_i[np.isnan(wind_speed_vals_i)] = 0.0
+
+                wind_speed_post[m, i, :, :] = wind_speed_vals_i
 
                 # reshape into a 1D array
                 reshaped_wind_speed_vals = np.reshape(
@@ -965,12 +975,23 @@ def create_wind_power_data(
         # Take the spatial mean
         cfs = np.nanmean(cfs, axis=(2, 3))
 
+        # take the spatial mean of wind speed
+        wind_speed_pre = np.nanmean(wind_speed_pre, axis=(2, 3))
+        wind_speed_post = np.nanmean(wind_speed_post, axis=(2, 3))
+
     else:
         print("Processing the observations into wind power data.")
+        
+        # empty array for wind speeds
+        wind_speed_pre = np.zeros([np.shape(wind_speed_vals)[0], np.shape(wind_speed_vals)[1], np.shape(wind_speed_vals)[2]])
+        wind_speed_post = np.zeros([np.shape(wind_speed_vals)[0], np.shape(wind_speed_vals)[1], np.shape(wind_speed_vals)[2]])
+        
         # Loop over the time axis
         for i in tqdm(range(0, np.shape(wind_speed_vals)[0]), desc="Creating wind power data"):
             # Extract the wind speed data for the current timestep
             wind_speed_vals_i = wind_speed_vals[i, :, :]
+
+            wind_speed_pre[i, :, :] = wind_speed_vals_i
 
             # depending whether onshore or offshore, scale to height
             if ons_ofs == "ons":
@@ -982,6 +1003,8 @@ def create_wind_power_data(
 
             # Set any NaN values to zero
             wind_speed_vals_i[np.isnan(wind_speed_vals_i)] = 0.0
+
+            wind_speed_post[i, :, :] = wind_speed_vals_i
 
             # reshape into a 1D array
             reshaped_wind_speed_vals = np.reshape(
@@ -1028,7 +1051,11 @@ def create_wind_power_data(
         # Take the spatial mean
         cfs = np.nanmean(cfs, axis=(1, 2))
 
-    return cfs
+        # take the spatial mean of wind speed
+        wind_speed_pre = np.nanmean(wind_speed_pre, axis=(1, 2))
+        wind_speed_post = np.nanmean(wind_speed_post, axis=(1, 2))
+
+    return cfs, wind_speed_pre, wind_speed_post
 
 
 # define a function to form the dataframe for the wind power data
