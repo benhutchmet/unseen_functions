@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=sub-bias
 #SBATCH --partition=high-mem
-#SBATCH --mem=153600
+#SBATCH --mem=30600
 #SBATCH --time=1000:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.err
