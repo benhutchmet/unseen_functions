@@ -897,87 +897,92 @@ def create_wind_power_data(
         print("Processing the model data into wind power data.")
 
         # assert that the first dimension of the wind speed values is 1
-        assert np.shape(wind_speed_vals)[0] == 1, "More than 1 init year."
+        # assert np.shape(wind_speed_vals)[0] == 1, "More than 1 init year."
+
+        nyears = np.shape(wind_speed_vals)[0]
 
         # Extract the number of members
         nmems = np.shape(wind_speed_vals)[1]
 
         # create an empty dataarray to store the power data
-        cfs = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        cfs = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
 
         # wind speed empty array
-        wind_speed_pre = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        wind_speed_pre = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
 
         # wind speed post
-        wind_speed_post = np.zeros([nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        wind_speed_post = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
 
-        # Loop over the members
-        for m in tqdm(range(0, nmems), desc="Creating wind power data for model"):
-            # Select the wind speed data for the current member
-            wind_speed_vals_mem_this = wind_speed_vals[0, m, :, :, :]
-            for i in range(0, np.shape(wind_speed_vals)[2]):
-                # Extract values for the current timestep
-                wind_speed_vals_i = wind_speed_vals_mem_this[i, :, :]
+        # loop over the init years
+        for y in tqdm(range(0, nyears), desc="Creating wind power data for model"):
+            # Select the wind speed data for the current init year
+            wind_speed_vals_y = wind_speed_vals[y, :, :, :, :]
+            for m in range(0, nmems):
+                # Select the wind speed data for the current member
+                wind_speed_vals_mem_this = wind_speed_vals_y[m, :, :, :]
+                for i in range(0, np.shape(wind_speed_vals)[2]):
+                    # Extract values for the current timestep
+                    wind_speed_vals_i = wind_speed_vals_mem_this[i, :, :]
 
-                wind_speed_pre[m, i, :, :] = wind_speed_vals_i
+                    wind_speed_pre[y, m, i, :, :] = wind_speed_vals_i
 
-                # depending whether onshore or offshore, scale to height (from 10m!)
-                if ons_ofs == "ons":
-                    # Avg height of onshore wind farms 2021 from UK windpower.net
-                    wind_speed_vals_i = wind_speed_vals_i * (71.0 / 10.0) ** (1.0 / 7.0)
-                elif ons_ofs == "ofs":
-                    # Avg height of offshore wind farms 2021 from UK windpower.net
-                    wind_speed_vals_i = wind_speed_vals_i * (92.0 / 10.0) ** (1.0 / 7.0)
+                    # depending whether onshore or offshore, scale to height (from 10m!)
+                    if ons_ofs == "ons":
+                        # Avg height of onshore wind farms 2021 from UK windpower.net
+                        wind_speed_vals_i = wind_speed_vals_i * (71.0 / 10.0) ** (1.0 / 7.0)
+                    elif ons_ofs == "ofs":
+                        # Avg height of offshore wind farms 2021 from UK windpower.net
+                        wind_speed_vals_i = wind_speed_vals_i * (92.0 / 10.0) ** (1.0 / 7.0)
 
-                # Set any NaN values to zero
-                wind_speed_vals_i[np.isnan(wind_speed_vals_i)] = 0.0
+                    # Set any NaN values to zero
+                    wind_speed_vals_i[np.isnan(wind_speed_vals_i)] = 0.0
 
-                wind_speed_post[m, i, :, :] = wind_speed_vals_i
+                    wind_speed_post[y, m, i, :, :] = wind_speed_vals_i
 
-                # reshape into a 1D array
-                reshaped_wind_speed_vals = np.reshape(
-                    wind_speed_vals_i,
-                    [np.shape(wind_speed_vals_i)[0] * np.shape(wind_speed_vals_i)[1]],
-                )
+                    # reshape into a 1D array
+                    reshaped_wind_speed_vals = np.reshape(
+                        wind_speed_vals_i,
+                        [np.shape(wind_speed_vals_i)[0] * np.shape(wind_speed_vals_i)[1]],
+                    )
 
-                # Categorise each wind speed value into a power output
-                cfs_i = np.digitize(
-                    reshaped_wind_speed_vals, pc_df["Wind speed (m/s)"], right=False
-                )
+                    # Categorise each wind speed value into a power output
+                    cfs_i = np.digitize(
+                        reshaped_wind_speed_vals, pc_df["Wind speed (m/s)"], right=False
+                    )
 
-                # Make sure the bins don't go out of range
-                cfs_i[cfs_i == len(pc_df)] = len(pc_df) - 1
+                    # Make sure the bins don't go out of range
+                    cfs_i[cfs_i == len(pc_df)] = len(pc_df) - 1
 
-                # convert pc_df["Power (W)"] to a numpy array of values
-                pc_power_vals = pc_df["Power (W)"].values
+                    # convert pc_df["Power (W)"] to a numpy array of values
+                    pc_power_vals = pc_df["Power (W)"].values
 
-                # Calculate the average power output for each bin
-                p_bins = 0.5 * (pc_power_vals[cfs_i] + pc_power_vals[cfs_i - 1])
+                    # Calculate the average power output for each bin
+                    p_bins = 0.5 * (pc_power_vals[cfs_i] + pc_power_vals[cfs_i - 1])
 
-                # Reshape the power output array
-                cfs_i = np.reshape(
-                    p_bins, [np.shape(wind_speed_vals_i)[0], np.shape(wind_speed_vals_i)[1]]
-                )
+                    # Reshape the power output array
+                    cfs_i = np.reshape(
+                        p_bins, [np.shape(wind_speed_vals_i)[0], np.shape(wind_speed_vals_i)[1]]
+                    )
 
-                # Set any values below the minimum capacity factor to the minimum capacity factor
-                cfs_i[cfs_i < min_cf] = 0.0
+                    # Set any values below the minimum capacity factor to the minimum capacity factor
+                    cfs_i[cfs_i < min_cf] = 0.0
 
-                # raise an error if any of the cfs_i values are greater than 1.0
-                if np.any(cfs_i > 1.0):
-                    raise ValueError("Capacity factor greater than 1.0.")
+                    # raise an error if any of the cfs_i values are greater than 1.0
+                    if np.any(cfs_i > 1.0):
+                        raise ValueError("Capacity factor greater than 1.0.")
 
-                # Multiply by the installed capacity in MW
-                cfs[m, i, :, :] = cfs_i
+                    # Multiply by the installed capacity in MW
+                    cfs[y, m, i, :, :] = cfs_i
         
         # where cfs are 0.0, set to NaN
         cfs[cfs == 0.0] = np.nan
 
         # Take the spatial mean
-        cfs = np.nanmean(cfs, axis=(2, 3))
+        cfs = np.nanmean(cfs, axis=(3, 4))
 
         # take the spatial mean of wind speed
-        wind_speed_pre = np.nanmean(wind_speed_pre, axis=(2, 3))
-        wind_speed_post = np.nanmean(wind_speed_post, axis=(2, 3))
+        wind_speed_pre = np.nanmean(wind_speed_pre, axis=(3, 4))
+        wind_speed_post = np.nanmean(wind_speed_post, axis=(3, 4))
 
     else:
         print("Processing the observations into wind power data.")
