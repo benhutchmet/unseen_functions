@@ -1063,6 +1063,7 @@ def create_wind_power_data(
     return cfs, wind_speed_pre, wind_speed_post
 
 
+# TODO: Finish this + onshore offshore flag
 # define a function to form the dataframe for the wind power data
 def form_wind_power_dataframe(
     cfs: np.ndarray,
@@ -1070,8 +1071,9 @@ def form_wind_power_dataframe(
     country_name: str,
     obs_flag: bool = True,
     model_fpath: str = None,
-    init_year: int = None,
+    init_years: list[int] = None,
     leads: list[int] = None,
+    ons_ofs: str = "ons",
 ) -> pd.DataFrame:
     """
     Form the dataframe for the wind power data.
@@ -1094,11 +1096,15 @@ def form_wind_power_dataframe(
     model_fpath : str
         The file path for the model
 
-    init_year : int
-        The initial year of the data.
+    init_years : list[int]
+        The initialisation years.
+        E.g. 1960, 2018
 
     leads : list[int]
         The leads of the data.
+
+    ons_ofs : str
+        The type of wind farm to be considered (either onshore or offshore).
 
     Returns
     -------
@@ -1122,84 +1128,29 @@ def form_wind_power_dataframe(
         cfs_df.columns = [f"{country_name}_wind_power"]
     else:
 
-        # Extract the model data
-        model_data = xr.open_dataset(model_fpath)
+        # shape of (59, 10, 30)
+        # 59 init years, 10 members, 30 leads
+        # Set up an empty dataframe to store the wind power data
+        cfs_df = pd.DataFrame()
 
-        # Find the first month and day
-        first_month = model_data["time"].values[0].month
+        # Loop over the init years
+        #TODO: Enumerate!!!!
+        for year in tqdm(init_years, desc="Looping over init years"):
+            # Loop over the leads
+            for lead in leads:
+                # create the dataframe
+                for member in range(1, len(cfs[1]) + 1):
+                    cfs_df_member = pd.DataFrame(
+                        {
+                            "init": year, # TODO: year index
+                            "lead": lead, # TODO: lead index ?
+                            "member": member,
+                            f"{country_name}_wind_power_cfs_{ons_ofs}": cfs[year, member - 1, lead],
+                        }
+                    )
 
-        # First day
-        first_day = model_data["time"].values[0].day
-
-        # Format the first timestep as DD-MM-YYYY
-        first_timestep = f"{first_day}-{first_month}-{init_year}"
-
-        # Convert this to a datetime object
-        first_timestep = pd.to_datetime(first_timestep, format="%d-%m-%Y")
-
-        # set up dates
-        dates = []
-
-        # # append the first timestep
-        # dates.append(first_timestep)
-
-        # Set up the leads
-        for i in (leads - 1):
-            # Set up the years to add
-            years_to_add = i // 360
-            months_to_add = (i % 360) // 30
-            days_to_add = (i % 360) % 30
-
-            # Add the years, months and days to the first timestep
-            new_year = first_timestep.year + years_to_add
-            new_month = first_timestep.month + months_to_add
-            new_day = first_timestep.day + days_to_add
-
-            # Handle overflow
-            if new_month > 12:
-                new_month = new_month - 12
-                new_year = new_year + 1
-
-            # Handle overflow
-            if new_day > 30:
-                new_day = new_day - 30
-                new_month = new_month + 1
-
-            # Create the new date
-            new_date = cftime.Datetime360Day(new_year, new_month, new_day)
-
-            # Add the new date to the list of dates
-            dates.append(new_date)
-
-        print("Dates:", dates)
-        print("Length of dates:", len(dates))
-
-        # # convert dates to datetime objects
-        # dates = pd.to_datetime(dates)
-
-        # empty dataframes list
-        dfs = []
-
-        # Create a dataframe with columns for the time values
-        # lead values
-        # with nmembers rows for each lead
-        for i, date in enumerate(dates):
-            # extract the first lead
-            cfs_lead = cfs[:, i]
-
-            # create a dataframe with the first lead
-            df = pd.DataFrame({
-                'date': [date] * len(cfs_lead),
-                'lead': [leads[i]] * len(cfs_lead),
-                'member': np.arange(1, len(cfs_lead) + 1),
-                'cfs': cfs_lead
-            })
-
-            # Append the dataframes to a list
-            dfs.append(df)
-
-        # concatenate the dataframes
-        cfs_df = pd.concat(dfs, ignore_index=True)
+                    # Append the data to the dataframe
+                    cfs_df = pd.concat([cfs_df, cfs_df_member], ignore_index=True)
 
     return cfs_df
 
