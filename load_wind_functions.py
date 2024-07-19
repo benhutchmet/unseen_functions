@@ -27,6 +27,7 @@ from ncdata.iris_xarray import cubes_to_xarray, cubes_from_xarray
 # Import dictionaries
 import unseen_dictionaries as dicts
 
+
 # Define the function for preprocessing the data
 def preprocess(
     ds: xr.Dataset,
@@ -239,6 +240,7 @@ def load_obs_data(
 
     return ds
 
+
 # define a function to preprocess rsds
 def preprocess_rsds(
     ds: xr.Dataset,
@@ -261,6 +263,7 @@ def preprocess_rsds(
     """
 
     return ds
+
 
 # define another preprocessing function for temperature
 def preprocess_temp(
@@ -401,7 +404,9 @@ def apply_country_mask(
     print(ds_init[lat_name].values)
 
     # Select the first timestep of the data
-    country_mask = country_mask_poly.mask(ds_init[lon_name].values, ds_init[lat_name].values)
+    country_mask = country_mask_poly.mask(
+        ds_init[lon_name].values, ds_init[lat_name].values
+    )
 
     # print the country mask
     print(f"Country mask: {country_mask}")
@@ -458,12 +463,13 @@ def apply_country_mask(
 
     return out_ds
 
-# define a function to return a country mask with 1's where the country is 
+
+# define a function to return a country mask with 1's where the country is
 # and 0's where it isn't
 def load_country_mask(
-        ds: xr.Dataset,
-        country: str,
-        pop_weights: int = 0,
+    ds: xr.Dataset,
+    country: str,
+    pop_weights: int = 0,
 ) -> xr.Dataset:
     """
     Load a mask for a specific country.
@@ -550,6 +556,7 @@ def load_country_mask(
     print(f"Sum of new country mask values: {str(np.sum(country_mask_vals))}")
 
     return country_mask_vals
+
 
 # define a function which saves the data
 def save_wind_data(
@@ -663,7 +670,7 @@ def create_wind_power_data(
     -------
 
     cfs: np.ndarray
-        The array of wind power generation. 
+        The array of wind power generation.
 
     """
 
@@ -673,7 +680,6 @@ def create_wind_power_data(
     installed_capacities_file = os.path.join(
         installed_capacities_dir, f"{country}windfarm_dist.nc"
     )
-
 
     # depending on the ofs ons flag
     if ons_ofs == "ons":
@@ -776,13 +782,20 @@ def create_wind_power_data(
         #     {lat_name: "latitude", lon_name: "longitude"}
         # )
 
-
         # # catch for obs data
         if obs_flag == True:
             # promote the latitude and longitude to dimension coordinates
             # promote the latitude and longitude to dimension coordinates
-            lat_coord = iris.coords.DimCoord(bc_si100_cube.coord(lat_name).points, standard_name='latitude', units='degrees')
-            lon_coord = iris.coords.DimCoord(bc_si100_cube.coord(lon_name).points, standard_name='longitude', units='degrees')
+            lat_coord = iris.coords.DimCoord(
+                bc_si100_cube.coord(lat_name).points,
+                standard_name="latitude",
+                units="degrees",
+            )
+            lon_coord = iris.coords.DimCoord(
+                bc_si100_cube.coord(lon_name).points,
+                standard_name="longitude",
+                units="degrees",
+            )
 
             bc_si100_cube.remove_coord(lat_name)
             bc_si100_cube.remove_coord(lon_name)
@@ -803,15 +816,15 @@ def create_wind_power_data(
             ic_cube.coord("lon").rename("longitude")
 
         # Ensure the units of the coordinates match
-        ic_cube.coord("latitude").units = bc_si100_cube.coord('latitude').units
-        ic_cube.coord("longitude").units = bc_si100_cube.coord('longitude').units
+        ic_cube.coord("latitude").units = bc_si100_cube.coord("latitude").units
+        ic_cube.coord("longitude").units = bc_si100_cube.coord("longitude").units
 
         # Ensure the attributes of the coordinates match
         ic_cube.coord("latitude").attributes = bc_si100_cube.coord(
-            'latitude'
+            "latitude"
         ).attributes
         ic_cube.coord("longitude").attributes = bc_si100_cube.coord(
-            'longitude'
+            "longitude"
         ).attributes
 
         # print the ic_cube
@@ -905,13 +918,37 @@ def create_wind_power_data(
         nmems = np.shape(wind_speed_vals)[1]
 
         # create an empty dataarray to store the power data
-        cfs = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        cfs = np.zeros(
+            [
+                nyears,
+                nmems,
+                np.shape(wind_speed_vals)[2],
+                np.shape(wind_speed_vals)[3],
+                np.shape(wind_speed_vals)[4],
+            ]
+        )
 
         # wind speed empty array
-        wind_speed_pre = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        wind_speed_pre = np.zeros(
+            [
+                nyears,
+                nmems,
+                np.shape(wind_speed_vals)[2],
+                np.shape(wind_speed_vals)[3],
+                np.shape(wind_speed_vals)[4],
+            ]
+        )
 
         # wind speed post
-        wind_speed_post = np.zeros([nyears, nmems, np.shape(wind_speed_vals)[2], np.shape(wind_speed_vals)[3], np.shape(wind_speed_vals)[4]])
+        wind_speed_post = np.zeros(
+            [
+                nyears,
+                nmems,
+                np.shape(wind_speed_vals)[2],
+                np.shape(wind_speed_vals)[3],
+                np.shape(wind_speed_vals)[4],
+            ]
+        )
 
         # loop over the init years
         for y in tqdm(range(0, nyears), desc="Creating wind power data for model"):
@@ -929,10 +966,14 @@ def create_wind_power_data(
                     # depending whether onshore or offshore, scale to height (from 10m!)
                     if ons_ofs == "ons":
                         # Avg height of onshore wind farms 2021 from UK windpower.net
-                        wind_speed_vals_i = wind_speed_vals_i * (71.0 / 10.0) ** (1.0 / 7.0)
+                        wind_speed_vals_i = wind_speed_vals_i * (71.0 / 10.0) ** (
+                            1.0 / 7.0
+                        )
                     elif ons_ofs == "ofs":
                         # Avg height of offshore wind farms 2021 from UK windpower.net
-                        wind_speed_vals_i = wind_speed_vals_i * (92.0 / 10.0) ** (1.0 / 7.0)
+                        wind_speed_vals_i = wind_speed_vals_i * (92.0 / 10.0) ** (
+                            1.0 / 7.0
+                        )
 
                     # Set any NaN values to zero
                     wind_speed_vals_i[np.isnan(wind_speed_vals_i)] = 0.0
@@ -942,7 +983,10 @@ def create_wind_power_data(
                     # reshape into a 1D array
                     reshaped_wind_speed_vals = np.reshape(
                         wind_speed_vals_i,
-                        [np.shape(wind_speed_vals_i)[0] * np.shape(wind_speed_vals_i)[1]],
+                        [
+                            np.shape(wind_speed_vals_i)[0]
+                            * np.shape(wind_speed_vals_i)[1]
+                        ],
                     )
 
                     # Categorise each wind speed value into a power output
@@ -961,7 +1005,11 @@ def create_wind_power_data(
 
                     # Reshape the power output array
                     cfs_i = np.reshape(
-                        p_bins, [np.shape(wind_speed_vals_i)[0], np.shape(wind_speed_vals_i)[1]]
+                        p_bins,
+                        [
+                            np.shape(wind_speed_vals_i)[0],
+                            np.shape(wind_speed_vals_i)[1],
+                        ],
                     )
 
                     # Set any values below the minimum capacity factor to the minimum capacity factor
@@ -973,7 +1021,7 @@ def create_wind_power_data(
 
                     # Multiply by the installed capacity in MW
                     cfs[y, m, i, :, :] = cfs_i
-        
+
         # where cfs are 0.0, set to NaN
         cfs[cfs == 0.0] = np.nan
 
@@ -986,13 +1034,27 @@ def create_wind_power_data(
 
     else:
         print("Processing the observations into wind power data.")
-        
+
         # empty array for wind speeds
-        wind_speed_pre = np.zeros([np.shape(wind_speed_vals)[0], np.shape(wind_speed_vals)[1], np.shape(wind_speed_vals)[2]])
-        wind_speed_post = np.zeros([np.shape(wind_speed_vals)[0], np.shape(wind_speed_vals)[1], np.shape(wind_speed_vals)[2]])
-        
+        wind_speed_pre = np.zeros(
+            [
+                np.shape(wind_speed_vals)[0],
+                np.shape(wind_speed_vals)[1],
+                np.shape(wind_speed_vals)[2],
+            ]
+        )
+        wind_speed_post = np.zeros(
+            [
+                np.shape(wind_speed_vals)[0],
+                np.shape(wind_speed_vals)[1],
+                np.shape(wind_speed_vals)[2],
+            ]
+        )
+
         # Loop over the time axis
-        for i in tqdm(range(0, np.shape(wind_speed_vals)[0]), desc="Creating wind power data"):
+        for i in tqdm(
+            range(0, np.shape(wind_speed_vals)[0]), desc="Creating wind power data"
+        ):
             # Extract the wind speed data for the current timestep
             wind_speed_vals_i = wind_speed_vals[i, :, :]
 
@@ -1046,7 +1108,6 @@ def create_wind_power_data(
             # # Multiply by the installed capacity in MW
             # cfs[i, :, :] = cfs_i * total_MW
             cfs[i, :, :] = cfs_i
-            
 
         # Where cfs are 0.0, set to NaN
         cfs[cfs == 0.0] = np.nan
@@ -1133,19 +1194,29 @@ def form_wind_power_dataframe(
         # Set up an empty dataframe to store the wind power data
         cfs_df = pd.DataFrame()
 
+        # set up the nmems
+        nmems = np.shape(cfs)[1]
+
         # Loop over the init years
-        #TODO: Enumerate!!!!
-        for year in tqdm(init_years, desc="Looping over init years"):
-            # Loop over the leads
-            for lead in leads:
-                # create the dataframe
-                for member in range(1, len(cfs[1]) + 1):
+        # Enumerate over the init_years
+        for i, year in tqdm(
+            enumerate(np.arange(init_years[0], init_years[1] + 1)),
+            desc="Looping over init years",
+        ):
+            # select the first year
+            cfs_year = cfs[i, :, :]
+            for j, lead in enumerate(leads):
+                # select the first lead
+                cfs_lead = cfs_year[:, j]
+                for member in range(1, nmems + 1):
                     cfs_df_member = pd.DataFrame(
                         {
-                            "init": year, # TODO: year index
-                            "lead": lead, # TODO: lead index ?
-                            "member": member,
-                            f"{country_name}_wind_power_cfs_{ons_ofs}": cfs[year, member - 1, lead],
+                            "init": [year],  # year value
+                            "lead": [lead],
+                            "member": [member],
+                            f"{country_name}_wind_power_cfs_{ons_ofs}": cfs_lead[
+                                member - 1
+                            ],
                         }
                     )
 
