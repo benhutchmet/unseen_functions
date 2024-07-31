@@ -700,6 +700,9 @@ def create_wind_power_data(
         print("Invalid wind farm type. Please choose either onshore or offshore.")
         sys.exit()
 
+    # print the installed capacities file
+    print(f"loading installed capacities from: {installed_capacities_file}")
+
     # glob the file
     installed_capacities_files = glob.glob(installed_capacities_file)
 
@@ -725,6 +728,25 @@ def create_wind_power_data(
 
     # Load the installed capacities data
     installed_capacities = xr.open_dataset(installed_capacities_files[0])
+
+    # # extract the total mw
+    totals = installed_capacities["totals"].values
+
+    # extract the total MW
+    # 1000kW = 1MW therefore divide by 1000
+    # 1000MW = 1GW therefore divide by 1000 to convert from MW to GW
+    totals_MW_pre = np.flip(installed_capacities["totals"].values, axis=0) / 1000.0
+
+    # print the total instal;led capacities
+    print(f"Installed capacity: {str(np.sum(totals_MW_pre))} for {country}")
+
+    # # print totals
+    # print("Totals:", totals)
+
+    # # print the shape of totals
+    # print("Totals shape:", totals.shape)
+
+    # return totals_MW
 
     ic_lat = installed_capacities["lat"].values
     ic_lon = installed_capacities["lon"].values
@@ -836,15 +858,25 @@ def create_wind_power_data(
         # regrid the installed capacities to the same grid as the wind speed data
         ic_cube_regrid = ic_cube.regrid(bc_si100_cube, iris.analysis.Linear())
 
+        # regrid the wind speed data to the same grid as the installed capacities
+        bc_si100_cube_regrid = bc_si100_cube.regrid(ic_cube, iris.analysis.Linear())
+
     # Extract the values
     # Flip to get the correct order of lat lon
-    total_MW = np.flip(installed_capacities["totals"].values, axis=0) / 1000.0
-
-    # print the shape of the total MW
-    print("Total MW shape:", total_MW.shape)
+    totals_MW_regrid = np.flip(ic_cube_regrid.data, axis=0) / 1000.0
 
     # print the installed capacity
-    print(f"Installed capacity: {str(np.sum(total_MW))} for {country}")
+    print(f"Installed capacity: {str(np.sum(totals_MW_regrid))} for {country}")
+
+    # print the shape of the total MW
+    print("Total MW pre shape:", totals_MW_pre.shape)
+    print("Total MW regrid shape:", totals_MW_regrid.shape)
+
+    return totals_MW_pre, totals_MW_regrid, bc_si100_cube_regrid, bc_si100_cube
+
+    print("-------------------------")
+    print("Exiting script")
+    sys.exit()
 
     # Depending on the type of wind farm, load in the appropriate power curve
     if ons_ofs == "ons":

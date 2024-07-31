@@ -1828,6 +1828,19 @@ def main():
     # # Daily obs fpath for rsds
     # obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_rsds_daily_1960_2020.nc"
 
+    # depending on the variable set up the obs_fpath
+    if variable in ["tas", "t2m"]:
+        # Set up the obs fpath
+        obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_t2m_daily_1960_2020.nc"
+    elif variable in ["sfcWind", "si10"]:
+        # Set up the obs fpath
+        obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_wind_daily_1960_2020.nc"
+    elif variable in ["rsds"]:
+        # Set up the obs fpath
+        obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_rsds_daily_1960_2020.nc"
+    else:
+        raise ValueError(f"Variable {variable} not recognised.")
+
     # test the load data function
     ds = load_dcpp_data_lead(
         model=model,

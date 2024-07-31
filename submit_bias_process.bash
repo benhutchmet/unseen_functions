@@ -5,6 +5,7 @@
 #SBATCH --time=1000:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/submit-bias-corr-%A_%a.err
+# sbatch ~/unseen_functions/submit_bias_process.bash HadGEM3-GC31-MM psl msl 1 1960 1961 dcppA-hindcast day 11
 
 # Set up the usage messages
 usage="Usage: ${model} ${variable} ${obs_variable} ${lead_time} ${start_year} ${end_year} ${experiment} ${frequency} ${month_bc}"
