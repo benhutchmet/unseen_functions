@@ -872,28 +872,73 @@ def create_wind_power_data(
     print("Total MW pre shape:", totals_MW_pre.shape)
     print("Total MW regrid shape:", totals_MW_regrid.shape)
 
-    return totals_MW_pre, totals_MW_regrid, bc_si100_cube_regrid, bc_si100_cube
+    # return totals_MW_pre, totals_MW_regrid, bc_si100_cube_regrid, bc_si100_cube
 
-    print("-------------------------")
-    print("Exiting script")
-    sys.exit()
-
-    # Depending on the type of wind farm, load in the appropriate power curve
-    if ons_ofs == "ons":
-        print("Loading in the onshore power curve.")
-
-        # Load in the onshore power curve
-        power_curve = pd.read_csv(onshore_curve_file, header=None, sep="  ")
-
-    elif ons_ofs == "ofs":
-        print("Loading in the offshore power curve.")
-
-        # Load in the offshore power curve
-        power_curve = pd.read_csv(offshore_curve_file, header=None, sep="  ")
+    if obs_flag == False:
+        raise NotImplementedError("Model data not yet implemented.")
     else:
-        print("Invalid wind farm type. Please choose either onshore or offshore.")
-        sys.exit()
+        print("Processing the observations into wind power data.")
 
+        # Extract the values from the regridded cube
+        bc_si100_vals = bc_si100_cube_regrid.data
+
+        # print the shape of the bc_si100_vals
+        print("bc_si100_vals shape:", bc_si100_vals.shape)
+
+        # if ons_ofs is ons
+        if ons_ofs == "ons":
+            print("Processing the onshore wind power data.")
+
+            # scale down to hub height using a power law
+            # Avg height of onshore wind farms 2021 from UK windpower.net
+            bc_si100_vals = bc_si100_vals * (71.0 / 100.0) ** (1.0 / 7.0)
+
+            print("Loading in the onshore power curve")
+
+            # Load in the onshore power curve
+            power_curve = pd.read_csv(onshore_curve_file, header=None, sep="  ")
+        elif ons_ofs == "ofs":
+            print("Processing the offshore wind power data.")
+
+            # scale down to hub height using a power law
+            # Avg height of offshore wind farms 2021 from UK windpower.net
+            bc_si100_vals = bc_si100_vals * (92.0 / 100.0) ** (1.0 / 7.0)
+
+            print("Loading in the offshore power curve.")
+
+            # Load in the offshore power curve
+            power_curve = pd.read_csv(offshore_curve_file, header=None, sep="  ")
+        else:
+            raise ValueError(
+                "Invalid wind farm type. Please choose either onshore (ons) or offshore (ofs)."
+            )
+
+    # extract the value of totals_MW_pre
+    totals_MW = totals_MW_pre
+
+    # where values of the mask are 0. set to Nan
+    totals_MW[totals_MW == 0] = np.nan
+
+    # set up a zeros array with the same shape as bc_si100_vals
+    wp_dist_masked_data = np.zeros(np.shape(bc_si100_vals))
+
+    # print the shape of the wp_dist_masked_data
+    print("wp_dist_masked_data shape:", wp_dist_masked_data.shape)
+
+    # print the shape of the totals_MW
+    print("totals_MW shape:", totals_MW.shape)
+
+    # print the shape of bc_si100_vals
+    print("bc_si100_vals shape:", bc_si100_vals.shape)
+
+    # create an array of 1's with the same shape as totals_MW
+    totals_MW_ones = np.ones_like(totals_MW)
+
+    # # loop over the country masked data
+    for i in range(0,len(wp_dist_masked_data)):
+        # apply the mask to the wind speed array
+        wp_dist_masked_data[i, :, :] = bc_si100_vals[i, :, :] * totals_MW_ones
+    
     # print the power curve
     print("Power curve:", power_curve)
 
@@ -901,7 +946,7 @@ def create_wind_power_data(
     print("Power curve shape:", power_curve.shape)
 
     # Add column names to the power curve
-    power_curve.columns = ["Wind speed (m/s)", "Power (W)"]
+    power_curve.columns = ["Wind speed (m/s)", "Capacity factors"]
 
     # Generate an array for wind speeds
     pc_winds = np.linspace(0, 50, 501)
@@ -914,14 +959,67 @@ def create_wind_power_data(
 
     # Using np.interp, find the power output for each wind speed
     pc_power = np.interp(
-        pc_winds, power_curve["Wind speed (m/s)"], power_curve["Power (W)"]
+        pc_winds, power_curve["Wind speed (m/s)"], power_curve["Capacity factors"]
     )
 
     # Add these to a new dataframe
-    pc_df = pd.DataFrame({"Wind speed (m/s)": pc_winds, "Power (W)": pc_power})
+    pc_df = pd.DataFrame({"Wind speed (m/s)": pc_winds, "Capacity factors": pc_power})
 
-    # print ds
-    print(ds)
+    # print the pc_df
+    print("Power curve dataframe:", pc_df.head())
+
+    # get the number of hours from the wp_dist_masked_data
+    nhours = np.shape(wp_dist_masked_data)[0]
+
+    # create an array to fill with capacity factors
+    cf = np.zeros_like(wp_dist_masked_data)
+
+    # loop over the number of hours
+    for i in range(0, nhours):
+        wp_dist_masked_data_this = wp_dist_masked_data[i, :, :]
+
+        reshaped_masked_data_this = np.reshape(
+                wp_dist_masked_data_this,
+                [np.shape(wp_dist_masked_data_this)[0] * np.shape(wp_dist_masked_data_this)[1]],
+            )
+
+        # Categorise each wind speed value into a power output
+        cf_this = np.digitize(
+            reshaped_masked_data_this, pc_df["Wind speed (m/s)"], right=False
+        )
+
+        # Make sure the bins don't go out of range
+        cf_this[cf_this == len(pc_df)] = len(pc_df) - 1
+
+        # convert pc_df["Capacity_factors] to a numpy array of values
+        pc_cf_vals = pc_df["Capacity factors"].values
+
+        # Calculate the average power output for each bin
+        cf_bins = 0.5 * (pc_cf_vals[cf_this] + pc_cf_vals[cf_this - 1])
+
+        # Reshape the power output array
+        # back to the original shape
+        cf_this = np.reshape(
+            cf_bins,
+            [
+                np.shape(wp_dist_masked_data_this)[0],
+                np.shape(wp_dist_masked_data_this)[1],
+            ],
+        )
+
+        # set any values below the minimum capacity factor to the minimum capacity factor
+        cf_this[cf_this < min_cf] = 0.0
+
+        # mutlipy by the weighting (again?)
+        cf[i, :, :] = cf_this * totals_MW_pre
+        # cf[i, :, :] = cf_this
+
+    return cf, wp_dist_masked_data
+
+
+    print("-------------------------")
+    print("Exiting script")
+    sys.exit()
 
     # Extract the wind speed data from the dataset
     # wind_speed = ds[bc_si100_name].values
