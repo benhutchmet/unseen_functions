@@ -1485,6 +1485,10 @@ def verify_bc_plot(
     variable: str,
     model_name: str,
     mean_or_std: str = "mean",
+    mean_clevs: tuple = (-5, 5.5, 0.5),
+    mean_ticks: tuple = (-5, 5.5, 1),
+    std_clevs: tuple = (-3, 3.5, 0.5),
+    std_ticks: tuple = (-3, 3.5, 1),
     save_dir: str = "/work/scratch-nopw2/benhutch/test_nc/",
 ):
     """
@@ -1514,6 +1518,14 @@ def verify_bc_plot(
     mean_or_std : str, optional
         Whether to calculate the mean or standard deviation, by default "mean".
         Only takes values of "mean" or "std".
+    mean_clevs : tuple, optional
+        The contour levels for the mean bias, by default (-5, 5.5, 0.5).
+    mean_ticks : tuple, optional
+        The ticks for the mean bias, by default (-5, 5.5, 1).
+    std_clevs : tuple, optional
+        The contour levels for the standard deviation bias, by default (-3, 3.5, 0.5).
+    std_ticks : tuple, optional
+        The ticks for the standard deviation bias, by default (-3, 3.5, 1).
     save_dir : str, optional
         The directory to save the files to, by default "/work/scratch-nopw2/benhutch/test_nc/".
 
@@ -1554,8 +1566,18 @@ def verify_bc_plot(
     # extract the values
     obs_month_np = obs_month.values
 
+    # print the min and max of the obs_month_np
+    print(f"Min obs_month_np: {obs_month_np.min()}, Max obs_month_np: {obs_month_np.max()}")
+    # print the mean of the obs_month_np
+    print(f"Mean obs_month_np: {np.nanmean(obs_month_np)}")
+
     # extract the values
     model_month_np = model_ds_month.values
+
+    # print the min and max of the model_month_np
+    print(f"Min model_month_np: {model_month_np.min()}, Max model_month_np: {model_month_np.max()}")
+    # print the mean of the model_month_np
+    print(f"Mean model_month_np: {np.nanmean(model_month_np)}")
 
     # print the shape
     print(f"Shape of model_month_np: {np.shape(model_month_np)}")
@@ -1610,14 +1632,14 @@ def verify_bc_plot(
 
     if mean_or_std == "mean":
         # Set up the contour levels
-        clevs = np.arange(-5, 5.5, 0.5)
+        clevs = np.arange(mean_clevs[0], mean_clevs[1], mean_clevs[2])
         # Set up the ticks
-        ticks = np.arange(-5, 5.5, 1)
+        ticks = np.arange(mean_ticks[0], mean_ticks[1], mean_ticks[2])
     else:
         # Set up the contour levels
-        clevs = np.arange(-3, 3.5, 0.5)
+        clevs = np.arange(std_clevs[0], std_clevs[1], std_clevs[2])
         # Set up the ticks
-        ticks = np.arange(-3, 3.5, 1)
+        ticks = np.arange(std_ticks[0], std_ticks[1], std_ticks[2])
 
     # remove 0 from the clevs
     clevs = clevs[clevs != 0]
@@ -1808,25 +1830,18 @@ def main():
     month_bc = args.month_bc
 
     # Test file for monthtly data
-    # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197103.nc"
+    # test_file = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/tas/HadGEM3-GC31-MM/merged_files/tas_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_196011-197102.nc"
 
-    # Test file for daily data
-    # test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/tas/gn/files/d20200417/tas_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
-
-    # test file for sfcWind
-    test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/sfcWind/gn/files/d20200417/sfcWind_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
-
-    # Monthly obs filepath - multi var
-    # obs_fpath = "/home/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
-
-    # Daily obs fpath - single var - t2m
-    # obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_t2m_daily_1950_2020.nc"
-
-    # Daily obs fpath for wind
-    obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_wind_daily_1960_2020.nc"
-
-    # # Daily obs fpath for rsds
-    # obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_rsds_daily_1960_2020.nc"
+    if variable in ["tas", "t2m"]:
+        test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/tas/gn/files/d20200417/tas_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
+    elif variable in ["sfcWind", "si10"]:
+        test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/sfcWind/gn/files/d20200417/sfcWind_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
+    elif variable in ["psl"]:
+        test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/psl/gn/files/d20200417/psl_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
+    elif variable in ["rsds"]:
+        test_file = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/s1960-r1i1p1f2/day/rsds/gn/files/d20200417/rsds_day_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1p1f2_gn_19601101-19601230.nc"
+    else:
+        raise ValueError(f"Variable {variable} not recognised.")
 
     # depending on the variable set up the obs_fpath
     if variable in ["tas", "t2m"]:
@@ -1838,6 +1853,9 @@ def main():
     elif variable in ["rsds"]:
         # Set up the obs fpath
         obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_rsds_daily_1960_2020.nc"
+    elif variable in ["psl"]:
+        # Set up the obs fpath
+        obs_fpath = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
     else:
         raise ValueError(f"Variable {variable} not recognised.")
 
@@ -1862,7 +1880,7 @@ def main():
     # Select the gridbox
     ds = select_gridbox(
         ds=ds,
-        grid=dicts.eu_grid_constrained,
+        grid=dicts.eu_grid,
         calc_mean=False,
     )
 
@@ -1888,7 +1906,7 @@ def main():
     # select the gridbox for the obs
     obs = select_gridbox(
         ds=obs,
-        grid=dicts.eu_grid_constrained,
+        grid=dicts.eu_grid,
         calc_mean=False,
     )
 
