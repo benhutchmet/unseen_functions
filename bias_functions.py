@@ -896,7 +896,7 @@ def calc_and_plot_bias_all_months(
     figsize: tuple = (12, 6),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
     save: bool = True,
-    constrained_grid: dict = dicts.eu_grid_constrained,
+    constrained_grid: dict = dicts.eu_grid,
     vmin_set: float = -9999.0,
     vmax_set: float = 9999.0,
 ):
@@ -931,7 +931,7 @@ def calc_and_plot_bias_all_months(
     save : bool, optional
         Whether to save the plots, by default True.
     constrained_grid : dict, optional
-        The dictionary containing the constrained grid, by default dicts.eu_grid_constrained.
+        The dictionary containing the constrained grid, by default dicts.eu_grid.
     vmin_set : float, optional
         The minimum value for the colorbar, by default -9999.0.
     vmax_set : float, optional
@@ -1659,8 +1659,8 @@ def verify_bc_plot(
     )
 
     # set the x and y lims to the desired domain
-    axs[0].set_xlim([dicts.eu_grid_constrained["lon1"], dicts.eu_grid_constrained["lon2"]])
-    axs[0].set_ylim([dicts.eu_grid_constrained["lat1"], dicts.eu_grid_constrained["lat2"]])
+    axs[0].set_xlim([dicts.eu_grid["lon1"], dicts.eu_grid["lon2"]])
+    axs[0].set_ylim([dicts.eu_grid["lat1"], dicts.eu_grid["lat2"]])
 
     # Set up the second contourf object
     contour_bc = axs[1].contourf(
@@ -1674,8 +1674,8 @@ def verify_bc_plot(
     )
 
     # set the x and y lims to the desired domain
-    axs[1].set_xlim([dicts.eu_grid_constrained["lon1"], dicts.eu_grid_constrained["lon2"]])
-    axs[1].set_ylim([dicts.eu_grid_constrained["lat1"], dicts.eu_grid_constrained["lat2"]])
+    axs[1].set_xlim([dicts.eu_grid["lon1"], dicts.eu_grid["lon2"]])
+    axs[1].set_ylim([dicts.eu_grid["lat1"], dicts.eu_grid["lat2"]])
 
     # Add coastlines
     axs[0].coastlines()

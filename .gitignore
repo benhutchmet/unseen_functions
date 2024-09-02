@@ -19,6 +19,10 @@ csv_dir/*.csv
 # ignore the npy files
 npy_dir/*.npy
 
+# Ignore the saved_df files
+saved_dfs/*.pkl
+saved_dfs/*.csv
+
 # Distribution / packaging
 .Python
 build/

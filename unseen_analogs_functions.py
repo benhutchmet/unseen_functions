@@ -180,6 +180,14 @@ def create_analogs_df(
     # Load the model data
     model_ds = xr.open_dataset(model_path)
 
+    # # print the model ds min and max lat
+    # print(f"Model ds min lat: {model_ds.lat.min().values}")
+    # print(f"Model ds max lat: {model_ds.lat.max().values}")
+    # print(f"Model ds min lon: {model_ds.lon.min().values}")
+    # print(f"Model ds max lon: {model_ds.lon.max().values}")
+
+    # sys.exit()
+
     # Subset the model data to the EU grid
     model_ds = model_ds.sel(
         lon=slice(grid_bounds["lon1"], grid_bounds["lon2"]),
@@ -236,6 +244,9 @@ def create_analogs_df(
     # # start a timer
     # start = time.time()
 
+    # subset the model cube to the init year
+    model_cube = model_cube.extract(iris.Constraint(init=init_year))
+
     # Extract the data into arrays
     obs_array = obs_cube_rg.data
     model_array = model_cube.data
@@ -269,10 +280,10 @@ def create_analogs_df(
     
     # # Subset the obs array to the first 100 times for testing
     # # -------------------------------------------------------
-    # print("Subsetting the obs array to the first 100 times for testing...")
-    # obs_array = obs_array[:100, :, :]
-    # obs_times = obs_times[:100]
-    # # -------------------------------------------------------
+    print("Subsetting the obs array to the first 100 times for testing...")
+    obs_array = obs_array[:100, :, :]
+    obs_times = obs_times[:100]
+    # -------------------------------------------------------
 
     # set up a list to store the MSE values
     mse_array = np.zeros((len(model_members), len(model_leads), len(obs_times)))
@@ -485,7 +496,12 @@ def main():
     obs_path = (
         "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
     )
-    model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-1960.nc"
+    model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-1962.nc"
+
+    # assert that the paths exist
+    assert os.path.exists(obs_path), f"Observed data not found at: {obs_path}"
+
+    assert os.path.exists(model_path), f"Model data not found at: {model_path}"
 
     # set up the initialisation year and month
     init_year = 1960
@@ -526,7 +542,7 @@ def main():
         init_month=init_month,
         obs_cube_rg=obs_cube_rg,
         df_save_dir="/home/users/benhutch/unseen_functions/save_dfs",
-        df_save_fname=f"analogs_df_{init_year}_{init_month}.csv",
+        df_save_fname=f"analogs_df_{init_year}_{init_month}_full_model.csv",
     )
 
     # # Print the cube
