@@ -39,6 +39,7 @@ import time
 # Import external modules
 import numpy as np
 import xarray as xr
+import pandas as pd
 import iris
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
@@ -50,6 +51,7 @@ from ncdata.iris_xarray import cubes_to_xarray, cubes_from_xarray
 # Import dictionaries
 sys.path.append("/home/users/benhutch/unseen_functions")
 import unseen_dictionaries as udicts
+
 
 # Define a function to regrid the observed data to the model grid
 def regrid_obs_to_model(
@@ -123,7 +125,9 @@ def regrid_obs_to_model(
 
     # and for the attributes
     member_cube.coord("latitude").attributes = obs_cube[0].coord("latitude").attributes
-    member_cube.coord("longitude").attributes = obs_cube[0].coord("longitude").attributes
+    member_cube.coord("longitude").attributes = (
+        obs_cube[0].coord("longitude").attributes
+    )
 
     # Regrid the observed data to the model grid
     obs_cube_rg = obs_cube[0].regrid(member_cube, iris.analysis.Linear())
@@ -131,26 +135,249 @@ def regrid_obs_to_model(
     return obs_cube_rg
 
 
+# Define a function to load the model cube and find the analogs
+def create_analogs_df(
+    model_path: str,
+    init_year: int,
+    init_month: int,
+    obs_cube_rg: iris.cube.Cube,
+    grid_bounds: dict = udicts.eu_grid,
+    model_var_name: str = "__xarray_dataarray_variable__",
+    rename_var: str = "psl",
+) -> pd.DataFrame:
+    """
+    Load the model data and find the analogs.
+
+    Parameters
+    ----------
+    model_path : str
+        Path to the model data.
+    init_year : int
+        Initialisation year to find the analogs for.
+    init_month : int
+        Initialisation month to find the analogs for.
+    obs_cube_rg : iris.cube.Cube
+        Regridded observed data.
+    grid_bounds : dict
+        Dictionary containing the grid bounds for the model data.
+    model_var_name : str
+        Name of the variable in the model data.
+    rename_var : str
+        Name to rename the variable to.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the analogs.
+    """
+    # Load the model data
+    model_ds = xr.open_dataset(model_path)
+
+    # Subset the model data to the EU grid
+    model_ds = model_ds.sel(
+        lon=slice(grid_bounds["lon1"], grid_bounds["lon2"]),
+        lat=slice(grid_bounds["lat1"], grid_bounds["lat2"]),
+    )
+
+    # reset the member variable to be integers
+    model_ds["member"] = model_ds["member"].str[1:-6].astype(int)
+
+    # Rename the variable to something acceptable for iris
+    model_ds = model_ds[model_var_name].rename(rename_var)
+
+    # Convert the model data to an iris cube
+    model_cube = model_ds.squeeze().to_iris()
+
+    # if the init_month is in [10, 11, 12], then the subset obs data to months 10, 11, 12
+    if init_month in [10, 11, 12]:  # Early winter
+        obs_cube_rg = obs_cube_rg.extract(
+            iris.Constraint(time=lambda cell: cell.point.month in [10, 11, 12])
+        )
+    elif init_month in [1, 2, 3]:  # Late winter
+        obs_cube_rg = obs_cube_rg.extract(
+            iris.Constraint(time=lambda cell: cell.point.month in [1, 2, 3])
+        )
+    elif init_month in [4, 5, 6]:  # Early summer
+        obs_cube_rg = obs_cube_rg.extract(
+            iris.Constraint(time=lambda cell: cell.point.month in [4, 5, 6])
+        )
+    elif init_month in [7, 8, 9]:  # Late summer
+        obs_cube_rg = obs_cube_rg.extract(
+            iris.Constraint(time=lambda cell: cell.point.month in [7, 8, 9])
+        )
+    else:
+        raise ValueError(
+            "init_month must be in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]"
+        )
+
+    # Extract the members
+    model_members = model_cube.coord("member").points
+    model_leads = model_cube.coord("lead").points
+    model_inits = model_cube.coord("init").points
+
+    # extract the obs times
+    obs_times = obs_cube_rg.coord("time").points
+
+    # Print these
+    print(f"Members: {model_members}")
+    print(f"Leads: {model_leads}")
+    print(f"Inits: {model_inits}")
+
+    # print the obs times
+    print(f"Obs times: {obs_times}")
+
+    # start a timer
+    start = time.time()
+
+    # Extract the data into arrays
+    obs_array = obs_cube_rg.data
+    model_array = model_cube.data
+
+    # end
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken to extract the data: {end - start} seconds")
+
+    # print the shape of the arrays
+    print(f"Obs shape: {obs_array.shape}")
+    print(f"Model shape: {model_array.shape}")
+
+    # start a timer
+    start = time.time()
+
+    # Subset the obs array to the first 100 times for testing
+    # -------------------------------------------------------
+    print("Subsetting the obs array to the first 100 times for testing...")
+    obs_array = obs_array[:100, :, :]
+    obs_times = obs_times[:100]
+    # -------------------------------------------------------
+
+    # set up a list to store the MSE values
+    mse_array = np.zeros((len(model_members), len(model_leads), len(obs_times)))
+
+    # Loop over the leads in model_cube
+    for l, lead in tqdm(enumerate(model_leads)):
+        # Loop over the members in model_cube
+        for m, member in enumerate(model_members):
+            # Subset the model data to the current lead and member
+            model_data = model_array[m, l, :, :]
+
+            # expand dimension of model data to match obs array
+            model_data = np.expand_dims(model_data, axis=(0))
+
+            # Calculate the mean squared error between the model and obs data
+            mse = np.mean((model_data - obs_array) ** 2, axis=(1, 2))
+
+            # Append the MSE to the list
+            mse_array[m, l, :] = mse
+
+    # print the length of the mse_list
+    print(f"Length of mse_array: {np.shape(mse_array)}")
+
+    # print the mse_list
+    print(f"mse_array: {mse_array}")
+
+    # end
+    end = time.time()
+
+    # Print the time taken
+    print(f"Time taken to calculate the MSE: {end - start} seconds")
+
+    # set up an empty dataframe to store the MSE
+    mse_df = pd.DataFrame()
+
+    # for each of the leads and members find the minimum MSE
+    for l, lead in enumerate(model_leads):
+        for m, member in enumerate(model_members):
+            # find the minimum MSE for each member and lead
+            min_mse = np.min(mse_array[m, l, :])
+
+            # find the index of the minimum MSE
+            min_mse_idx = np.argmin(mse_array[m, l, :])
+
+            # find the date of the minimum MSE
+            min_mse_date = obs_times[min_mse_idx]
+
+            # append the results to the dataframe
+            mse_df_this = pd.DataFrame(
+                {
+                    "lead": [lead],
+                    "member": [member],
+                    "min_mse": [min_mse],
+                    "min_mse_time": [int(min_mse_date)],
+                },
+            )
+
+            # concat the dataframes
+            mse_df = pd.concat([mse_df, mse_df_this])
+
+    # reset the index
+    mse_df = mse_df.reset_index(drop=True)
+
+    return mse_df
+
+
 # Main function for testing
 def main():
     # start a timer
     start = time.time()
-    
+
     # Define the paths to the observed and model data
-    obs_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
+    obs_path = (
+        "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
+    )
     model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-1960.nc"
 
-    # Regrid the observed data to the model grid
-    obs_cube_rg = regrid_obs_to_model(obs_path, model_path)
+    # set up the initialisation year and month
+    init_year = 1960
+    init_month = 11
+
+    # Set up the save directory
+    save_dir = "/gws/nopw/j04/canari/users/benhutch/unseen_analogs"
+    save_fname = "ERA5_msl_daily_1960_2020_daymean_EU_grid_HadGEM_regrid.nc"
+
+    # if the save directory doesn't exist, create it
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # form the save path
+    save_path = os.path.join(save_dir, save_fname)
+
+    # if the save path exists, load the cube
+    if os.path.exists(save_path):
+        print(f"Loading regridded observed data from: {save_path}")
+        obs_cube_rg = iris.load_cube(save_path)
+    else:
+        print(f"Regridding observed data to model grid...")
+        # Regrid the observed data to the model grid
+        obs_cube_rg = regrid_obs_to_model(obs_path, model_path)
+
+        # if the save path doesn't exist, save the cube
+        if not os.path.exists(save_path):
+            print(f"Saving regridded observed data to: {save_path}")
+            iris.save(obs_cube_rg, save_path)
 
     # # Print the cube
     print("Regridded observed data:", obs_cube_rg)
+
+    # Create the analogs DataFrame
+    mse_df = create_analogs_df(
+        model_path=model_path,
+        init_year=init_year,
+        init_month=init_month,
+        obs_cube_rg=obs_cube_rg,
+    )
+
+    # # Print the cube
+    print("mse_df:", mse_df)
 
     # # end the timer
     end = time.time()
 
     # # Print the time taken
     print(f"Time taken: {end - start} seconds")
+
 
 if __name__ == "__main__":
     main()
