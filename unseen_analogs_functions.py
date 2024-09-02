@@ -41,6 +41,7 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import iris
+import cftime
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
@@ -144,6 +145,8 @@ def create_analogs_df(
     grid_bounds: dict = udicts.eu_grid,
     model_var_name: str = "__xarray_dataarray_variable__",
     rename_var: str = "psl",
+    df_save_dir: str = "/home/users/benhutch/unseen_functions/save_dfs",
+    df_save_fname: str = "analogs_df.csv",
 ) -> pd.DataFrame:
     """
     Load the model data and find the analogs.
@@ -164,6 +167,10 @@ def create_analogs_df(
         Name of the variable in the model data.
     rename_var : str
         Name to rename the variable to.
+    df_save_dir : str
+        Directory to save the analogs DataFrame.
+    df_save_fname : str
+        Filename to save the analogs DataFrame.
 
     Returns
     -------
@@ -223,21 +230,21 @@ def create_analogs_df(
     print(f"Leads: {model_leads}")
     print(f"Inits: {model_inits}")
 
-    # print the obs times
-    print(f"Obs times: {obs_times}")
+    # # print the obs times
+    # print(f"Obs times: {obs_times}")
 
-    # start a timer
-    start = time.time()
+    # # start a timer
+    # start = time.time()
 
     # Extract the data into arrays
     obs_array = obs_cube_rg.data
     model_array = model_cube.data
 
-    # end
-    end = time.time()
+    # # end
+    # end = time.time()
 
-    # Print the time taken
-    print(f"Time taken to extract the data: {end - start} seconds")
+    # # Print the time taken
+    # print(f"Time taken to extract the data: {end - start} seconds")
 
     # print the shape of the arrays
     print(f"Obs shape: {obs_array.shape}")
@@ -246,12 +253,26 @@ def create_analogs_df(
     # start a timer
     start = time.time()
 
-    # Subset the obs array to the first 100 times for testing
-    # -------------------------------------------------------
-    print("Subsetting the obs array to the first 100 times for testing...")
-    obs_array = obs_array[:100, :, :]
-    obs_times = obs_times[:100]
-    # -------------------------------------------------------
+
+    # if the save directory doesn't exist, create it
+    if not os.path.exists(df_save_dir):
+        os.makedirs(df_save_dir)
+
+    # form the save path
+    df_save_path = os.path.join(df_save_dir, df_save_fname)
+
+    # if the save path exists, load the dataframe
+    if os.path.exists(df_save_path):
+        print(f"Loading analogs DataFrame from: {df_save_path}")
+        analogs_df = pd.read_csv(df_save_path)
+        return analogs_df, model_cube
+    
+    # # Subset the obs array to the first 100 times for testing
+    # # -------------------------------------------------------
+    # print("Subsetting the obs array to the first 100 times for testing...")
+    # obs_array = obs_array[:100, :, :]
+    # obs_times = obs_times[:100]
+    # # -------------------------------------------------------
 
     # set up a list to store the MSE values
     mse_array = np.zeros((len(model_members), len(model_leads), len(obs_times)))
@@ -315,8 +336,145 @@ def create_analogs_df(
     # reset the index
     mse_df = mse_df.reset_index(drop=True)
 
-    return mse_df
+    # if the save path doesn't exist, save the dataframe
+    if not os.path.exists(df_save_path):
+        print(f"Saving analogs DataFrame to: {df_save_path}")
+        mse_df.to_csv(df_save_path)
 
+    return mse_df, model_cube
+
+
+# Define a function to perform some visual verification
+# by plotting the model fields and then the macthing obs field
+def plot_model_obs_fields(
+    analogs_df: pd.DataFrame,
+    model_cube: iris.cube.Cube,
+    obs_cube_rg: iris.cube.Cube,
+    lead: int = 1,
+    members: list = [1, 2, 3, 4, 5],
+    figsize: tuple = (12, 18),
+    clevs: tuple = (988, 1024, 19),
+    cmap: str = "viridis",
+    save_dir: str = "/home/users/benhutch/unseen_functions/testing_plots",
+) -> None:
+    """
+    Plot the model and observed fields for the analogs.
+
+    Parameters
+    ----------
+
+    analogs_df : pd.DataFrame
+        DataFrame containing the analogs.
+
+    model_cube : iris.cube.Cube
+        Model cube.
+
+    obs_cube_rg : iris.cube.Cube
+        Regridded observed data.
+
+    lead : int
+        Lead time to plot.
+
+    members : list
+        List of members to plot.
+
+    figsize : tuple
+        Figure size.
+
+    clevs : tuple
+        Contour levels.
+
+    cmap : str
+        Colormap.
+
+    save_dir : str
+        Directory to save the plots.
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Set up the figure
+    fig, axs = plt.subplots(
+        nrows=len(members),
+        ncols=2,
+        figsize=figsize,
+        subplot_kw={"projection": ccrs.PlateCarree()},
+    )
+
+    # Loop over the members
+    for i, member in enumerate(members):
+        # Find the row with the correct lead and member
+        row = analogs_df[
+            (analogs_df["lead"] == lead) & (analogs_df["member"] == member)
+        ]
+
+        # Extract the time of the minimum MSE
+        min_mse_time = row["min_mse_time"].values[0]
+
+        # Extract the model cube for the lead and member
+        model_cube_this = model_cube.extract(iris.Constraint(lead=lead, member=member))
+
+        # Set up the time using cftime
+        time_this = cftime.num2date(min_mse_time, "hours since 1900-01-01", "gregorian")
+
+        # Extract the obs data for this time
+        obs_cube_this = obs_cube_rg.extract(iris.Constraint(time=time_this))
+
+        # Extract the model and obs field (as hPa)
+        model_field = model_cube_this.data / 100
+        obs_field = obs_cube_this.data / 100
+
+        # Extract the lats and lons
+        lats = obs_cube_this.coord("latitude").points
+        lons = obs_cube_this.coord("longitude").points
+
+        # Include coastlines
+        axs[i, 0].coastlines()
+
+        # Include the gridlines
+        gl = axs[i, 0].gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--")
+
+        # Set up the title
+        axs[i, 0].set_title(f"Model: lead={lead}, member={member}", fontsize=8)
+
+        # Plot the model field
+        im = axs[i, 0].contourf(
+            lons, lats, model_field, levels=np.linspace(*clevs), cmap=cmap, extend="both"
+        )
+
+        # Include the coastlines
+        axs[i, 1].coastlines()
+
+        # Include the gridlines
+        gl = axs[i, 1].gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--")
+
+        # subset time this to the first 10 characters
+        time_this = str(time_this)[:10]
+
+        # Set up the title
+        axs[i, 1].set_title(f"Obs analog: time={time_this}", fontsize=8)
+
+        # Plot the obs field
+        im = axs[i, 1].contourf(
+            lons, lats, obs_field, levels=np.linspace(*clevs), cmap=cmap, extend="both")
+
+    # Add a colorbar
+    fig.colorbar(im, ax=axs, orientation="horizontal", label="hPa", pad=0.05, shrink=0.8)
+
+    # set up the current time
+    current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Save the figure
+    plt.savefig(os.path.join(save_dir, f"model_obs_fields_lead_{lead}_{current_time}.png"))
+
+    # Close the figure
+    plt.close()
+
+    return None
 
 # Main function for testing
 def main():
@@ -362,15 +520,27 @@ def main():
     print("Regridded observed data:", obs_cube_rg)
 
     # Create the analogs DataFrame
-    mse_df = create_analogs_df(
+    mse_df, model_cube = create_analogs_df(
         model_path=model_path,
         init_year=init_year,
         init_month=init_month,
         obs_cube_rg=obs_cube_rg,
+        df_save_dir="/home/users/benhutch/unseen_functions/save_dfs",
+        df_save_fname=f"analogs_df_{init_year}_{init_month}.csv",
     )
 
     # # Print the cube
     print("mse_df:", mse_df)
+
+    # # Plot the model and observed fields for the analogs
+    plot_model_obs_fields(
+        analogs_df=mse_df,
+        model_cube=model_cube,
+        obs_cube_rg=obs_cube_rg,
+        lead=30,
+        members=[1, 2, 3, 4, 5],
+        figsize=(8, 15),
+    )
 
     # # end the timer
     end = time.time()
