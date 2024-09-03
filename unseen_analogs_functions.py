@@ -264,7 +264,6 @@ def create_analogs_df(
     # start a timer
     start = time.time()
 
-
     # if the save directory doesn't exist, create it
     if not os.path.exists(df_save_dir):
         os.makedirs(df_save_dir)
@@ -277,7 +276,7 @@ def create_analogs_df(
         print(f"Loading analogs DataFrame from: {df_save_path}")
         analogs_df = pd.read_csv(df_save_path)
         return analogs_df, model_cube
-    
+
     # # Subset the obs array to the first 100 times for testing
     # # -------------------------------------------------------
     print("Subsetting the obs array to the first 100 times for testing...")
@@ -447,21 +446,30 @@ def plot_model_obs_fields(
         axs[i, 0].coastlines()
 
         # Include the gridlines
-        gl = axs[i, 0].gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--")
+        gl = axs[i, 0].gridlines(
+            crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--"
+        )
 
         # Set up the title
         axs[i, 0].set_title(f"Model: lead={lead}, member={member}", fontsize=8)
 
         # Plot the model field
         im = axs[i, 0].contourf(
-            lons, lats, model_field, levels=np.linspace(*clevs), cmap=cmap, extend="both"
+            lons,
+            lats,
+            model_field,
+            levels=np.linspace(*clevs),
+            cmap=cmap,
+            extend="both",
         )
 
         # Include the coastlines
         axs[i, 1].coastlines()
 
         # Include the gridlines
-        gl = axs[i, 1].gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--")
+        gl = axs[i, 1].gridlines(
+            crs=ccrs.PlateCarree(), draw_labels=False, linestyle="--"
+        )
 
         # subset time this to the first 10 characters
         time_this = str(time_this)[:10]
@@ -471,21 +479,27 @@ def plot_model_obs_fields(
 
         # Plot the obs field
         im = axs[i, 1].contourf(
-            lons, lats, obs_field, levels=np.linspace(*clevs), cmap=cmap, extend="both")
+            lons, lats, obs_field, levels=np.linspace(*clevs), cmap=cmap, extend="both"
+        )
 
     # Add a colorbar
-    fig.colorbar(im, ax=axs, orientation="horizontal", label="hPa", pad=0.05, shrink=0.8)
+    fig.colorbar(
+        im, ax=axs, orientation="horizontal", label="hPa", pad=0.05, shrink=0.8
+    )
 
     # set up the current time
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
 
     # Save the figure
-    plt.savefig(os.path.join(save_dir, f"model_obs_fields_lead_{lead}_{current_time}.png"))
+    plt.savefig(
+        os.path.join(save_dir, f"model_obs_fields_lead_{lead}_{current_time}.png")
+    )
 
     # Close the figure
     plt.close()
 
     return None
+
 
 # Main function for testing
 def main():
@@ -496,7 +510,7 @@ def main():
     obs_path = (
         "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
     )
-    model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-1962.nc"
+    model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-2018.nc"
 
     # assert that the paths exist
     assert os.path.exists(obs_path), f"Observed data not found at: {obs_path}"
