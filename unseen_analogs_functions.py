@@ -35,6 +35,7 @@ import os
 import sys
 import glob
 import time
+import argparse
 
 # Import external modules
 import numpy as np
@@ -188,6 +189,9 @@ def create_analogs_df(
 
     # sys.exit()
 
+    # select the init from the model ds
+    model_ds = model_ds.sel(init=init_year)
+
     # Subset the model data to the EU grid
     model_ds = model_ds.sel(
         lon=slice(grid_bounds["lon1"], grid_bounds["lon2"]),
@@ -279,9 +283,9 @@ def create_analogs_df(
 
     # # Subset the obs array to the first 100 times for testing
     # # -------------------------------------------------------
-    print("Subsetting the obs array to the first 100 times for testing...")
-    obs_array = obs_array[:100, :, :]
-    obs_times = obs_times[:100]
+    # print("Subsetting the obs array to the first 100 times for testing...")
+    # obs_array = obs_array[:100, :, :]
+    # obs_times = obs_times[:100]
     # -------------------------------------------------------
 
     # set up a list to store the MSE values
@@ -517,9 +521,22 @@ def main():
 
     assert os.path.exists(model_path), f"Model data not found at: {model_path}"
 
-    # set up the initialisation year and month
-    init_year = 1960
-    init_month = 11
+    import argparse
+
+    # Create the parser
+    parser = argparse.ArgumentParser(description="Process initialisation year and month.")
+
+    # Add the arguments
+    parser.add_argument('--init_year', type=int, required=True, help='The initialisation year.')
+    parser.add_argument('--init_month', type=int, required=True, help='The initialisation month.')
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Now you can use args.init_year and args.init_month in your code
+    init_year = args.init_year
+    init_month = args.init_month
+
 
     # Set up the save directory
     save_dir = "/gws/nopw/j04/canari/users/benhutch/unseen_analogs"
@@ -555,22 +572,22 @@ def main():
         init_year=init_year,
         init_month=init_month,
         obs_cube_rg=obs_cube_rg,
-        df_save_dir="/home/users/benhutch/unseen_functions/save_dfs",
+        df_save_dir="/gws/nopw/j04/canari/users/benhutch/unseen_analogs/analogs_dfs",
         df_save_fname=f"analogs_df_{init_year}_{init_month}_full_model.csv",
     )
 
-    # # Print the cube
-    print("mse_df:", mse_df)
+    # # # Print the cube
+    # print("mse_df:", mse_df)
 
-    # # Plot the model and observed fields for the analogs
-    plot_model_obs_fields(
-        analogs_df=mse_df,
-        model_cube=model_cube,
-        obs_cube_rg=obs_cube_rg,
-        lead=30,
-        members=[1, 2, 3, 4, 5],
-        figsize=(8, 15),
-    )
+    # # # Plot the model and observed fields for the analogs
+    # plot_model_obs_fields(
+    #     analogs_df=mse_df,
+    #     model_cube=model_cube,
+    #     obs_cube_rg=obs_cube_rg,
+    #     lead=30,
+    #     members=[1, 2, 3, 4, 5],
+    #     figsize=(8, 15),
+    # )
 
     # # end the timer
     end = time.time()
