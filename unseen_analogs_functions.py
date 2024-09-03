@@ -281,8 +281,8 @@ def create_analogs_df(
         analogs_df = pd.read_csv(df_save_path)
         return analogs_df, model_cube
 
-    # # Subset the obs array to the first 100 times for testing
-    # # -------------------------------------------------------
+    # Subset the obs array to the first 100 times for testing
+    # -------------------------------------------------------
     # print("Subsetting the obs array to the first 100 times for testing...")
     # obs_array = obs_array[:100, :, :]
     # obs_times = obs_times[:100]
@@ -514,14 +514,9 @@ def main():
     obs_path = (
         "/gws/nopw/j04/canari/users/benhutch/ERA5/ERA5_msl_daily_1960_2020_daymean.nc"
     )
-    model_path = "/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month11_init1960-2018.nc"
 
     # assert that the paths exist
     assert os.path.exists(obs_path), f"Observed data not found at: {obs_path}"
-
-    assert os.path.exists(model_path), f"Model data not found at: {model_path}"
-
-    import argparse
 
     # Create the parser
     parser = argparse.ArgumentParser(description="Process initialisation year and month.")
@@ -537,6 +532,9 @@ def main():
     init_year = args.init_year
     init_month = args.init_month
 
+    model_path = f"/work/scratch-nopw2/benhutch/test_nc/psl_bias_correction_HadGEM3-GC31-MM_lead1_month{init_month}_init1960-2018.nc"
+
+    assert os.path.exists(model_path), f"Model data not found at: {model_path}"
 
     # Set up the save directory
     save_dir = "/gws/nopw/j04/canari/users/benhutch/unseen_analogs"

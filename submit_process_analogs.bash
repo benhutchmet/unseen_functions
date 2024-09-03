@@ -4,7 +4,7 @@
 #SBATCH --time=500:00
 #SBATCH -o /home/users/benhutch/unseen_functions/logs/sub-process-analogs-%A_%a.out
 #SBATCH -e /home/users/benhutch/unseen_functions/logs/sub-process-analogs-%A_%a.err
-#SBATCH --array=1960-1965
+#SBATCH --array=1965-2018
 
 # Set up the usage messages
 usage="Usage: sbatch submit_process_analogs.bash"
@@ -26,6 +26,10 @@ process_script="/home/users/benhutch/unseen_functions/unseen_analogs_functions.p
 
 # loop over the months
 for month in "${months[@]}"; do
+    
+    # Set up the init month
+    init_month=${month}
+    
     # Echo the CLI arguments
     echo "Init year; ${SLURM_ARRAY_TASK_ID}"
     echo "Init month: ${init_month}"
