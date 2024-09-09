@@ -329,7 +329,6 @@ def load_model_data_xarray(
     experiment: str,
     start_year: int,
     end_year: int,
-    grid: dict,
     first_fcst_year: int,
     last_fcst_year: int,
     months: list,
@@ -367,9 +366,6 @@ def load_model_data_xarray(
         The number of years to average over
         E.g. 1 for 1-year, 5 for 5-year, etc.
 
-    grid: dict
-        The grid to load the data over
-
     first_fcst_year: int
         The first forecast year for taking the time average
         E.g. 1960
@@ -403,9 +399,6 @@ def load_model_data_xarray(
         A dictionary of the model data for each ensemble member
         E.g. model_data['r1i1p1f1'] = xr.DataArray
     """
-
-    # Extract the lat and lon bounds
-    lon1, lon2, lat1, lat2 = grid["lon1"], grid["lon2"], grid["lat1"], grid["lat2"]
 
     # Set up the path to the csv file
     csv_path = "paths/*.csv"
