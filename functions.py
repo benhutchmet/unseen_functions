@@ -16,6 +16,9 @@ import seaborn as sns
 from scipy import stats, signal
 from scipy.stats import genextreme, linregress
 import matplotlib.pyplot as plt
+import iris
+import shapely.geometry
+import cartopy.io.shapereader as shpreader
 from datetime import datetime, timedelta
 import xesmf as xe
 import matplotlib.cm as cm
@@ -23,7 +26,7 @@ import cftime
 
 # Import types
 from typing import Any, Callable, Union, List
-
+# from iris import Cube
 
 # Path to modules
 sys.path.append("/home/users/benhutch/unseen_multi_year/")
@@ -623,7 +626,7 @@ def load_model_data_xarray(
     for init_year in tqdm(
         range(start_year, end_year + 1), desc="Processing init years"
     ):
-        print(f"processing init year {init_year}")
+        # print(f"processing init year {init_year}")
         # Set up the member list
         member_list = []
         # Loop over the unique variant labels
@@ -2769,6 +2772,7 @@ def plot_fidelity(
     nboot: int = 10000,
     figsize: tuple = (10, 10),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    fname_root: str = "fidelity",
 ) -> None:
     """
     Calculates the bootstrap statistics for the model fidelity for the hindcast
@@ -2811,6 +2815,9 @@ def plot_fidelity(
 
     save_dir: str
         The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    fname_root: str
+        The root name for the saved files. Default is "fidelity".
 
     Returns
 
@@ -3012,7 +3019,7 @@ def plot_fidelity(
     time = now.strftime("%H:%M:%S")
 
     # # Save the plot
-    plt.savefig(os.path.join(save_dir, f"fidelity_{date}_{time}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"{fname_root}_{date}_{time}.pdf"))
 
     # show the plot
     plt.show()
@@ -3626,3 +3633,70 @@ def RV_ci(
     )
 
     return rvs
+
+def create_masked_matrix(
+    country,
+    cube,
+) -> np.ndarray:
+    """
+    Create a masked matrix for the specified country.
+
+    Parameters
+    ----------
+
+    country: str
+        The name of the country to create the mask for.
+
+    cube: iris.cube.Cube
+        The cube to create the mask for.
+
+    Returns
+    -------
+
+    MASK_MATRIX_RESHAPE: np.ndarray
+        The masked matrix of 1s and 0s for the specified country.
+
+    """
+    # apply the mask
+    LONS, LATS = iris.analysis.cartography.get_xy_grids(cube[0])
+    x,y = LONS.flatten(), LATS.flatten()
+
+    countries_shp = shpreader.natural_earth(resolution='10m',category='cultural',name='admin_0_countries')
+
+    # Shapely treats lons between -180 and 180
+    # so we need to convert the lons to this
+    # if there are no lons below 0 then we can just convert the lons
+    if np.min(x) >= 0:
+        x = x - 180
+        LONS = LONS - 180
+
+    MASK_MATRIX_TMP = np.zeros([len(x), 1])
+    country_shapely = []
+    for country_record in shpreader.Reader(countries_shp).records():
+        if country_record.attributes["NAME"][0:14] == country:
+            print('Found Country ' + country)
+            country_shapely.append(country_record.geometry)
+
+    # Create a mask for the country
+    for i in range(0, len(x)):
+        point = shapely.geometry.Point(x[i], y[i])
+        if country_shapely[0].contains(point) == True:
+            MASK_MATRIX_TMP[i,0] = 1.0
+
+    MASK_MATRIX_RESHAPE = np.reshape(MASK_MATRIX_TMP, (np.shape(LONS)))
+
+    # if the country is the UK then we want to mask out NI
+    # to constrain to GB
+    if country == 'United Kingdom':
+        lats, lons = np.unique(LATS), np.unique(LONS)
+        for i in range(len(lats)):
+            for j in range(len(lons)):
+                if (lats[i] < 55.3) and (lats[i]  > 54.):
+                    if (lons[j]) < -5.:  # convert back to -180 to 180 scale
+                        # find the corresponding indices in the LATS and LONS arrays
+                        indices = np.argwhere((LATS == lats[i]) & (LONS == lons[j]))
+                        # set the mask value to 0 at these indices
+                        for idx in indices:
+                            MASK_MATRIX_RESHAPE[tuple(idx)] = 0.
+
+    return MASK_MATRIX_RESHAPE
