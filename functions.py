@@ -2845,7 +2845,9 @@ def plot_fidelity(
     # Set up the number of unique ensemble members
     n_members = len(model_df[model_member_name].unique())
 
-    n_leads = len(model_df[model_lead_name].unique())
+    # if the model_lead_name is not None
+    if model_lead_name is not None:
+        n_leads = len(model_df[model_lead_name].unique())
 
     # Set up zeros for the bootstrapped values
     boot_mean = np.zeros(nboot)
@@ -2859,8 +2861,9 @@ def plot_fidelity(
     # Extract the unique model members
     model_members = model_df[model_member_name].unique()
 
-    # Extract the unique model leads
-    model_leads = model_df[model_lead_name].unique()
+    if model_lead_name is not None:
+        # Extract the unique model leads
+        model_leads = model_df[model_lead_name].unique()
 
     # Create the indexes for the ensemble members
     member_idx = np.arange(n_members)
@@ -2893,15 +2896,23 @@ def plot_fidelity(
             # Find the name for the member at this index
             model_member_this = model_members[idx_ens_this]
 
-            # Find the name for the lead at this index
-            model_lead_this = model_leads[idx_lead_this]
+            # if model_lead_name is not None
+            if model_lead_name is not None:
+                # Find the name for the lead at this index
+                model_lead_this = model_leads[idx_lead_this]
 
-            # Extract the model data for the year and ensemble members
-            model_data = model_df[
-                (model_df[model_time_name] == model_time_this)
-                & (model_df[model_member_name] == model_member_this[0])
-                & (model_df[model_lead_name] == model_lead_this[0])
-            ][model_val_name].values
+                # Extract the model data for the year and ensemble members
+                model_data = model_df[
+                    (model_df[model_time_name] == model_time_this)
+                    & (model_df[model_member_name] == model_member_this[0])
+                    & (model_df[model_lead_name] == model_lead_this[0])
+                ][model_val_name].values
+            else:
+                # Extract the model data for the year and ensemble members
+                model_data = model_df[
+                    (model_df[model_time_name] == model_time_this)
+                    & (model_df[model_member_name] == model_member_this[0])
+                ][model_val_name].values
 
             # Append the model data to the bootstrapped array
             model_boot[idx_year] = model_data
