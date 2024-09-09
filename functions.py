@@ -2887,9 +2887,6 @@ def plot_fidelity(
             # Set up random indices for the ensemble members
             idx_ens_this = random.choices(member_idx)
 
-            # Set up a random choice for the lead time
-            idx_lead_this = random.choices(range(n_leads))
-
             # Find the time at the itime index
             model_time_this = model_times[itime]
 
@@ -2898,6 +2895,9 @@ def plot_fidelity(
 
             # if model_lead_name is not None
             if model_lead_name is not None:
+                # Set up a random choice for the lead time
+                idx_lead_this = random.choices(range(n_leads))
+
                 # Find the name for the lead at this index
                 model_lead_this = model_leads[idx_lead_this]
 
