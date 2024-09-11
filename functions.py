@@ -3231,6 +3231,7 @@ def plot_events_ts_bp(
     delta_shift_bias: bool = False,
     do_detrend: bool = False,
     figsize: tuple = (10, 10),
+    low_bad: bool = True,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -3280,6 +3281,9 @@ def plot_events_ts_bp(
     figsize: tuple
         The figure size. Default is (10, 10).
 
+    low_bad: bool
+        Whether the lower values are bad. Default is True.
+
     save_dir: str
         The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
 
@@ -3319,11 +3323,18 @@ def plot_events_ts_bp(
         gridspec_kw={"width_ratios": [8, 1]},
     )
 
-    # plot a horizontal line for the 20th percentil of the obs
-    axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
+    if low_bad:
+        # plot a horizontal line for the 20th percentil of the obs
+        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
 
-    # plot a horizontal line for the minimum of the obs
-    axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+        # plot a horizontal line for the minimum of the obs
+        axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+    else:
+        # plot a horizontal line for the 80th percentil of the obs
+        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--")
+
+        # plot a horizontal line for the maximum of the obs
+        axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
 
     # Loop over the years
     for i, year in enumerate(years):
