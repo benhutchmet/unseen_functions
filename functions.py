@@ -3294,6 +3294,11 @@ def plot_events_ts_bp(
 
     """
 
+    # print the model mean
+    print(f"The model mean is {model_df[model_val_name].mean()}")
+    # print the obs mean
+    print(f"The obs mean is {obs_df[obs_val_name].mean()}")
+
     # Set up the years
     years = obs_df[obs_time_name].unique()
 
