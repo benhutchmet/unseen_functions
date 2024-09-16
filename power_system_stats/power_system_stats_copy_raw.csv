@@ -1,0 +1,38 @@
+Country name,In Grams (2017)?,NUTS ID,ISO,Grams ISO,Electricity demand (TWh in 2023),Installed solar (GW),"Installed wind (onshore, MW)","Installed wind (offshore, MW)",Hydropower (GW)
+ Bulgaria,Yes, BG, BGR,BUL,36.65,1.948,-9999.9,-9999.9,2.916
+ Croatia,Yes, HR, HRV,CRO,18.86,0.18,1256,-9999.9,2.155
+ Denmark,Yes, DK, DNK,DEN,36.48,2.49,4910,2652,0.007
+ Estonia,Yes, EE, EST,EST,9.81,1.1,376,-9999.9,0.004
+ Finland,Yes, FI, FIN,FIN,81.75,1,6872,71,3.246
+ France,Yes, FR, FRA,FRA,464.19,18.7,21935,842,25.669
+ Germany,Yes, DE, DEU,GER,515.4,82.1,61139,8536,11.471
+ Greece,Yes, GR, GRC,GRE,54.29,7.2,5226,-9999.9,3.421
+ Hungary,Yes, HU, HUN,HUN,46.88,5.7,329,-9999.9,0.058
+ Ireland,Yes, IE, IRL,IRE,34.63,0.9,4777,25,0.508
+ Italy,Yes, IT, ITA,ITA,315.26,29.5,12306,30,22.635
+ Lithuania,Yes, LT, LTU,LIT,12.74,1.1,1208,-9999.9,1.028
+ Norway,Yes, NO, NOR,NOR,260,0.32,5083,101,33.807
+ Poland,Yes, PL, POL,POL,171.85,16.8,9383,-9999.9,2.376
+ Portugal,Yes, PT, PRT,POR,55.1,2.54,5809,25,8.252
+ Romania,Yes, RO, ROU,ROM,53.07,1.414,3100,-9999.9,6.229
+ Slovenia,Yes, SI, SVN,SLO,13.89,1.3,3,-9999.9,1.307
+ Spain,Yes, ES, ESP,SPA,255.83,35.6,30562,7,20.425
+ Sweden,Yes, SE, SWE,SWE,137.64,2.606,1973,192,16.391
+ Switzerland,Yes, CH, CHE,SWI,225,4.34,101,-9999.9,17.756
+ United Kingdom,Yes, UK, GBR,GBR,309.98,15.4027,14866,14756,4.723
+ Albania,No, AL, ALB,-9999.9,-9999.9,-9999.9,-9999.9,-9999.9,2.203
+ Belarus,No, BY, BLR,-9999.9,-9999.9,0.16,3,-9999.9,0.096
+ Belgium,No, BE, BEL,-9999.9,83.72,9.5,3231,2261,1.493
+ Bosnia and Herzegovina,No, BA, BIH,-9999.9,-9999.9,0.11,135,-9999.9,2.23
+ Czech Republic,No, CZ, CZE,-9999.9,67.76,2.627,351,-9999.9,2.29
+ Kosovo,No, XK, XKX,-9999.9,7.02,-9999.9,137,-9999.9,0.092
+ Latvia,No, LV, LVA,-9999.9,-9999.9,-9999.9,137,-9999.9,1.588
+ Luxembourg,No, LU, LUX,-9999.9,6.34,0.32,208,-9999.9,1.332
+ Macedonia,No, MK, MKD,-9999.9,-9999.9,-9999.9,73,-9999.9,0.644
+ Moldova,No, MD, MDA,-9999.9,-9999.9,-9999.9,-9999.9,-9999.9,0.064
+ Montenegro,No, ME, MNE,-9999.9,-9999.9,-9999.9,118,-9999.9,0.649
+ Netherlands,No, NL, NLD,-9999.9,115.91,22.5,6754,4739,0.038
+ Serbia,No, RS, SRB,-9999.9,-9999.9,-9999.9,512,-9999.9,3.166
+ Slovakia,No, SK, SVK,-9999.9,26.3,0.7,3,-9999.9,24.76
+ Turkey,No, TR, TUR,-9999.9,326.6,9.43,12342,-9999.9,32.13
+ Ukraine,No, UA, UKR,-9999.9,-9999.9,8.06,1902,-9999.9,6.317
