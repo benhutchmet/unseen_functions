@@ -52,6 +52,7 @@ import os
 import sys
 import glob
 import time
+import random
 import argparse
 
 # Import third-party libraries
@@ -671,6 +672,8 @@ def plot_residual_hist(
     title: str,
     xlabel: str,
     ylabel: str,
+    block_length: int = 10,
+    nboot: int = 1000,
 ) -> None:
     """
     This function plots a histogram of the residuals between two columns of a DataFrame.
@@ -683,50 +686,97 @@ def plot_residual_hist(
         title (str): The title of the plot.
         xlabel (str): The label for the x-axis.
         ylabel (str): The label for the y-axis.
+        block_length (int): The block length for the bootstrapping.
+        nboot (int): The number of bootstrapping trials.
 
     Returns:
         None
 
     """
 
-    # Set up the predictors (X)
-    X = df[[x_col]]
+    # get the number of times
+    # length of the index
+    ntimes = len(df)
 
-    # Set up the dependent variable/predictand (Y)
-    y = df[y_col]
+    # get the number of blocks
+    nblocks = int(ntimes / block_length)
 
-    # Fit the model
-    model = LinearRegression().fit(X, y)
+    # if the nblocks * block is less than the ntimes
+    if (nblocks * block_length) < ntimes:
+        # add one to the nblocks
+        nblocks = nblocks + 1
 
-    # Calculate the R2 and RMSE values
-    r2 = model.score(X, y)
-    rmse = np.sqrt(mean_squared_error(y, model.predict(X)))
+    # set up the index for time
+    index_time = range(ntimes - block_length + 1)
 
-    # Print the R2 and RMSE values
-    print(f"R-squared: {r2:.2f}")
-    print(f"RMSE: {rmse:.2f}")
+    # set up the empty array for the bootstrapped data
+    X_boot_full = np.zeros((nboot, ntimes))
+    y_boot_full = np.zeros((nboot, ntimes))
 
-    # Get the model to predict the values of Y
-    y_pred = model.predict(X)
+    # Set up an empty array for the residuals
+    residuals_boot = np.zeros((nboot, ntimes))
 
-    # Calculate the residuals
-    # the difference between the actual and predicted values
-    residuals = y_pred - y
+    # loop over the nboot
+    for iboot in tqdm(np.arange(nboot)):
+        # Select starting indices for the blocks
+        if iboot == 0:
+            ind_time_this = range(0, ntimes, block_length)
+        else: # random samples
+            ind_time_this = np.array([random.choice(index_time) for _ in range(nblocks)])
 
-    # plot a histogram of the residuals
-    plt.hist(residuals, bins=30, color="k", alpha=0.5)
+        # Set up the shape of the bootstrapped data
+        X_boot = np.zeros(ntimes)
 
-    # # fit a normal distribution to the residuals
-    # mu, std = norm.fit(residuals)
+        # Same for the predictand
+        y_boot = np.zeros(ntimes)
 
-    # # plot the normal distribution
-    # xmin, xmax = plt.xlim()
+        # reset time index
+        itime = 0
 
-    # x = np.linspace(xmin, xmax, 100)
+        # loop over the indices
+        for ithis in ind_time_this:
+            # Set up the block index
+            ind_block = np.arange(ithis, ithis + block_length)
 
-    # p = norm.pdf(x, mu, std)
+            # if the block index is greater than the number of times
+            # then subtract the number of times from the block index
+            ind_block[(ind_block>ntimes-1)] = ind_block[(ind_block>ntimes-1)]-ntimes
 
-    # plt.plot(x, p, "k", linewidth=2)
+            # Restrict the block index to the minimum of the block length
+            ind_block = ind_block[:min(block_length,ntimes-itime)]
+
+            # loop over the blocks
+            for iblock in ind_block:
+                # Set up the bootstrapped data
+                X_boot[itime] = df[x_col].values[iblock]
+                y_boot[itime] = df[y_col].values[iblock]
+
+                # increment the time index
+                itime += 1
+
+        # Append the data
+        X_boot_full[iboot, :] = X_boot
+        y_boot_full[iboot, :] = y_boot
+
+        # Set up the model
+        model_this = LinearRegression().fit(X_boot, y_boot)
+
+        # Get the model to predict the values of Y
+        y_pred = model_this.predict(X_boot)
+
+        # Calculate the residuals
+        # the difference between the actual and predicted values
+        residuals_boot[iboot, :] = y_pred - y_boot
+
+    # Plot a histogram of the bootstrapped residuals
+    plt.hist(residuals_boot.flatten(), bins=30, color="k", alpha=0.5)
+
+    # Include a solid line for the mean
+    plt.axvline(np.mean(residuals_boot), color="r", linestyle="--")
+
+    # Include two dashed red lines for the 5th and 95th percentiles
+    plt.axvline(np.percentile(residuals_boot, 5), color="r", linestyle="--")
+    plt.axvline(np.percentile(residuals_boot, 95), color="r", linestyle="--")
 
     plt.show()
 
