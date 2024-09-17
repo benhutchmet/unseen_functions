@@ -665,7 +665,8 @@ def plot_deterministic_fit(
 # define a function to plot the histogram of the residuals between two
 # variables
 # e.g. 10m wind speed anbd uk mean wind power generation
-def plot_residual_hist(
+# first order fit (i.e. linear regression, y = mx + c)
+def plot_residual_hist_first(
     df: pd.DataFrame,
     x_col: str,
     y_col: str,
@@ -716,6 +717,9 @@ def plot_residual_hist(
     # Set up an empty array for the residuals
     residuals_boot = np.zeros((nboot, ntimes))
 
+    # Set up an empty array for the spread
+    res_spread_boot = np.zeros(nboot)
+
     # loop over the nboot
     for iboot in tqdm(np.arange(nboot)):
         # Select starting indices for the blocks
@@ -758,15 +762,24 @@ def plot_residual_hist(
         X_boot_full[iboot, :] = X_boot
         y_boot_full[iboot, :] = y_boot
 
-        # Set up the model
-        model_this = LinearRegression().fit(X_boot, y_boot)
+        # print the shape of the bootstrapped data
+        # # print(X_boot_full.shape)
+        # # print(y_boot_full.shape)
+        # print(np.shape(X_boot))
+        # print(np.shape(y_boot))
 
-        # Get the model to predict the values of Y
-        y_pred = model_this.predict(X_boot)
+        # Fit the model
+        m, b = np.polyfit(X_boot, y_boot, 1)
+
+        # Predict the values of Y
+        y_pred = m * X_boot + b
 
         # Calculate the residuals
         # the difference between the actual and predicted values
         residuals_boot[iboot, :] = y_pred - y_boot
+
+        # Calculate the spread of the residuals
+        res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
 
     # Plot a histogram of the bootstrapped residuals
     plt.hist(residuals_boot.flatten(), bins=30, color="k", alpha=0.5)
@@ -778,7 +791,197 @@ def plot_residual_hist(
     plt.axvline(np.percentile(residuals_boot, 5), color="r", linestyle="--")
     plt.axvline(np.percentile(residuals_boot, 95), color="r", linestyle="--")
 
+    # Set the title
+    plt.title(title)
+
+    # Set the x label
+    plt.xlabel(xlabel)
+
+    # Set the y label
+    plt.ylabel(ylabel)
+
     plt.show()
+
+    # print the mean, 5th and 95th percentiles of the residuals spread
+    print(f"Mean residual spread: {np.mean(res_spread_boot):.2f}")
+    print(f"5th percentile residual spread: {np.percentile(res_spread_boot, 5):.2f}")
+    print(f"95th percentile residual spread: {np.percentile(res_spread_boot, 95):.2f}")
+
+    return None
+
+# define a function to plot the histogram of the residuals
+# for a multiple linear regression model
+def plot_residual_hist_mlr(
+    df: pd.DataFrame,
+    X1_col: str,
+    X2_col: str,
+    Y_col: str,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    block_length: int = 10,
+    nboot: int = 1000,
+) -> None:
+    """
+
+    This function plots a histogram of the residuals for a multiple linear regression model.
+    The residuals are calculated as the difference between the actual and predicted values.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data to plot.
+        X1_col (str): The name of the first independent variable.
+        X2_col (str): The name of the second independent variable.
+        Y_col (str): The name of the dependent variable.
+        title (str): The title of the plot.
+        xlabel (str): The label for the x-axis.
+        ylabel (str): The label for the y-axis.
+        block_length (int): The block length for the bootstrapping.
+        nboot (int): The number of bootstrapping trials.
+
+    Returns:
+        None
+
+    """
+
+    # Get the number of times
+    ntimes = len(df)
+
+        # get the number of blocks
+    nblocks = int(ntimes / block_length)
+
+    # if the nblocks * block is less than the ntimes
+    if (nblocks * block_length) < ntimes:
+        # add one to the nblocks
+        nblocks = nblocks + 1
+
+    # set up the index for time
+    index_time = range(ntimes - block_length + 1)
+
+    # set up the empty array for the bootstrapped data
+    X1_boot_full = np.zeros((nboot, ntimes))
+    X2_boot_full = np.zeros((nboot, ntimes))
+    Y_boot_full = np.zeros((nboot, ntimes))
+
+    # Set up an empty array for the residuals
+    residuals_boot = np.zeros((nboot, ntimes))
+
+    # Set up an empty array for the spread
+    res_spread_boot = np.zeros(nboot)
+
+    # set up an empty array for the r2 and rmse values
+    r2_boot = np.zeros(nboot)
+    rmse_boot = np.zeros(nboot)
+
+    # loop over the nboot
+    for iboot in tqdm(np.arange(nboot)):
+        # Select starting indices for the blocks
+        if iboot == 0:
+            ind_time_this = range(0, ntimes, block_length)
+        else: # random samples
+            ind_time_this = np.array([random.choice(index_time) for _ in range(nblocks)])
+
+        # Set up the shape of the bootstrapped data
+        X1_boot = np.zeros(ntimes)
+        X2_boot = np.zeros(ntimes)
+
+        # Same for the predictand
+        Y_boot = np.zeros(ntimes)
+
+        # reset time index
+        itime = 0
+
+        # loop over the indices
+        for ithis in ind_time_this:
+            # Set up the block index
+            ind_block = np.arange(ithis, ithis + block_length)
+
+            # if the block index is greater than the number of times
+            # then subtract the number of times from the block index
+            ind_block[(ind_block>ntimes-1)] = ind_block[(ind_block>ntimes-1)]-ntimes
+
+            # Restrict the block index to the minimum of the block length
+            ind_block = ind_block[:min(block_length,ntimes-itime)]
+
+            # loop over the blocks
+            for iblock in ind_block:
+                # Set up the bootstrapped data
+                X1_boot[itime] = df[X1_col].values[iblock]
+                X2_boot[itime] = df[X2_col].values[iblock]
+                Y_boot[itime] = df[Y_col].values[iblock]
+
+                # increment the time index
+                itime += 1
+
+        # Append the data
+        X1_boot_full[iboot, :] = X1_boot
+        X2_boot_full[iboot, :] = X2_boot
+        Y_boot_full[iboot, :] = Y_boot
+
+        # print the shape of the bootstrapped data
+        # # print(X_boot_full.shape)
+        # # print(y_boot_full.shape)
+        # print(np.shape(X_boot))
+        # print(np.shape(y_boot))
+
+        # # # print the shape of X1_boot and X2_boot
+        # print(np.shape(X1_boot))
+        # print(np.shape(X2_boot))
+
+        # Set up the predictors
+        X_boot = np.column_stack((X1_boot, X2_boot))
+
+        # Fit the model
+        model = LinearRegression().fit(X_boot, Y_boot)
+
+        # predict the values of Y
+        Y_pred = model.predict(X_boot)
+
+        # calculate and append the r2 and rmse values
+        r2_boot[iboot] = model.score(X_boot, Y_boot)
+        rmse_boot[iboot] = np.sqrt(mean_squared_error(Y_boot, Y_pred))
+
+        # Calculate the residuals
+        # the difference between the actual and predicted values
+        residuals_boot[iboot, :] = Y_pred - Y_boot
+
+        # Calculate the spread of the residuals
+        res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
+
+    # Plot a histogram of the bootstrapped residuals
+    plt.hist(residuals_boot.flatten(), bins=30, color="k", alpha=0.5)
+
+    # Include a solid line for the mean
+    plt.axvline(np.mean(residuals_boot), color="r", linestyle="--")
+
+    # Include two dashed red lines for the 5th and 95th percentiles
+    plt.axvline(np.percentile(residuals_boot, 5), color="r", linestyle="--")
+    plt.axvline(np.percentile(residuals_boot, 95), color="r", linestyle="--")
+
+    # include a title
+    plt.title(title)
+
+    # include an x label
+    plt.xlabel(xlabel)
+
+    # include a y label
+    plt.ylabel(ylabel)
+
+    plt.show()
+
+    # print the mean, 5th and 95th percentiles of the residuals spread
+    print(f"Mean residual spread: {np.mean(res_spread_boot):.2f}")
+    print(f"5th percentile residual spread: {np.percentile(res_spread_boot, 5):.2f}")
+    print(f"95th percentile residual spread: {np.percentile(res_spread_boot, 95):.2f}")
+
+    # print the mean, 5th and 95th percentiles of the r2 values
+    print(f"Mean r2: {np.mean(r2_boot):.2f}")
+    print(f"5th percentile r2: {np.percentile(r2_boot, 5):.2f}")
+    print(f"95th percentile r2: {np.percentile(r2_boot, 95):.2f}")
+
+    # print the mean, 5th and 95th percentiles of the rmse values
+    print(f"Mean RMSE: {np.mean(rmse_boot):.2f}")
+    print(f"5th percentile RMSE: {np.percentile(rmse_boot, 5):.2f}")
+    print(f"95th percentile RMSE: {np.percentile(rmse_boot, 95):.2f}")
 
     return None
 
@@ -793,6 +996,7 @@ def plot_stochastic_fit(
     xlabel: str,
     ylabel: str,
     num_trials: int = 1000,
+    sample_uncertainty: bool = False,
 ) -> None:
     """
     This function plots the stochastic fit of a multiple linear regression model.
@@ -808,6 +1012,7 @@ def plot_stochastic_fit(
         xlabel (str): The label for the x-axis.
         ylabel (str): The label for the y-axis.
         num_trials (int): The number of trials to run for the stochastic fit.
+        sample_uncertainty (bool): Whether to also include sample uncertainty.
 
     Returns:
         None
