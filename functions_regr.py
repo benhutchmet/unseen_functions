@@ -1195,35 +1195,56 @@ def plot_stochastic_fit(
             X2_boot_full[iboot, :] = X2_boot
             Y_boot_full[iboot, :] = Y_boot
 
-            # print the shape of the bootstrapped data
-            # # print(X_boot_full.shape)
-            # # print(y_boot_full.shape)
-            # print(np.shape(X_boot))
-            # print(np.shape(y_boot))
+            if iboot == 0:
+                ind_time_this = range(0, ntimes, block_length)
 
-            # # # print the shape of X1_boot and X2_boot
-            # print(np.shape(X1_boot))
-            # print(np.shape(X2_boot))
+                X_boot_first = np.column_stack((X1_boot, X2_boot))
 
-            # Set up the predictors
-            X_boot = np.column_stack((X1_boot, X2_boot))
+                # Fit the model
+                model_first = LinearRegression().fit(X_boot_first, Y_boot)
 
-            # Fit the model
-            model = LinearRegression().fit(X_boot, Y_boot)
+                # predict the values of Y
+                Y_pred_first = model_first.predict(X_boot_first)
 
-            # predict the values of Y
-            Y_pred = model.predict(X_boot)
+                # calculate and append the r2 and rmse values
+                r2_boot_first = model_first.score(X_boot_first, Y_boot)
 
-            # calculate and append the r2 and rmse values
-            r2_boot[iboot] = model.score(X_boot, Y_boot)
-            rmse_boot[iboot] = np.sqrt(mean_squared_error(Y_boot, Y_pred))
+                # Calculate the residuals
+                # the difference between the actual and predicted values
+                residuals_boot_first = Y_pred_first - Y_boot
 
-            # Calculate the residuals
-            # the difference between the actual and predicted values
-            residuals_boot[iboot, :] = Y_pred - Y_boot
+                # Calculate the spread of the residuals
+                res_spread_boot_first = np.std(residuals_boot_first)
+            else: # random samples
+                # print the shape of the bootstrapped data
+                # # print(X_boot_full.shape)
+                # # print(y_boot_full.shape)
+                # print(np.shape(X_boot))
+                # print(np.shape(y_boot))
 
-            # Calculate the spread of the residuals
-            res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
+                # # # print the shape of X1_boot and X2_boot
+                # print(np.shape(X1_boot))
+                # print(np.shape(X2_boot))
+
+                # Set up the predictors
+                X_boot = np.column_stack((X1_boot, X2_boot))
+
+                # Fit the model
+                model = LinearRegression().fit(X_boot, Y_boot)
+
+                # predict the values of Y
+                Y_pred = model.predict(X_boot)
+
+                # calculate and append the r2 and rmse values
+                r2_boot[iboot] = model.score(X_boot, Y_boot)
+                rmse_boot[iboot] = np.sqrt(mean_squared_error(Y_boot, Y_pred))
+
+                # Calculate the residuals
+                # the difference between the actual and predicted values
+                residuals_boot[iboot, :] = Y_pred - Y_boot
+
+                # Calculate the spread of the residuals
+                res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
 
         # Quantify the mean and spread of the residuals
         res_stdev_mean = np.mean(res_spread_boot)
@@ -1239,13 +1260,13 @@ def plot_stochastic_fit(
         # Add the random trials to the deterministic model time series
         # to create a stochastic model
         trials_mean = pd.DataFrame(
-            Y_pred[:, None] + stoch_mean, index=df.index, columns=range(num_trials)
+            Y_pred_first[:, None] + stoch_mean, index=df.index, columns=range(num_trials)
         )
         trials_05 = pd.DataFrame(
-            Y_pred[:, None] + stoch_05, index=df.index, columns=range(num_trials)
+            Y_pred_first[:, None] + stoch_05, index=df.index, columns=range(num_trials)
         )
         trials_95 = pd.DataFrame(
-            Y_pred[:, None] + stoch_95, index=df.index, columns=range(num_trials)
+            Y_pred_first[:, None] + stoch_95, index=df.index, columns=range(num_trials)
         )
 
         # Set up the figure
@@ -1255,7 +1276,7 @@ def plot_stochastic_fit(
         ax.scatter(df.index, df[Y_col], label="actual", color="k")
 
         # Plot the predicted wd demand net wind values
-        ax.plot(df.index, Y_pred, label="predicted", color="r")
+        ax.plot(df.index, Y_pred_first, label="predicted", color="r")
 
         # Process the trials data
         model_years_stoch_mean = trials_mean.groupby(df.index).mean()
@@ -1267,30 +1288,30 @@ def plot_stochastic_fit(
         p05_05, p95_05 = [model_years_stoch_05.T.quantile(q) for q in [0.05, 0.95]]
         p05_95, p95_95 = [model_years_stoch_95.T.quantile(q) for q in [0.05, 0.95]]
 
-        # Plot the 5th and 95th percentiles for the stochastic model
-        ax.fill_between(
-            model_years_stoch_mean.index,
-            p05,
-            p95,
-            color="r",
-            alpha=0.2,
-            label="stochastic mean spread",
-        )
+        # # Plot the 5th and 95th percentiles for the stochastic model
+        # ax.fill_between(
+        #     model_years_stoch_mean.index,
+        #     p05,
+        #     p95,
+        #     color="r",
+        #     alpha=0.2,
+        #     label="stochastic mean spread",
+        # )
 
-        ax.fill_between(
-            model_years_stoch_05.index,
-            p05_05,
-            p95_05,
-            color="b",
-            alpha=0.2,
-            label="stochastic 5th percentile spread",
-        )
+        # ax.fill_between(
+        #     model_years_stoch_05.index,
+        #     p05_05,
+        #     p95_05,
+        #     color="b",
+        #     alpha=0.2,
+        #     label="stochastic 5th percentile spread",
+        # )
 
         ax.fill_between(
             model_years_stoch_95.index,
             p05_95,
             p95_95,
-            color="g",
+            color="r",
             alpha=0.2,
             label="stochastic 95th percentile spread",
         )
@@ -1319,7 +1340,133 @@ def plot_stochastic_fit(
     plt.show()
 
     return None
+
+
+# Define a function to load in the observed data
+# as processed from the RACC regridded (to DePreSys resolution) ERA5 fields
+# for the masked country region
+def load_processed_obs_data(
+    country_name: str,
+    season: str,
+    start_year: int,
+    end_year: int,
+    variable_wind: str = "sfcWind",
+    variable_t2m: str = "tas",
+    csv_dir: str = "/gws/nopw/j04/canari/users/benhutch/unseen/saved_dfs"
+) -> pd.DataFrame:
+    """
+    This function loads in the processed observed data for a given country and season.
+
+    Args:
+        country_name (str): The name of the country.
+        season (str): The season to load the data for.
+        start_year (int): The start year of the data.
+        end_year (int): The end year of the data.
+        variable_wind (str): The name of the wind variable.
+        variable_t2m (str): The name of the temperature variable.
+        csv_dir (str): The directory containing the CSV files.
+
+    Returns:
+        pd.DataFrame: The processed observed data.
+    """
+
+    # Set up the sfcwind filename
+    sfcwind_filename = f"ERA5_obs_{variable_wind}_{country_name}_{season}_{start_year}_{end_year}.csv"
+
+    # Set up the temperature filename
+    t2m_filename = f"ERA5_obs_{variable_t2m}_{country_name}_{season}_{start_year}_{end_year}.csv"
+
+    # form the full path to the csv files
+    sfcwind_path = os.path.join(csv_dir, sfcwind_filename)
+    t2m_path = os.path.join(csv_dir, t2m_filename)
+
+    # assert that these files exist
+    assert os.path.exists(sfcwind_path), f"File not found: {sfcwind_path}"
+    assert os.path.exists(t2m_path), f"File not found: {t2m_path}"
+
+    # Load the dataframes
+    sfcwind_df = pd.read_csv(sfcwind_path, index_col=0, parse_dates=True)
+    t2m_df = pd.read_csv(t2m_path, index_col=0, parse_dates=True)
+
+    # # print the head of the sfcwind_df
+    # print(sfcwind_df.head())
+
+    # # print the head of the t2m_df
+    # print(t2m_df.head())
+
+    # rename obs to the variable name in each case
+    sfcwind_df.rename(columns={"obs": variable_wind}, inplace=True)
+    t2m_df.rename(columns={"obs": variable_t2m}, inplace=True)
+
+    # merge the dataframes
+    obs_df = pd.merge(sfcwind_df, t2m_df, left_index=True, right_index=True)
+
+    # # print the head of the obs_df
+    print(obs_df.head())
+
+        # if the season is ONDJFM, then subset the df to the months
+    if season == "ONDJFM":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([10, 11, 12, 1, 2, 3])]
+    elif season == "AMJJAS":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([4, 5, 6, 7, 8, 9])]
+    elif season == "DJF":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([12, 1, 2])]
+    elif season == "MAM":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([3, 4, 5])]
+    elif season == "JJA":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([6, 7, 8])]
+    elif season == "SON":
+        # subset the df to the months
+        obs_df = obs_df[obs_df.index.month.isin([9, 10, 11])]
+    else:
+        raise ValueError(f"Season {season} not recognised.")
     
+    # # resample into monthly means
+    # obs_df = obs_df.resample("ME").mean()
+
+    # if the season is in ["ONDJFM", "DJFM"]
+    if season in ["ONDJFM", "DJFM", "NDJFM"]:
+        # shift back back 3 months
+        obs_df_monthly = obs_df.shift(-3, freq="ME").resample("YE").mean()
+
+        # drop the first and last year
+        obs_df_monthly = obs_df_monthly.iloc[1:-1]
+    elif season in ["DJF", "ONDJF", "NDJF"]:
+        # shift back 2 months
+        obs_df_monthly = obs_df.shift(-2, freq="ME").resample("YE").mean()
+
+        # drop the first and last year
+        obs_df_monthly = obs_df_monthly.iloc[1:-1]
+    elif season in ["DJ", "ONDJ", "NDJ"]:
+        # shift back 1 month
+        obs_df_monthly = obs_df.shift(-1, freq="ME").resample("YE").mean()
+
+        # drop the first and last year
+        obs_df_monthly = obs_df_monthly.iloc[1:-1]
+    else:
+        # take the annual mean
+        obs_df_monthly = obs_df.resample("YE").mean()
+
+    # # print the head of the obs_df_monthly
+    print(obs_df_monthly.head())
+
+    # if temperature is in K, convert to C
+    # if any values are greater than 100
+    # assume that the temperature is in K
+    if obs_df_monthly[variable_t2m].max() > 100:
+        # convert to C
+        obs_df_monthly[variable_t2m] = obs_df_monthly[variable_t2m] - 273.15
+
+    # fix the index to just hve the years
+    obs_df_monthly.index = obs_df_monthly.index.year
+
+    # Return the data
+    return obs_df_monthly
 
 # Define the main function
 def main():
