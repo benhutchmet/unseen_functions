@@ -67,7 +67,7 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr, norm
 from sklearn.metrics import r2_score, mean_squared_error
 from tqdm import tqdm
-from typing import Any
+from typing import Any, List, Tuple
 
 
 # Define a function for creating the demand net wind dataframe
@@ -1200,6 +1200,9 @@ def plot_stochastic_fit(
 
                 X_boot_first = np.column_stack((X1_boot, X2_boot))
 
+                # print the shape of the bootstrapped data
+                print(X_boot_first.shape)
+
                 # Fit the model
                 model_first = LinearRegression().fit(X_boot_first, Y_boot)
 
@@ -1467,6 +1470,152 @@ def load_processed_obs_data(
 
     # Return the data
     return obs_df_monthly
+
+# Define a function to load in the processed model data
+def load_processed_model_data(
+    obs_df: pd.DataFrame,
+    country_name: str,
+    season: str,
+    start_year: int,
+    end_year: int,
+    obs_years: List[int] = [1979, 2018],
+    leads: List[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    variable_wind: str = "sfcWind",
+    variable_t2m: str = "tas",
+    model_name: str = "HadGEM3-GC31-MM",
+    experiment: str = "dcppA-hindcast",
+    frequency: str = "Amon",
+    csv_dir: str = "/gws/nopw/j04/canari/users/benhutch/unseen/saved_dfs"
+) -> pd.DataFrame:
+    """
+    This function loads in the processed model data for a given country and season.
+
+    Args:
+        country_name (str): The name of the country.
+        season (str): The season to load the data for.
+        start_year (int): The start year of the data.
+        end_year (int): The end year of the data.
+        obs_years (List[int]): The years of the observed data.
+        variable_wind (str): The name of the wind variable.
+        variable_t2m (str): The name of the temperature variable.
+        model_name (str): The name of the model.
+        experiment (str): The name of the experiment.
+        frequency (str): The frequency of the data.
+        csv_dir (str): The directory containing the CSV files.
+
+    Returns:
+        pd.DataFrame: The processed model data.
+    """
+
+    # Set up the sfcwind filename
+    sfcwind_filename = f"{model_name}_{variable_wind}_{country_name}_{season}_{start_year}_{end_year}_{experiment}_{frequency}.csv"
+
+    # Set up the temperature filename
+    t2m_filename = f"{model_name}_{variable_t2m}_{country_name}_{season}_{start_year}_{end_year}_{experiment}_{frequency}.csv"
+
+    # form the full path to the csv files
+    sfcwind_path = os.path.join(csv_dir, sfcwind_filename)
+    t2m_path = os.path.join(csv_dir, t2m_filename)
+
+    # assert that these files exist
+    assert os.path.exists(sfcwind_path), f"File not found: {sfcwind_path}"
+    assert os.path.exists(t2m_path), f"File not found: {t2m_path}"
+
+    # Load the dataframes
+    sfcwind_df = pd.read_csv(sfcwind_path)
+    t2m_df = pd.read_csv(t2m_path)
+
+    # # print the head of the sfcwind_df
+    # print(sfcwind_df.head())
+
+    # # print the head of the t2m_df
+    # print(t2m_df.head())
+
+    # rename obs to the variable name in each case
+    sfcwind_df.rename(columns={"obs": variable_wind}, inplace=True)
+    t2m_df.rename(columns={"obs": variable_t2m}, inplace=True)
+
+    # replace the 'data' column
+    # with the variable name
+    sfcwind_df.rename(columns={"data": variable_wind}, inplace=True)
+    t2m_df.rename(columns={"data": variable_t2m}, inplace=True)
+
+    # merge the dataframes
+    model_df = pd.merge(sfcwind_df, t2m_df, on=["init_year", "member", "lead"])
+
+    # if the tas column has values greater than 100
+    # then convert to C
+    if model_df[variable_t2m].max() > 100:
+        # convert to C
+        model_df[variable_t2m] = model_df[variable_t2m] - 273.15
+
+    # assert that the season is ONDJFM
+    assert season == "ONDJFM", f"Season {season} not recognised - must be ONDJFM."
+
+    # Set up a new empty dataframe
+    df_new = pd.DataFrame()
+
+    # loop over the unique initialisation years
+    for iyear in model_df["init_year"].unique():
+        for m in model_df["member"].unique():
+            for l in leads:
+                # subset the data
+                df_this = model_df[(model_df["init_year"] == iyear) & (model_df["member"] == m)]
+
+                # subset to lead values 
+                model_data = df_this[df_this['lead'].isin([(12*l) ,(12*l) + 1, (12*l) + 2, (12*l) + 3, (12*l) + 4, (12*l) + 5])]
+
+                mean_tas = model_data[variable_t2m].mean()
+                mean_sfcWind = model_data[variable_wind].mean()
+
+                # create a dataframe this
+                model_data_this = pd.DataFrame(
+                    {
+                        'init_year': [iyear],
+                        'member': [m],
+                        'lead': [l],
+                        'tas': [mean_tas],
+                        'sfcWind': [mean_sfcWind]
+                    }
+                )
+
+                df_new = pd.concat([df_new, model_data_this])
+
+    # print the head of the df_new
+    # print(df_new.head())
+                
+    # Constrain to the obs years
+    # init years must be greater than or equal to the first obs year
+    # and less than or equal to the last obs year
+    df_new = df_new[(df_new["init_year"] >= obs_years[0]) & (df_new["init_year"] <= obs_years[1])]
+
+    # # print the head of the df_new
+    print(df_new.head())
+
+    # Quantify the bias
+    # model - obs
+    sfcWind_bias = df_new["sfcWind"].mean() - obs_df["sfcWind_mon"].mean()
+
+    # Quyantify the tas bias
+    tas_bias = df_new["tas"].mean() - obs_df["tas_mon"].mean()
+
+    # Print the biases
+    print(f"Mean sfcWind bias: {sfcWind_bias:.2f}")
+    print(f"Mean tas bias: {tas_bias:.2f}")
+
+    # include a new column for bc wind and tas
+    df_new["sfcWind_bc"] = df_new["sfcWind"] - sfcWind_bias
+    df_new["tas_bc"] = df_new["tas"] - tas_bias
+
+    # assert that the mean of the bc column is the same as the obs mean
+    assert np.isclose(df_new["sfcWind_bc"].mean(), obs_df["sfcWind_mon"].mean()), "Mean sfcWind bias not removed."
+
+    # assert that the mean of the bc column is the same as the obs mean
+    assert np.isclose(df_new["tas_bc"].mean(), obs_df["tas_mon"].mean()), "Mean tas bias not removed."
+
+    return df_new
+
+
 
 # Define the main function
 def main():

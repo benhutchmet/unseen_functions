@@ -26,7 +26,12 @@ import cftime
 
 # Import types
 from typing import Any, Callable, Union, List
-# from iris import Cube
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.linear_model import LinearRegression
+from scipy.stats import pearsonr, norm
+from sklearn.metrics import r2_score, mean_squared_error
+from tqdm import tqdm
+from typing import Any, List, Tuple
 
 # Path to modules
 sys.path.append("/home/users/benhutch/unseen_multi_year/")
@@ -3716,3 +3721,430 @@ def create_masked_matrix(
                             MASK_MATRIX_RESHAPE[tuple(idx)] = 0.
 
     return MASK_MATRIX_RESHAPE
+
+
+# Define a function to plot the events time series using boxplots
+# for the hindcast data
+def plot_events_ts_errorbars(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    X1_col_model: str,
+    X2_col_model: str,
+    Y_col: str,
+    ylabel: str,
+    X1_col_obs: str = "sfcWind_mon",
+    X2_col_obs: str = "tas_mon",
+    num_trials: int = 1000,
+    block_length: int = 10,
+    nboot: int = 1000,
+    model_name: str = "HadGEM3-GC31-MM",
+    obs_time_name: str = "year",
+    model_time_name: str = "init",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    figsize: tuple = (10, 10),
+    low_bad: bool = True,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the hindcast events on the same axis as the observed events using boxplots.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    ylabel: str
+        The y-axis label.
+
+    model_name: str
+        The name of the model. Default is "HadGEM3-GC31-MM".
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    figsize: tuple
+        The figure size. Default is (10, 10).
+
+    low_bad: bool
+        Whether the lower values are bad. Default is True.
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Sample the uncertainty in the linear fit
+    # and due to the limited sample size of the obs
+    ntimes = len(obs_df[obs_time_name].unique())
+
+    # Get the number of blocks
+    nblocks = int(ntimes / block_length)
+
+    # if the nblocks * block is less than the ntimes
+    if (nblocks * block_length) < ntimes:
+        # add one to the nblocks
+        nblocks = nblocks + 1
+
+    # set up the index for time
+    index_time = range(ntimes - block_length + 1)
+    
+    # set up the empty array for the bootstrapped data
+    X1_boot_full = np.zeros((nboot, ntimes))
+    X2_boot_full = np.zeros((nboot, ntimes))
+    Y_boot_full = np.zeros((nboot, ntimes))
+
+    # Set up an empty array for the residuals
+    residuals_boot = np.zeros((nboot, ntimes))
+
+    # Set up an empty array for the spread
+    res_spread_boot = np.zeros(nboot)
+
+    # set up an empty array for the r2 and rmse values
+    r2_boot = np.zeros(nboot)
+    rmse_boot = np.zeros(nboot)
+
+    # loop over the nboot
+    for iboot in tqdm(np.arange(nboot)):
+        # Select starting indices for the blocks
+        if iboot == 0:
+            ind_time_this = range(0, ntimes, block_length)
+        else: # random samples
+            ind_time_this = np.array([random.choice(index_time) for _ in range(nblocks)])
+
+        # Set up the shape of the bootstrapped data
+        X1_boot = np.zeros(ntimes)
+        X2_boot = np.zeros(ntimes)
+
+        # Same for the predictand
+        Y_boot = np.zeros(ntimes)
+
+        # reset time index
+        itime = 0
+
+        # loop over the indices
+        for ithis in ind_time_this:
+            # Set up the block index
+            ind_block = np.arange(ithis, ithis + block_length)
+
+            # if the block index is greater than the number of times
+            # then subtract the number of times from the block index
+            ind_block[(ind_block>ntimes-1)] = ind_block[(ind_block>ntimes-1)]-ntimes
+
+            # Restrict the block index to the minimum of the block length
+            ind_block = ind_block[:min(block_length,ntimes-itime)]
+
+            # loop over the blocks
+            for iblock in ind_block:
+                # Set up the bootstrapped data
+                X1_boot[itime] = obs_df[X1_col_obs].values[iblock]
+                X2_boot[itime] = obs_df[X2_col_obs].values[iblock]
+                Y_boot[itime] = obs_df[Y_col].values[iblock]
+
+                # increment the time index
+                itime += 1
+
+        # Append the data
+        X1_boot_full[iboot, :] = X1_boot
+        X2_boot_full[iboot, :] = X2_boot
+        Y_boot_full[iboot, :] = Y_boot
+
+        if iboot == 0:
+            ind_time_this = range(0, ntimes, block_length)
+
+            X_boot_first = np.column_stack((X1_boot, X2_boot))
+
+            # Fit the model
+            model_first = LinearRegression().fit(X_boot_first, Y_boot)
+
+            # predict the values of Y
+            Y_pred_first = model_first.predict(X_boot_first)
+
+            # calculate and append the r2 and rmse values
+            r2_boot_first = model_first.score(X_boot_first, Y_boot)
+
+            # Calculate the residuals
+            # the difference between the actual and predicted values
+            residuals_boot_first = Y_pred_first - Y_boot
+
+            # Calculate the spread of the residuals
+            res_spread_boot_first = np.std(residuals_boot_first)
+        else: # random samples
+            # print the shape of the bootstrapped data
+            # # print(X_boot_full.shape)
+            # # print(y_boot_full.shape)
+            # print(np.shape(X_boot))
+            # print(np.shape(y_boot))
+
+            # # # print the shape of X1_boot and X2_boot
+            # print(np.shape(X1_boot))
+            # print(np.shape(X2_boot))
+
+            # Set up the predictors
+            X_boot = np.column_stack((X1_boot, X2_boot))
+
+            # Fit the model
+            model = LinearRegression().fit(X_boot, Y_boot)
+
+            # predict the values of Y
+            Y_pred = model.predict(X_boot)
+
+            # calculate and append the r2 and rmse values
+            r2_boot[iboot] = model.score(X_boot, Y_boot)
+            rmse_boot[iboot] = np.sqrt(mean_squared_error(Y_boot, Y_pred))
+
+            # Calculate the residuals
+            # the difference between the actual and predicted values
+            residuals_boot[iboot, :] = Y_pred - Y_boot
+
+            # Calculate the spread of the residuals
+            res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
+
+    # Quantify the 95th percentile value of the residual spread
+    # ie. the upper bounds of the residuals spread
+    res_spread_95 = np.percentile(res_spread_boot, 95)
+
+    # create a stochastic fit
+    # with the upper bounds of the residuals spread
+    stoch_95 = np.random.normal(0, res_spread_95, size=(len(obs_df[obs_time_name].unique()), num_trials))
+
+    # Now set up the MLR model
+    # which predicts CLEARHEADS DnW
+    # given model data
+    X_model = model_df[[X1_col_model, X2_col_model]]
+
+    # print the shape of X_model
+    print(f"The shape of X_model is {X_model.shape}")
+
+    # predict the values of Y
+    model_df[f"{Y_col}_pred"] = model_first.predict(X_model)
+
+    # # print the model mean
+    # print(f"The model mean is {model_df[model_val_name].mean()}")
+    # # print the obs mean
+    # print(f"The obs mean is {obs_df[obs_val_name].mean()}")
+
+    # Set up the years
+    years = obs_df[obs_time_name].unique()
+
+    # Set up the figure with two subplots
+    # Set up the figure with two subplots with different widths
+    fig, axs = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=figsize,
+        sharey=True,
+        gridspec_kw={"width_ratios": [8, 1]},
+    )
+
+    if low_bad:
+        # plot a horizontal line for the 20th percentil of the obs
+        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
+
+        # plot a horizontal line for the minimum of the obs
+        axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+    else:
+        # plot a horizontal line for the 80th percentil of the obs
+        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--")
+
+        # plot a horizontal line for the maximum of the obs
+        axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
+
+    # print the shape of stochastic 95
+    print(f"The shape of the stochastic 95 is {stoch_95.shape}")
+
+    # print the shape of model_df[f"{Y_col}_pred"].values
+    print(f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values.shape}")
+
+
+    # Add the random trials to the deterministic model time series
+    trials_95 = pd.DataFrame(
+        model_df[f"{Y_col}_pred"].values[:, np.newaxis] + stoch_95,
+        index=model_df[model_time_name],
+        columns=range(num_trials),
+    )
+
+    # group the trials by the year
+    trials_95_grouped = trials_95.groupby(model_df[model_time_name]).mean()
+
+    # Find the 5th and 95th percentiles of the trials
+    p05_95, p95_95 = [trials_95_grouped.quantile(q) for q in [0.05, 0.95]]
+
+    # print the shape of the 5th and 95th percentiles
+    print(f"The shape of the 5th percentile is {p05_95.shape}")
+    print(f"The shape of the 95th percentile is {p95_95.shape}")
+
+    # print the values
+    print(f"The 5th percentile values are {p05_95}")
+    print(f"The 95th percentile values are {p95_95}")
+
+    sys.exit()
+
+    # Loop over the unique members
+    # and plot the scatter points with error bars
+    for i, member in enumerate(model_df[model_member_name].unique()):
+        # Seperate the data based on the condition
+        model_data = model_df[model_df[model_member_name] == member]
+
+        # Seperate data by threshold
+        model_data_below20 = (
+            obs_df[obs_val_name].min() < model_df[f"{Y_col}_pred"]
+        ) & (model_df[f"{Y_col}_pred"] < np.quantile(obs_df[obs_val_name], 0.2))
+
+        # Above the threshold
+        model_data_above20 = (
+            model_df[f"{Y_col}_pred"] >= obs_df[obs_val_name].min()
+        ) & ~model_data_below20
+
+        # below the minimum of the obs
+        model_data_below_obs_min_bool = (
+            model_df[f"{Y_col}_pred"] < obs_df[obs_val_name].min()
+        )
+
+        # Plot the points below the 20th percentile
+        axs[0].scatter(
+            model_data[model_data_below20][model_time_name],
+            model_data[model_data_below20][f"{Y_col}_pred"],
+            color="blue",
+            alpha=0.8,
+            label="model wind drought" if i == 0 else None,
+        )
+
+        # Plot the points above the 20th percentile
+        axs[0].scatter(
+            model_data[model_data_above20][model_time_name],
+            model_data[model_data_above20][f"{Y_col}_pred"],
+            color="grey",
+            alpha=0.8,
+            label=model_name if i == 0 else None,
+        )
+
+        # Plot the points below the minimum of the obs
+        axs[0].scatter(
+            model_data[model_data_below_obs_min_bool][model_time_name],
+            model_data[model_data_below_obs_min_bool][f"{Y_col}_pred"],
+            color="red",
+            alpha=0.8,
+            marker="x",
+            label="model wind drought" if i == 0 else None,
+        )
+
+
+    # Plot the observed data as blue crosses on the first subplot
+    axs[0].scatter(
+        years,
+        obs_df[obs_val_name],
+        color="blue",
+        marker="x",
+        label="ERA5",
+        zorder=2,
+    )
+
+    # Plot the boxplot for the observed data on the second subplot
+    axs[1].boxplot(
+        obs_df[obs_val_name],
+        positions=[1],
+        widths=0.6,
+        patch_artist=True,
+        boxprops=dict(facecolor="blue", color="blue"),
+        medianprops=dict(color="black"),
+        whiskerprops=dict(color="black"),
+        capprops=dict(color="black"),
+        zorder=1,
+        flierprops=dict(
+            marker="o",
+            markerfacecolor="k",
+            markersize=5,
+            linestyle="none",
+            markeredgecolor="k",
+        ),  # Set flier properties
+    )
+
+    # also include a red boxplot for the model data
+    axs[1].boxplot(
+        model_df[model_val_name],
+        positions=[2],
+        widths=0.6,
+        patch_artist=True,
+        boxprops=dict(facecolor="red", color="red"),
+        medianprops=dict(color="black"),
+        whiskerprops=dict(color="black"),
+        capprops=dict(color="black"),
+        zorder=1,
+        flierprops=dict(
+            marker="x",
+            markerfacecolor="k",
+            markersize=5,
+            linestyle="none",
+            markeredgecolor="k",
+            alpha=0.5,
+        ),  # Set flier properties
+    )
+
+    # Set the x-axis label
+    axs[0].set_xlabel("Year")
+
+    # Set the y-axis label
+    axs[0].set_ylabel(ylabel)
+
+    # print years min and max
+    print(f"The years min is {years.min()} and the years max is {years.max()}")
+
+    # # Format the x-ticks for ticks every 10 years
+    # ax.set_xticks(np.arange(years.min(), years.max() + 1, 10))
+
+    # shift years back by 1
+    years = years - 1
+
+    axs[0].set_xticks(range(years[0], years[-1] + 1, 10))
+    axs[0].set_xticklabels(range(years[0], years[-1] + 1, 10))
+    # Set the legend
+    axs[0].legend()
+
+    # specify a tight layout
+    plt.tight_layout()
+
+    # Set the current time
+    now = datetime.now()
+
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+
+    # Show the plot
+    plt.show()
+
+    return
