@@ -997,6 +997,8 @@ def plot_stochastic_fit(
     ylabel: str,
     num_trials: int = 1000,
     sample_uncertainty: bool = False,
+    block_length: int = 10,
+    nboot: int = 1000,
 ) -> None:
     """
     This function plots the stochastic fit of a multiple linear regression model.
@@ -1013,103 +1015,297 @@ def plot_stochastic_fit(
         ylabel (str): The label for the y-axis.
         num_trials (int): The number of trials to run for the stochastic fit.
         sample_uncertainty (bool): Whether to also include sample uncertainty.
+        block_length (int): The block length for the bootstrapping.
+        nboot (int): The number of block
 
     Returns:
         None
 
     """
 
-    # Set up the predictors (X)
-    X = df[[X1_col, X2_col]]
+    # if sample uncertainty is false
+    if not sample_uncertainty:
+        print("Sampling uncertainty in the MLR fit via stochastic trials.")
+        # Set up the predictors (X)
+        X = df[[X1_col, X2_col]]
 
-    # Set up the dependent variable/predictand (Y)
-    y = df[Y_col]
+        # Set up the dependent variable/predictand (Y)
+        y = df[Y_col]
 
-    # Fit the model
-    model = LinearRegression().fit(X, y)
+        # Fit the model
+        model = LinearRegression().fit(X, y)
 
-    # Calculate the R2 and RMSE values
-    r2 = model.score(X, y)
-    rmse = np.sqrt(mean_squared_error(y, model.predict(X)))
+        # Calculate the R2 and RMSE values
+        r2 = model.score(X, y)
+        rmse = np.sqrt(mean_squared_error(y, model.predict(X)))
 
-    # Print the R2 and RMSE values
-    print(f"R-squared: {r2:.2f}")
-    print(f"RMSE: {rmse:.2f}")
+        # Print the R2 and RMSE values
+        print(f"R-squared: {r2:.2f}")
+        print(f"RMSE: {rmse:.2f}")
 
-    # Get the model to predict the values of Y
-    y_pred = model.predict(X)
+        # Get the model to predict the values of Y
+        y_pred = model.predict(X)
 
-    # Calculate the residuals
-    # the difference between the actual and predicted values
-    residuals = y_pred - y
+        # Calculate the residuals
+        # the difference between the actual and predicted values
+        residuals = y_pred - y
 
-    # # plot a histogram of the residuals
-    # plt.hist(residuals, bins=30, color="k", alpha=0.5)
+        # # plot a histogram of the residuals
+        # plt.hist(residuals, bins=30, color="k", alpha=0.5)
 
-    # plt.show()
+        # plt.show()
 
-    # calculate the stdev of the residuals
-    res_stdev = np.std(residuals)
+        # calculate the stdev of the residuals
+        res_stdev = np.std(residuals)
 
-    # # create num_trials of random time series where the magnitude
-    # # of the standard deviation matches the residuals
-    # # assuming that the residuals we have are normally distributed
-    # # with a mean of 0
-    # MLR fit is not very normal!
-    stoch = np.random.normal(0, res_stdev, size=(len(df), num_trials))
+        # # create num_trials of random time series where the magnitude
+        # # of the standard deviation matches the residuals
+        # # assuming that the residuals we have are normally distributed
+        # # with a mean of 0
+        # MLR fit is not very normal!
+        stoch = np.random.normal(0, res_stdev, size=(len(df), num_trials))
 
-    # add the random trials to the deterministic model time series
-    # to create a stochastic model
-    trials = pd.DataFrame(
-        y_pred[:, None] + stoch, index=df.index, columns=range(num_trials)
-    )
+        # add the random trials to the deterministic model time series
+        # to create a stochastic model
+        trials = pd.DataFrame(
+            y_pred[:, None] + stoch, index=df.index, columns=range(num_trials)
+        )
 
-    # now plot the same deterministic fit as before
-    # alongside boxplots of the stochastic fit
-    fig, ax = plt.subplots(figsize=(10, 5))
+        # now plot the same deterministic fit as before
+        # alongside boxplots of the stochastic fit
+        fig, ax = plt.subplots(figsize=(10, 5))
 
-    # plot the actual wd demand net wind values
-    ax.scatter(df.index, df[Y_col], label="actual", color="k")
+        # plot the actual wd demand net wind values
+        ax.scatter(df.index, df[Y_col], label="actual", color="k")
 
-    # plot the predicted wd demand net wind values
-    ax.plot(df.index, y_pred, label="predicted", color="r")
+        # plot the predicted wd demand net wind values
+        ax.plot(df.index, y_pred, label="predicted", color="r")
 
-    # process the trials data
-    model_years_stoch = trials.groupby(df.index).mean()
+        # process the trials data
+        model_years_stoch = trials.groupby(df.index).mean()
 
-    # find the 5th and 95th percentiles
-    p05, p95 = [model_years_stoch.T.quantile(q) for q in [0.05, 0.95]]
+        # find the 5th and 95th percentiles
+        p05, p95 = [model_years_stoch.T.quantile(q) for q in [0.05, 0.95]]
 
-    # plot the 5th and 95th percentiles for the stochastic model
-    ax.fill_between(
-        model_years_stoch.index,
-        p05,
-        p95,
-        color="r",
-        alpha=0.2,
-        label="stochastic",
-    )
-    
-    # set the title
-    ax.set_title(title)
+        # plot the 5th and 95th percentiles for the stochastic model
+        ax.fill_between(
+            model_years_stoch.index,
+            p05,
+            p95,
+            color="r",
+            alpha=0.2,
+            label="stochastic",
+        )
+        
+        # set the title
+        ax.set_title(title)
 
-    # calculate the correlation between the actual and predicted values
-    r, p = pearsonr(df[Y_col], y_pred)
+        # calculate the correlation between the actual and predicted values
+        r, p = pearsonr(df[Y_col], y_pred)
 
-    # Calculate the RMSE
-    rmse = np.sqrt(mean_squared_error(df[Y_col], y_pred))
+        # Calculate the RMSE
+        rmse = np.sqrt(mean_squared_error(df[Y_col], y_pred))
 
-    # text in the top left with r2
-    ax.text(
-        0.05,
-        0.95,
-        f"r = {r:.2f} (p = {p:.2f})"
-        f"\nRMSE = {rmse:.2f}",
-        horizontalalignment="left",
-        verticalalignment="top",
-        transform=ax.transAxes,
-        bbox=dict(facecolor="white", alpha=0.5),
-    )
+        # text in the top left with r2
+        ax.text(
+            0.05,
+            0.95,
+            f"r = {r:.2f} (p = {p:.2f})"
+            f"\nRMSE = {rmse:.2f}",
+            horizontalalignment="left",
+            verticalalignment="top",
+            transform=ax.transAxes,
+            bbox=dict(facecolor="white", alpha=0.5),
+        )
+    else:
+        print("Sampling uncertainty in the MLR fit via stochastic trials.")
+        print("And sample uncertainty in the time series via block bootstrapping.")
+
+        # Get the number of times
+        ntimes = len(df)
+
+            # get the number of blocks
+        nblocks = int(ntimes / block_length)
+
+        # if the nblocks * block is less than the ntimes
+        if (nblocks * block_length) < ntimes:
+            # add one to the nblocks
+            nblocks = nblocks + 1
+
+        # set up the index for time
+        index_time = range(ntimes - block_length + 1)
+        
+        # set up the empty array for the bootstrapped data
+        X1_boot_full = np.zeros((nboot, ntimes))
+        X2_boot_full = np.zeros((nboot, ntimes))
+        Y_boot_full = np.zeros((nboot, ntimes))
+
+        # Set up an empty array for the residuals
+        residuals_boot = np.zeros((nboot, ntimes))
+
+        # Set up an empty array for the spread
+        res_spread_boot = np.zeros(nboot)
+
+        # set up an empty array for the r2 and rmse values
+        r2_boot = np.zeros(nboot)
+        rmse_boot = np.zeros(nboot)
+
+        # loop over the nboot
+        for iboot in tqdm(np.arange(nboot)):
+            # Select starting indices for the blocks
+            if iboot == 0:
+                ind_time_this = range(0, ntimes, block_length)
+            else: # random samples
+                ind_time_this = np.array([random.choice(index_time) for _ in range(nblocks)])
+
+            # Set up the shape of the bootstrapped data
+            X1_boot = np.zeros(ntimes)
+            X2_boot = np.zeros(ntimes)
+
+            # Same for the predictand
+            Y_boot = np.zeros(ntimes)
+
+            # reset time index
+            itime = 0
+
+            # loop over the indices
+            for ithis in ind_time_this:
+                # Set up the block index
+                ind_block = np.arange(ithis, ithis + block_length)
+
+                # if the block index is greater than the number of times
+                # then subtract the number of times from the block index
+                ind_block[(ind_block>ntimes-1)] = ind_block[(ind_block>ntimes-1)]-ntimes
+
+                # Restrict the block index to the minimum of the block length
+                ind_block = ind_block[:min(block_length,ntimes-itime)]
+
+                # loop over the blocks
+                for iblock in ind_block:
+                    # Set up the bootstrapped data
+                    X1_boot[itime] = df[X1_col].values[iblock]
+                    X2_boot[itime] = df[X2_col].values[iblock]
+                    Y_boot[itime] = df[Y_col].values[iblock]
+
+                    # increment the time index
+                    itime += 1
+
+            # Append the data
+            X1_boot_full[iboot, :] = X1_boot
+            X2_boot_full[iboot, :] = X2_boot
+            Y_boot_full[iboot, :] = Y_boot
+
+            # print the shape of the bootstrapped data
+            # # print(X_boot_full.shape)
+            # # print(y_boot_full.shape)
+            # print(np.shape(X_boot))
+            # print(np.shape(y_boot))
+
+            # # # print the shape of X1_boot and X2_boot
+            # print(np.shape(X1_boot))
+            # print(np.shape(X2_boot))
+
+            # Set up the predictors
+            X_boot = np.column_stack((X1_boot, X2_boot))
+
+            # Fit the model
+            model = LinearRegression().fit(X_boot, Y_boot)
+
+            # predict the values of Y
+            Y_pred = model.predict(X_boot)
+
+            # calculate and append the r2 and rmse values
+            r2_boot[iboot] = model.score(X_boot, Y_boot)
+            rmse_boot[iboot] = np.sqrt(mean_squared_error(Y_boot, Y_pred))
+
+            # Calculate the residuals
+            # the difference between the actual and predicted values
+            residuals_boot[iboot, :] = Y_pred - Y_boot
+
+            # Calculate the spread of the residuals
+            res_spread_boot[iboot] = np.std(residuals_boot[iboot, :])
+
+        # Quantify the mean and spread of the residuals
+        res_stdev_mean = np.mean(res_spread_boot)
+        res_stdev_05 = np.percentile(res_spread_boot, 5)
+        res_stdev_95 = np.percentile(res_spread_boot, 95)
+
+        # Create three different stochastic fits
+        # with different levels of uncertainty
+        stoch_mean = np.random.normal(0, res_stdev_mean, size=(len(df), num_trials))
+        stoch_05 = np.random.normal(0, res_stdev_05, size=(len(df), num_trials))
+        stoch_95 = np.random.normal(0, res_stdev_95, size=(len(df), num_trials))
+
+        # Add the random trials to the deterministic model time series
+        # to create a stochastic model
+        trials_mean = pd.DataFrame(
+            Y_pred[:, None] + stoch_mean, index=df.index, columns=range(num_trials)
+        )
+        trials_05 = pd.DataFrame(
+            Y_pred[:, None] + stoch_05, index=df.index, columns=range(num_trials)
+        )
+        trials_95 = pd.DataFrame(
+            Y_pred[:, None] + stoch_95, index=df.index, columns=range(num_trials)
+        )
+
+        # Set up the figure
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        # Plot the actual wd demand net wind values
+        ax.scatter(df.index, df[Y_col], label="actual", color="k")
+
+        # Plot the predicted wd demand net wind values
+        ax.plot(df.index, Y_pred, label="predicted", color="r")
+
+        # Process the trials data
+        model_years_stoch_mean = trials_mean.groupby(df.index).mean()
+        model_years_stoch_05 = trials_05.groupby(df.index).mean()
+        model_years_stoch_95 = trials_95.groupby(df.index).mean()
+
+        # Find the 5th and 95th percentiles
+        p05, p95 = [model_years_stoch_mean.T.quantile(q) for q in [0.05, 0.95]]
+        p05_05, p95_05 = [model_years_stoch_05.T.quantile(q) for q in [0.05, 0.95]]
+        p05_95, p95_95 = [model_years_stoch_95.T.quantile(q) for q in [0.05, 0.95]]
+
+        # Plot the 5th and 95th percentiles for the stochastic model
+        ax.fill_between(
+            model_years_stoch_mean.index,
+            p05,
+            p95,
+            color="r",
+            alpha=0.2,
+            label="stochastic mean spread",
+        )
+
+        ax.fill_between(
+            model_years_stoch_05.index,
+            p05_05,
+            p95_05,
+            color="b",
+            alpha=0.2,
+            label="stochastic 5th percentile spread",
+        )
+
+        ax.fill_between(
+            model_years_stoch_95.index,
+            p05_95,
+            p95_95,
+            color="g",
+            alpha=0.2,
+            label="stochastic 95th percentile spread",
+        )
+
+        # text in the top left with mean r2 and rmse
+        ax.text(
+            0.05,
+            0.95,
+            f"Mean r2 = {np.mean(r2_boot):.2f} (5th = {np.percentile(r2_boot, 5):.2f}, 95th = {np.percentile(r2_boot, 95):.2f})"
+            f"\nMean RMSE = {np.mean(rmse_boot):.2f} (5th = {np.percentile(rmse_boot, 5):.2f}, 95th = {np.percentile(rmse_boot, 95):.2f})",
+            horizontalalignment="left",
+            verticalalignment="top",
+            transform=ax.transAxes,
+            bbox=dict(facecolor="white", alpha=0.5),
+        )
 
     # set the x label
     ax.set_xlabel(xlabel)
