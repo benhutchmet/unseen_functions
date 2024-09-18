@@ -1065,6 +1065,11 @@ def plot_stochastic_fit(
         # MLR fit is not very normal!
         stoch = np.random.normal(0, res_stdev, size=(len(df), num_trials))
 
+
+        # print the shape oif y_pred
+        print(f"Shape of y_pred: {np.shape(y_pred)}")
+        print(f"Shape of stoch: {np.shape(stoch)}")
+
         # add the random trials to the deterministic model time series
         # to create a stochastic model
         trials = pd.DataFrame(
@@ -1260,6 +1265,12 @@ def plot_stochastic_fit(
         stoch_05 = np.random.normal(0, res_stdev_05, size=(len(df), num_trials))
         stoch_95 = np.random.normal(0, res_stdev_95, size=(len(df), num_trials))
 
+        # Print the shape of Y_pred_first
+        print(f"Shape of Y_pred_first: {np.shape(Y_pred_first)}")
+
+        # Print the shape of stoch_mean
+        print(f"Shape of stoch_mean: {np.shape(stoch_mean)}")
+
         # Add the random trials to the deterministic model time series
         # to create a stochastic model
         trials_mean = pd.DataFrame(
@@ -1281,15 +1292,34 @@ def plot_stochastic_fit(
         # Plot the predicted wd demand net wind values
         ax.plot(df.index, Y_pred_first, label="predicted", color="r")
 
+        # print the trials mean head
+        print(f"Trials mean head: {trials_mean.head()}")
+
+        # print the df index
+        print(f"df index: {df.index}")
+
+        # print the shape of trials mean
+        print(f"Shape of trials mean: {np.shape(trials_mean)}")
+
+        # print the shape of df index
+        print(f"Shape of df index: {np.shape(df.index)}")
+
         # Process the trials data
         model_years_stoch_mean = trials_mean.groupby(df.index).mean()
         model_years_stoch_05 = trials_05.groupby(df.index).mean()
         model_years_stoch_95 = trials_95.groupby(df.index).mean()
 
+        # print the shape of the model years stoch mean
+        print(f"Shape of model years stoch mean: {np.shape(model_years_stoch_mean)}")
+
         # Find the 5th and 95th percentiles
         p05, p95 = [model_years_stoch_mean.T.quantile(q) for q in [0.05, 0.95]]
         p05_05, p95_05 = [model_years_stoch_05.T.quantile(q) for q in [0.05, 0.95]]
         p05_95, p95_95 = [model_years_stoch_95.T.quantile(q) for q in [0.05, 0.95]]
+
+        # print the shape of the 5th and 95th percentiles
+        print(f"Shape of p05: {np.shape(p05)}")
+        print(f"Shape of p95: {np.shape(p95)}")
 
         # # Plot the 5th and 95th percentiles for the stochastic model
         # ax.fill_between(

@@ -3934,7 +3934,7 @@ def plot_events_ts_errorbars(
 
     # create a stochastic fit
     # with the upper bounds of the residuals spread
-    stoch_95 = np.random.normal(0, res_spread_95, size=(len(obs_df[obs_time_name].unique()), num_trials))
+    stoch_95 = np.random.normal(0, res_spread_95, size=(len(model_df), num_trials))
 
     # Now set up the MLR model
     # which predicts CLEARHEADS DnW
@@ -3982,29 +3982,75 @@ def plot_events_ts_errorbars(
     print(f"The shape of the stochastic 95 is {stoch_95.shape}")
 
     # print the shape of model_df[f"{Y_col}_pred"].values
-    print(f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values.shape}")
+    print(f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values[:, np.newaxis].shape}")
 
+    # Set the index of the model df to be
+    # init year, member, and lead
+    model_df.set_index([model_time_name, model_member_name, model_lead_name], inplace=True)
 
     # Add the random trials to the deterministic model time series
     trials_95 = pd.DataFrame(
         model_df[f"{Y_col}_pred"].values[:, np.newaxis] + stoch_95,
-        index=model_df[model_time_name],
+        index=model_df.index,
         columns=range(num_trials),
     )
 
+    # print the head of trials_95
+    print(f"The head of trials_95 is {trials_95.head()}")
+
+    # print the shape of trials_95
+    print(f"The shape of trials_95 is {trials_95.shape}")
+
     # group the trials by the year
-    trials_95_grouped = trials_95.groupby(model_df[model_time_name]).mean()
+    trials_95_grouped = trials_95.groupby(model_df.index).mean()
+
+    print(f"The shape of the grouped trials_95 is {trials_95_grouped.shape}")
 
     # Find the 5th and 95th percentiles of the trials
-    p05_95, p95_95 = [trials_95_grouped.quantile(q) for q in [0.05, 0.95]]
+    p05_95, p95_95 = [trials_95_grouped.T.quantile(q) for q in [0.05, 0.95]]
 
-    # print the shape of the 5th and 95th percentiles
+    # # print the shape of the 5th and 95th percentiles
     print(f"The shape of the 5th percentile is {p05_95.shape}")
-    print(f"The shape of the 95th percentile is {p95_95.shape}")
+    # print(f"The shape of the 95th percentile is {p95_95.shape}")
 
-    # print the values
+    # # print the values
     print(f"The 5th percentile values are {p05_95}")
-    print(f"The 95th percentile values are {p95_95}")
+    # print(f"The 95th percentile values are {p95_95}")
+
+    # print the type of the 5th percentile
+    print(f"The type of the 5th percentile is {type(p05_95)}")
+
+    # convert to a dataframe
+    p05_95 = p05_95.to_frame()
+    p95_95 = p95_95.to_frame()
+
+    # reset the index of p05_95
+    p05_95.reset_index(inplace=True)
+    p95_95.reset_index(inplace=True)
+
+    # rename the columns
+    p05_95.columns = [model_time_name, f"{Y_col}_pred"]
+    p95_95.columns = [model_time_name, f"{Y_col}_pred"]
+
+    # print the head of p05_95
+    print(f"The head of p05_95 is {p05_95.head()}")
+
+    p05_95[[model_time_name, model_member_name, model_lead_name]] = p05_95[model_time_name].apply(lambda x: pd.Series(x))
+
+    # drop the model time name
+    p05_95.drop(model_time_name, axis=1, inplace=True)
+
+    # print the head of p05_95
+    print(f"The head of p05_95 is {p05_95.head()}")
+
+    # sys.exit()
+
+    # # reset the index of p05_95 and p95_95
+    # p05_95.reset_index(inplace=True)
+    # p95_95.reset_index(inplace=True)
+
+    # # # print the head of p05_95
+    # print(f"The head of p05_95 is {p05_95.head()}")
 
     sys.exit()
 
@@ -4013,6 +4059,14 @@ def plot_events_ts_errorbars(
     for i, member in enumerate(model_df[model_member_name].unique()):
         # Seperate the data based on the condition
         model_data = model_df[model_df[model_member_name] == member]
+
+        # Subset the p05_95 and p95_95 data
+        # by member
+        p05_95_member = p05_95[p05_95[model_member_name] == member]
+        p95_95_member = p95_95[p95_95[model_member_name] == member]
+
+        # quantify the error bars
+        yerr = abs(p95_95_member - p05_95_member)
 
         # Seperate data by threshold
         model_data_below20 = (
@@ -4057,6 +4111,15 @@ def plot_events_ts_errorbars(
             label="model wind drought" if i == 0 else None,
         )
 
+        # Plot the error bars
+        axs[0].errorbar(
+            model_data[model_time_name],
+            model_data[f"{Y_col}_pred"],
+            yerr=yerr[f"{Y_col}_pred"],
+            fmt="o",
+            color="black",
+            alpha=0.5,
+        )
 
     # Plot the observed data as blue crosses on the first subplot
     axs[0].scatter(
