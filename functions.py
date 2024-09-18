@@ -858,7 +858,7 @@ def select_gridbox(
     if not calc_mean:
         # Return the masked dataset
         return ds_masked
-    
+
     # Calculate the mean of the masked dataset
     ds_mean = ds_masked.mean(dim=dim)
 
@@ -1920,31 +1920,32 @@ def lead_time_avg(
     # Return the dataset
     return avg_seq_da
 
+
 # define a function to select the months and extract the days
 def select_months(
-        ds: xr.Dataset,
-        months: List[int],
-        first_day: str,
-        first_time: str,
-        frequency: str,
-        lead_time_dim: str = "lead",
-        time_axis_type: str = "Datetime360Day",
+    ds: xr.Dataset,
+    months: List[int],
+    first_day: str,
+    first_time: str,
+    frequency: str,
+    lead_time_dim: str = "lead",
+    time_axis_type: str = "Datetime360Day",
 ) -> xr.Dataset:
     """
     Selects the months of interests and extracts the days of the month as a lead time variable.
-    
+
     Parameters
     ----------
-    
+
     ds: xr.Dataset
         The input xarray Dataset to be averaged over the lead times.
-        
+
     months: list[int]
         The months to average over.
-        
+
     first_day: str
         The first month of the lead time in format "YYYY-MM-DD".
-        
+
     first_time: str
         The first time of the dataset in format "HH:MM:SS".
 
@@ -2021,13 +2022,13 @@ def get_sequences(mask, len_months):
     """
     Get the sequences of True values in the mask which have length equal to
     the number of months in the mask list.
-    
+
     Parameters
     ----------
-    
+
     mask: list[bool]
         The mask of True and False values.
-        
+
     len_months: int
         The number of months in the mask list.
 
@@ -3125,11 +3126,74 @@ def plot_events_ts(
         # Detrend the data
         obs_df[obs_val_name] = signal.detrend(obs_df[obs_val_name])
         model_df[model_val_name] = signal.detrend(model_df[model_val_name])
-
     # Set up the figure
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-    # Loop over the ensemble members
+    # create an empty array to store the values of slope and intercept
+    slopes = np.zeros(len(model_df[model_member_name].unique()))
+    intercepts = np.zeros(len(model_df[model_member_name].unique()))
+
+    # loop over the unique members
+    for i, member in enumerate(model_df[model_member_name].unique()):
+        # Extract the data for the member and the first lead = 1
+        model_data_this = model_df[
+            (model_df[model_member_name] == member) & (model_df[model_lead_name] == 1)
+        ]
+
+        # Fit a linear trend to the model data
+        slope, intercept, r_value, p_value, std_err = stats.linregress(
+            model_data_this[model_time_name], model_data_this[model_val_name]
+        )
+
+        # Store the slope and intercept
+        slopes[i] = slope
+        intercepts[i] = intercept
+
+        # Plot the model trend as a dashed line
+        ax.plot(
+            model_data_this[model_time_name],
+            intercept + slope * model_data_this[model_time_name],
+            color="grey",
+            linestyle="--",
+            label="model trend" if i == 0 else None,
+        )
+
+    # print the intercepts
+    print(intercepts.flatten().mean())
+
+    # print the slopes
+    print(slopes.flatten().mean())
+
+    # print the slopes 5%tile
+    print(f"2.5%tile slope: {np.quantile(slopes, 0.025)}")
+    print(f"97.5%tile slope: {np.quantile(slopes, 0.975)}")
+
+    # # print the slopes 95%tile
+    # print(np.quantile(slopes, 0.95))
+
+    # plot the mean trend as a red dashed line
+    ax.plot(
+        model_data_this[model_time_name],
+        intercepts.flatten().mean() + slopes.flatten().mean() * model_data_this[model_time_name],
+        color="red",
+        linestyle="--",
+        label="model mean trend",
+    )
+
+    # Quantify this trend line
+    trend_line = intercepts.flatten().mean() + slopes.flatten().mean() * model_data_this[model_time_name]
+
+    # subtract this trend line from the model data
+    model_data_this[f"{model_val_name}_detrended"] = model_data_this[model_val_name] - trend_line
+
+    # subtract this trend line from the obs data
+    obs_df[f"{obs_val_name}_detrended"] = obs_df[obs_val_name] - trend_line
+
+    # modify the obs_val_name
+    obs_val_name = f"{obs_val_name}_detrended"
+    model_val_name = f"{model_val_name}_detrended"
+
+        # Loop over the ensemble members
     for i, member in enumerate(model_df[model_member_name].unique()):
         # Seperate the data based on the condition
         model_data = model_df[model_df[model_member_name] == member]
@@ -3179,12 +3243,76 @@ def plot_events_ts(
             label="model wind drought" if i == 0 else None,
         )
 
+    # # plot the trend line for the 5%tile slope
+    # ax.plot(
+    #     model_data_this[model_time_name],
+    #     intercepts.flatten().mean() + np.quantile(slopes, 0.05) * model_data_this[model_time_name],
+    #     color="red",
+    #     linestyle="--",
+    #     label="model 5% quantile",
+    # )
+
+    # # plot the trend line for the 95%tile slope
+    # ax.plot(
+    #     model_data_this[model_time_name],
+    #     intercepts.flatten().mean() + np.quantile(slopes, 0.95) * model_data_this[model_time_name],
+    #     color="red",
+    #     linestyle="--",
+    #     label="model 95% quantile",
+    # )
+
+    # # Calculate the 5-95% range for the trendlines
+    # x_values = np.arange(model_df[model_time_name].min(), model_df[model_time_name].max())
+    # lower_bound = np.quantile(slopes, 0.05) * x_values + np.quantile(intercepts, 0.05)
+    # upper_bound = np.quantile(slopes, 0.95) * x_values + np.quantile(intercepts, 0.95)
+
+    # # Plot the 5-95% range
+    # ax.fill_between(x_values, lower_bound, upper_bound, color='grey', alpha=0.5)
+
+    # # Quantify the 5% and 95% quantiles of the model data
+    # slopes_05 = np.quantile(slopes.flatten(), 0.05)
+    # slopes_95 = np.quantile(slopes.flatten(), 0.95)
+
+    # intercepts_05 = np.quantile(intercepts.flatten(), 0.05)
+    # intercepts_95 = np.quantile(intercepts.flatten(), 0.95)
+
+    # # Plot the 5% and 95% quantiles of the model data
+    # ax.plot(
+    #     model_data_this[model_time_name],
+    #     intercepts_05 + slopes_05 * model_data_this[model_time_name],
+    #     color="grey",
+    #     linestyle="--",
+    #     label="model 5% quantile",
+    # )
+
+    # ax.plot(
+    #     model_data_this[model_time_name],
+    #     intercepts_95 + slopes_95 * model_data_this[model_time_name],
+    #     color="grey",
+    #     linestyle="--",
+    #     label="model 95% quantile",
+    # )
+
     # Plot the observed data
     ax.scatter(
         obs_df[obs_time_name],
         obs_df[obs_val_name],
         color="black",
         label="ERA5",
+    )
+
+    # fit a linear trend to the observations
+    slope, intercept, r_value, p_value, std_err = stats.linregress(
+        obs_df[obs_time_name], obs_df[obs_val_name]
+    )
+
+    # plot the obs trend as a dashed line
+    ax.plot(
+        obs_df[obs_time_name],
+        intercept + slope * obs_df[obs_time_name],
+        color="black",
+        linestyle="--",
+        label="ERA5 trend",
     )
 
     # Plot the 20th percentile of the obs as a horizontal line
@@ -3335,13 +3463,17 @@ def plot_events_ts_bp(
 
     if low_bad:
         # plot a horizontal line for the 20th percentil of the obs
-        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
+        axs[0].axhline(
+            np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--"
+        )
 
         # plot a horizontal line for the minimum of the obs
         axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
     else:
         # plot a horizontal line for the 80th percentil of the obs
-        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--")
+        axs[0].axhline(
+            np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--"
+        )
 
         # plot a horizontal line for the maximum of the obs
         axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
@@ -3655,6 +3787,7 @@ def RV_ci(
 
     return rvs
 
+
 def create_masked_matrix(
     country,
     cube,
@@ -3680,9 +3813,11 @@ def create_masked_matrix(
     """
     # apply the mask
     LONS, LATS = iris.analysis.cartography.get_xy_grids(cube[0])
-    x,y = LONS.flatten(), LATS.flatten()
+    x, y = LONS.flatten(), LATS.flatten()
 
-    countries_shp = shpreader.natural_earth(resolution='10m',category='cultural',name='admin_0_countries')
+    countries_shp = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
 
     # Shapely treats lons between -180 and 180
     # so we need to convert the lons to this
@@ -3695,30 +3830,30 @@ def create_masked_matrix(
     country_shapely = []
     for country_record in shpreader.Reader(countries_shp).records():
         if country_record.attributes["NAME"][0:14] == country:
-            print('Found Country ' + country)
+            print("Found Country " + country)
             country_shapely.append(country_record.geometry)
 
     # Create a mask for the country
     for i in range(0, len(x)):
         point = shapely.geometry.Point(x[i], y[i])
         if country_shapely[0].contains(point) == True:
-            MASK_MATRIX_TMP[i,0] = 1.0
+            MASK_MATRIX_TMP[i, 0] = 1.0
 
     MASK_MATRIX_RESHAPE = np.reshape(MASK_MATRIX_TMP, (np.shape(LONS)))
 
     # if the country is the UK then we want to mask out NI
     # to constrain to GB
-    if country == 'United Kingdom':
+    if country == "United Kingdom":
         lats, lons = np.unique(LATS), np.unique(LONS)
         for i in range(len(lats)):
             for j in range(len(lons)):
-                if (lats[i] < 55.3) and (lats[i]  > 54.):
-                    if (lons[j]) < -5.:  # convert back to -180 to 180 scale
+                if (lats[i] < 55.3) and (lats[i] > 54.0):
+                    if (lons[j]) < -5.0:  # convert back to -180 to 180 scale
                         # find the corresponding indices in the LATS and LONS arrays
                         indices = np.argwhere((LATS == lats[i]) & (LONS == lons[j]))
                         # set the mask value to 0 at these indices
                         for idx in indices:
-                            MASK_MATRIX_RESHAPE[tuple(idx)] = 0.
+                            MASK_MATRIX_RESHAPE[tuple(idx)] = 0.0
 
     return MASK_MATRIX_RESHAPE
 
@@ -3816,7 +3951,7 @@ def plot_events_ts_errorbars(
 
     # set up the index for time
     index_time = range(ntimes - block_length + 1)
-    
+
     # set up the empty array for the bootstrapped data
     X1_boot_full = np.zeros((nboot, ntimes))
     X2_boot_full = np.zeros((nboot, ntimes))
@@ -3837,8 +3972,10 @@ def plot_events_ts_errorbars(
         # Select starting indices for the blocks
         if iboot == 0:
             ind_time_this = range(0, ntimes, block_length)
-        else: # random samples
-            ind_time_this = np.array([random.choice(index_time) for _ in range(nblocks)])
+        else:  # random samples
+            ind_time_this = np.array(
+                [random.choice(index_time) for _ in range(nblocks)]
+            )
 
         # Set up the shape of the bootstrapped data
         X1_boot = np.zeros(ntimes)
@@ -3857,10 +3994,12 @@ def plot_events_ts_errorbars(
 
             # if the block index is greater than the number of times
             # then subtract the number of times from the block index
-            ind_block[(ind_block>ntimes-1)] = ind_block[(ind_block>ntimes-1)]-ntimes
+            ind_block[(ind_block > ntimes - 1)] = (
+                ind_block[(ind_block > ntimes - 1)] - ntimes
+            )
 
             # Restrict the block index to the minimum of the block length
-            ind_block = ind_block[:min(block_length,ntimes-itime)]
+            ind_block = ind_block[: min(block_length, ntimes - itime)]
 
             # loop over the blocks
             for iblock in ind_block:
@@ -3897,7 +4036,7 @@ def plot_events_ts_errorbars(
 
             # Calculate the spread of the residuals
             res_spread_boot_first = np.std(residuals_boot_first)
-        else: # random samples
+        else:  # random samples
             # print the shape of the bootstrapped data
             # # print(X_boot_full.shape)
             # # print(y_boot_full.shape)
@@ -3967,26 +4106,53 @@ def plot_events_ts_errorbars(
 
     if low_bad:
         # plot a horizontal line for the 20th percentil of the obs
-        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
+        axs[0].axhline(
+            np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--"
+        )
 
         # plot a horizontal line for the minimum of the obs
         axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+
+        # Do the same for the model data
+        # plot a horizontal line for the 20th percentil of the model data
+        axs[0].axhline(
+            np.quantile(model_df[f"{Y_col}_pred"], 0.2), color="red", linestyle="--"
+        )
+
+        # plot a horizontal line for the minimum of the model data
+        axs[0].axhline(model_df[f"{Y_col}_pred"].min(), color="red", linestyle="-.")
+
     else:
         # plot a horizontal line for the 80th percentil of the obs
-        axs[0].axhline(np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--")
+        axs[0].axhline(
+            np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--"
+        )
 
         # plot a horizontal line for the maximum of the obs
         axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
 
-    # print the shape of stochastic 95
-    print(f"The shape of the stochastic 95 is {stoch_95.shape}")
+        # Do the same for the model data
+        # plot a horizontal line for the 80th percentil of the model data
+        axs[0].axhline(
+            np.quantile(model_df[f"{Y_col}_pred"], 0.8), color="red", linestyle="--"
+        )
 
-    # print the shape of model_df[f"{Y_col}_pred"].values
-    print(f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values[:, np.newaxis].shape}")
+        # plot a horizontal line for the maximum of the model data
+        axs[0].axhline(model_df[f"{Y_col}_pred"].max(), color="red", linestyle="-.")
+
+    # # print the shape of stochastic 95
+    # print(f"The shape of the stochastic 95 is {stoch_95.shape}")
+
+    # # print the shape of model_df[f"{Y_col}_pred"].values
+    # print(
+    #     f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values[:, np.newaxis].shape}"
+    # )
 
     # Set the index of the model df to be
     # init year, member, and lead
-    model_df.set_index([model_time_name, model_member_name, model_lead_name], inplace=True)
+    model_df.set_index(
+        [model_time_name, model_member_name, model_lead_name], inplace=True
+    )
 
     # Add the random trials to the deterministic model time series
     trials_95 = pd.DataFrame(
@@ -3995,30 +4161,30 @@ def plot_events_ts_errorbars(
         columns=range(num_trials),
     )
 
-    # print the head of trials_95
-    print(f"The head of trials_95 is {trials_95.head()}")
+    # # print the head of trials_95
+    # print(f"The head of trials_95 is {trials_95.head()}")
 
-    # print the shape of trials_95
-    print(f"The shape of trials_95 is {trials_95.shape}")
+    # # print the shape of trials_95
+    # print(f"The shape of trials_95 is {trials_95.shape}")
 
     # group the trials by the year
     trials_95_grouped = trials_95.groupby(model_df.index).mean()
 
-    print(f"The shape of the grouped trials_95 is {trials_95_grouped.shape}")
+    # print(f"The shape of the grouped trials_95 is {trials_95_grouped.shape}")
 
     # Find the 5th and 95th percentiles of the trials
     p05_95, p95_95 = [trials_95_grouped.T.quantile(q) for q in [0.05, 0.95]]
 
-    # # print the shape of the 5th and 95th percentiles
-    print(f"The shape of the 5th percentile is {p05_95.shape}")
-    # print(f"The shape of the 95th percentile is {p95_95.shape}")
+    # # # print the shape of the 5th and 95th percentiles
+    # print(f"The shape of the 5th percentile is {p05_95.shape}")
+    # # print(f"The shape of the 95th percentile is {p95_95.shape}")
 
-    # # print the values
-    print(f"The 5th percentile values are {p05_95}")
-    # print(f"The 95th percentile values are {p95_95}")
+    # # # print the values
+    # print(f"The 5th percentile values are {p05_95}")
+    # # print(f"The 95th percentile values are {p95_95}")
 
-    # print the type of the 5th percentile
-    print(f"The type of the 5th percentile is {type(p05_95)}")
+    # # print the type of the 5th percentile
+    # print(f"The type of the 5th percentile is {type(p05_95)}")
 
     # convert to a dataframe
     p05_95 = p05_95.to_frame()
@@ -4032,16 +4198,24 @@ def plot_events_ts_errorbars(
     p05_95.columns = [model_time_name, f"{Y_col}_pred"]
     p95_95.columns = [model_time_name, f"{Y_col}_pred"]
 
-    # print the head of p05_95
-    print(f"The head of p05_95 is {p05_95.head()}")
+    # # print the head of p05_95
+    # print(f"The head of p05_95 is {p05_95.head()}")
 
-    p05_95[[model_time_name, model_member_name, model_lead_name]] = p05_95[model_time_name].apply(lambda x: pd.Series(x))
+    p05_95[[model_time_name, model_member_name, model_lead_name]] = p05_95[
+        model_time_name
+    ].apply(lambda x: pd.Series(x))
+    p95_95[[model_time_name, model_member_name, model_lead_name]] = p95_95[
+        model_time_name
+    ].apply(lambda x: pd.Series(x))
 
-    # drop the model time name
-    p05_95.drop(model_time_name, axis=1, inplace=True)
+    # # drop the model time name
+    # p05_95.drop(model_time_name, axis=1, inplace=True)
 
-    # print the head of p05_95
-    print(f"The head of p05_95 is {p05_95.head()}")
+    # # print the head of p05_95
+    # print(f"The head of p05_95 is {p05_95.head()}")
+
+    # # print the head of the model df
+    # print(f"The head of the model df is {model_df.head()}")
 
     # sys.exit()
 
@@ -4052,11 +4226,25 @@ def plot_events_ts_errorbars(
     # # # print the head of p05_95
     # print(f"The head of p05_95 is {p05_95.head()}")
 
-    sys.exit()
+    # sys.exit()
+
+    # reset the index of model df
+    model_df.reset_index(inplace=True)
+
+    # Plot the observed data as blue crosses on the first subplot
+    axs[0].scatter(
+        years,
+        obs_df[obs_val_name],
+        color="blue",
+        marker="x",
+        label="ERA5",
+        zorder=2,
+    )
 
     # Loop over the unique members
     # and plot the scatter points with error bars
     for i, member in enumerate(model_df[model_member_name].unique()):
+        # print("iteration", i)
         # Seperate the data based on the condition
         model_data = model_df[model_df[model_member_name] == member]
 
@@ -4068,68 +4256,143 @@ def plot_events_ts_errorbars(
         # quantify the error bars
         yerr = abs(p95_95_member - p05_95_member)
 
-        # Seperate data by threshold
-        model_data_below20 = (
-            obs_df[obs_val_name].min() < model_df[f"{Y_col}_pred"]
-        ) & (model_df[f"{Y_col}_pred"] < np.quantile(obs_df[obs_val_name], 0.2))
+        # # print the shape of yerr
+        # print(yerr.shape)
 
-        # Above the threshold
-        model_data_above20 = (
-            model_df[f"{Y_col}_pred"] >= obs_df[obs_val_name].min()
-        ) & ~model_data_below20
+        # # print the shape of model_data y_col_pred
+        # print(model_data[f"{Y_col}_pred"].shape)
 
-        # below the minimum of the obs
-        model_data_below_obs_min_bool = (
-            model_df[f"{Y_col}_pred"] < obs_df[obs_val_name].min()
+        if low_bad:
+            # Seperate data by threshold
+            model_data_below20 = (
+                obs_df[obs_val_name].min() < model_data[f"{Y_col}_pred"]
+            ) & (model_df[f"{Y_col}_pred"] < np.quantile(obs_df[obs_val_name], 0.2))
+
+            # Above the threshold
+            model_data_above20 = (
+                model_data[f"{Y_col}_pred"] >= obs_df[obs_val_name].min()
+            ) & ~model_data_below20
+
+            # below the minimum of the obs
+            model_data_below_obs_min_bool = (
+                model_data[f"{Y_col}_pred"] < obs_df[obs_val_name].min()
+            )
+
+            # Clear up the names
+            very_bad_events = model_data_below_obs_min_bool
+            bad_events = model_data_below20
+            events = model_data_above20
+        else:
+
+            # # if i = 0
+            # if i == 0:
+            #     # print the values of the model data
+            #     print(f"The values of the model data are {model_data[f'{Y_col}_pred']}")
+            #     # print the values of the yerr
+            #     print(f"The values of the yerr are {yerr[f'{Y_col}_pred'] / 2}")
+
+            #     # print the shape of the model data
+            #     print(f"The shape of the model data is {model_data[Y_col+'_pred'].shape}")
+            #     print(f"The shape of the yerr is {yerr[f'{Y_col}_pred'].shape}")
+
+            # Get the data - error
+            model_data[f"{Y_col}_pred_err"] = model_data[f"{Y_col}_pred"].values - yerr[
+                f"{Y_col}_pred"].values / 2
+
+            # # if i is 0
+            # # print the values
+            # if i == 0:
+            #     print(f"values of ycol pred are {model_data[f'{Y_col}_pred']}")
+            #     print(f"values of ycol pred err are {model_data[f'{Y_col}_pred_err']}")
+
+            # Seperate data by threshold
+            model_data_above_obs_max = (
+                model_data[f"{Y_col}_pred_err"]
+                >= obs_df[obs_val_name].max()
+            )
+
+            # Model data above the 80th percentile but below the maximum of the obs
+            model_data_above80 = (
+                np.quantile(obs_df[obs_val_name], 0.8) <= model_data[f"{Y_col}_pred_err"]
+            ) & (model_data[f"{Y_col}_pred"] < obs_df[obs_val_name].max())
+
+            # Model data below the 80th percentile
+            model_data_below80 = model_data[f"{Y_col}_pred"] < np.quantile(
+                obs_df[obs_val_name], 0.8
+            )
+
+            # Clear up the names
+            very_bad_events = model_data_above_obs_max
+            bad_events = model_data_above80
+            events = model_data_below80
+
+        # Plot the points below the minimum of the obs
+        axs[0].scatter(
+            model_data.loc[very_bad_events, model_time_name],
+            model_data.loc[very_bad_events, f"{Y_col}_pred"],
+            color="red",
+            alpha=0.8,
+            label="UNSEEN Events" if i == 0 else None,
         )
-
+        
         # Plot the points below the 20th percentile
         axs[0].scatter(
-            model_data[model_data_below20][model_time_name],
-            model_data[model_data_below20][f"{Y_col}_pred"],
-            color="blue",
+            model_data.loc[bad_events, model_time_name],
+            model_data.loc[bad_events, f"{Y_col}_pred"],
+            color="orange",
             alpha=0.8,
-            label="model wind drought" if i == 0 else None,
+            label="Extreme Events" if i == 0 else None,
         )
 
         # Plot the points above the 20th percentile
         axs[0].scatter(
-            model_data[model_data_above20][model_time_name],
-            model_data[model_data_above20][f"{Y_col}_pred"],
+            model_data.loc[events, model_time_name],
+            model_data.loc[events, f"{Y_col}_pred"],
             color="grey",
             alpha=0.8,
-            label=model_name if i == 0 else None,
+            label="Events" if i == 0 else None,
         )
 
-        # Plot the points below the minimum of the obs
-        axs[0].scatter(
-            model_data[model_data_below_obs_min_bool][model_time_name],
-            model_data[model_data_below_obs_min_bool][f"{Y_col}_pred"],
-            color="red",
-            alpha=0.8,
-            marker="x",
-            label="model wind drought" if i == 0 else None,
-        )
+        # # Plot the error bars
+        # axs[0].errorbar(
+        #     model_data[model_time_name],
+        #     model_data[f"{Y_col}_pred"],
+        #     yerr=yerr[f"{Y_col}_pred"]/2, # divide by 2 to get the error bars
+        #     fmt="o",
+        #     color="black",
+        #     alpha=0.5,
+        # )
 
-        # Plot the error bars
+        # if the first value of the index of yerr is not 0
+        # if yerr.index[0] != 0:
+        #     # reset the index of yerr
+        #     yerr = yerr.reset_index(drop=True)
+
+        # if not all indexes of model_data_above_obs_max are in yerr's index
+        if not model_data_above_obs_max.index.isin(yerr.index).all():
+            # reset the index of yerr
+            yerr_reset = yerr.reset_index(drop=True)
+            
+            # reset the index of the model data above obs max
+            model_data_above_obs_max_reset = model_data_above_obs_max.reset_index(drop=True)
+
+            # subset yerr to only the values above the obs max
+            yerr_subset = yerr_reset.loc[model_data_above_obs_max_reset]
+        else:
+            # subset yerr to only the values above the obs max
+            yerr_subset = yerr.loc[model_data_above_obs_max]
+
+        # Plot the error bars for the model data above obs max
         axs[0].errorbar(
-            model_data[model_time_name],
-            model_data[f"{Y_col}_pred"],
-            yerr=yerr[f"{Y_col}_pred"],
+            model_data.loc[model_data_above_obs_max, model_time_name],
+            model_data.loc[model_data_above_obs_max, f"{Y_col}_pred"],
+            yerr=yerr_subset[f"{Y_col}_pred"] / 2,  # divide by 2 to get the error bars
             fmt="o",
-            color="black",
+            ecolor="red",  # make the error bars red
+            color="red",  # make the points red
             alpha=0.5,
+            capsize=2,  # set the capsize to 5
         )
-
-    # Plot the observed data as blue crosses on the first subplot
-    axs[0].scatter(
-        years,
-        obs_df[obs_val_name],
-        color="blue",
-        marker="x",
-        label="ERA5",
-        zorder=2,
-    )
 
     # Plot the boxplot for the observed data on the second subplot
     axs[1].boxplot(
@@ -4153,7 +4416,7 @@ def plot_events_ts_errorbars(
 
     # also include a red boxplot for the model data
     axs[1].boxplot(
-        model_df[model_val_name],
+        model_df[f"{Y_col}_pred"],
         positions=[2],
         widths=0.6,
         patch_artist=True,
