@@ -2477,6 +2477,7 @@ def stability_density(
     fontsize: int = 12,
     fig_size: tuple = (10, 10),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    fname_root: str = "density",
 ):
     """
     Function which plots the density distribution of different lead times.
@@ -2507,6 +2508,9 @@ def stability_density(
 
     save_dir: str
         The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    fname_root: str
+        The root name for the file. Default is "density".
 
     Returns
 
@@ -2540,17 +2544,20 @@ def stability_density(
     # Add a legend
     ax.legend(title="Lead time")
 
-    # # Set the current time
-    # now = datetime.now()
+    # Set the current time
+    now = datetime.now()
 
-    # # Set the current date
-    # date = now.strftime("%Y-%m-%d")
+    # Set the current date
+    date = now.strftime("%Y-%m-%d")
 
-    # # Set the current time
-    # time = now.strftime("%H:%M:%S")
+    # Set the current time
+    time = now.strftime("%H:%M:%S")
 
-    # # Save the plot
-    # plt.savefig(os.path.join(save_dir, f"density_{date}_{time}.pdf"))
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{fname_root}_{date}_{time}.pdf"))
+
+    # show the plot
+    plt.show()
 
     return
 
