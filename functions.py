@@ -3225,78 +3225,79 @@ def plot_events_ts(
         # Detrend the data
         obs_df[obs_val_name] = signal.detrend(obs_df[obs_val_name])
         model_df[model_val_name] = signal.detrend(model_df[model_val_name])
+
     # Set up the figure
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-    # create an empty array to store the values of slope and intercept
-    slopes = np.zeros(len(model_df[model_member_name].unique()))
-    intercepts = np.zeros(len(model_df[model_member_name].unique()))
+    # # create an empty array to store the values of slope and intercept
+    # slopes = np.zeros(len(model_df[model_member_name].unique()))
+    # intercepts = np.zeros(len(model_df[model_member_name].unique()))
 
-    # loop over the unique members
-    for i, member in enumerate(model_df[model_member_name].unique()):
-        # Extract the data for the member and the first lead = 1
-        model_data_this = model_df[
-            (model_df[model_member_name] == member) & (model_df[model_lead_name] == 1)
-        ]
+    # # loop over the unique members
+    # for i, member in enumerate(model_df[model_member_name].unique()):
+    #     # Extract the data for the member and the first lead = 1
+    #     model_data_this = model_df[
+    #         (model_df[model_member_name] == member) & (model_df[model_lead_name] == 1)
+    #     ]
 
-        # Fit a linear trend to the model data
-        slope, intercept, r_value, p_value, std_err = stats.linregress(
-            model_data_this[model_time_name], model_data_this[model_val_name]
-        )
+    #     # Fit a linear trend to the model data
+    #     slope, intercept, r_value, p_value, std_err = stats.linregress(
+    #         model_data_this[model_time_name], model_data_this[model_val_name]
+    #     )
 
-        # Store the slope and intercept
-        slopes[i] = slope
-        intercepts[i] = intercept
+    #     # Store the slope and intercept
+    #     slopes[i] = slope
+    #     intercepts[i] = intercept
 
-        # Plot the model trend as a dashed line
-        ax.plot(
-            model_data_this[model_time_name],
-            intercept + slope * model_data_this[model_time_name],
-            color="grey",
-            linestyle="--",
-            label="model trend" if i == 0 else None,
-        )
+    #     # Plot the model trend as a dashed line
+    #     ax.plot(
+    #         model_data_this[model_time_name],
+    #         intercept + slope * model_data_this[model_time_name],
+    #         color="grey",
+    #         linestyle="--",
+    #         label="model trend" if i == 0 else None,
+    #     )
 
-    # print the intercepts
-    print(intercepts.flatten().mean())
+    # # print the intercepts
+    # print(intercepts.flatten().mean())
 
-    # print the slopes
-    print(slopes.flatten().mean())
+    # # print the slopes
+    # print(slopes.flatten().mean())
 
-    # print the slopes 5%tile
-    print(f"2.5%tile slope: {np.quantile(slopes, 0.025)}")
-    print(f"97.5%tile slope: {np.quantile(slopes, 0.975)}")
+    # # print the slopes 5%tile
+    # print(f"2.5%tile slope: {np.quantile(slopes, 0.025)}")
+    # print(f"97.5%tile slope: {np.quantile(slopes, 0.975)}")
 
     # # print the slopes 95%tile
     # print(np.quantile(slopes, 0.95))
 
-    # plot the mean trend as a red dashed line
-    ax.plot(
-        model_data_this[model_time_name],
-        intercepts.flatten().mean()
-        + slopes.flatten().mean() * model_data_this[model_time_name],
-        color="red",
-        linestyle="--",
-        label="model mean trend",
-    )
+    # # plot the mean trend as a red dashed line
+    # ax.plot(
+    #     model_data_this[model_time_name],
+    #     intercepts.flatten().mean()
+    #     + slopes.flatten().mean() * model_data_this[model_time_name],
+    #     color="red",
+    #     linestyle="--",
+    #     label="model mean trend",
+    # )
 
-    # Quantify this trend line
-    trend_line = (
-        intercepts.flatten().mean()
-        + slopes.flatten().mean() * model_data_this[model_time_name]
-    )
+    # # Quantify this trend line
+    # trend_line = (
+    #     intercepts.flatten().mean()
+    #     + slopes.flatten().mean() * model_data_this[model_time_name]
+    # )
 
-    # subtract this trend line from the model data
-    model_data_this[f"{model_val_name}_detrended"] = (
-        model_data_this[model_val_name] - trend_line
-    )
+    # # subtract this trend line from the model data
+    # model_data_this[f"{model_val_name}_detrended"] = (
+    #     model_data_this[model_val_name] - trend_line
+    # )
 
-    # subtract this trend line from the obs data
-    obs_df[f"{obs_val_name}_detrended"] = obs_df[obs_val_name] - trend_line
+    # # subtract this trend line from the obs data
+    # obs_df[f"{obs_val_name}_detrended"] = obs_df[obs_val_name] - trend_line
 
-    # modify the obs_val_name
-    obs_val_name = f"{obs_val_name}_detrended"
-    model_val_name = f"{model_val_name}_detrended"
+    # # modify the obs_val_name
+    # obs_val_name = f"{obs_val_name}_detrended"
+    # model_val_name = f"{model_val_name}_detrended"
 
     # Loop over the ensemble members
     for i, member in enumerate(model_df[model_member_name].unique()):
@@ -3976,6 +3977,8 @@ def plot_events_ts_errorbars(
     ylabel: str,
     X1_col_obs: str = "sfcWind_mon",
     X2_col_obs: str = "tas_mon",
+    X1_col_obs_dt: str = "sfcWind_mon_dt",
+    X2_col_obs_dt: str = "tas_mon_dt",
     num_trials: int = 1000,
     block_length: int = 10,
     nboot: int = 1000,
@@ -4180,6 +4183,24 @@ def plot_events_ts_errorbars(
     # with the upper bounds of the residuals spread
     stoch_95 = np.random.normal(0, res_spread_95, size=(len(model_df), num_trials))
 
+    # create stoch_95 for the obs
+    stoch_95_obs = np.random.normal(0, res_spread_95, size=(len(obs_df), num_trials))
+
+    # set up the MLR model
+    # which we'll apply to the detrended obs data
+    # if the columns exist
+    if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+        print("Detrended columns exist")
+
+        # set up the predictors
+        X_obs = obs_df[[X1_col_obs_dt, X2_col_obs_dt]]
+
+        # Predict the values of Y
+        obs_df[f"{Y_col}_pred"] = model_first.predict(X_obs)
+    else:
+        print("Detrended columns do not exist")
+
+
     # Now set up the MLR model
     # which predicts CLEARHEADS DnW
     # given model data
@@ -4210,13 +4231,20 @@ def plot_events_ts_errorbars(
     )
 
     if low_bad:
-        # plot a horizontal line for the 20th percentil of the obs
-        axs[0].axhline(
-            np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--"
-        )
+        if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+            axs[0].axhline(
+                np.quantile(obs_df[f"{Y_col}_pred"], 0.2), color="blue", linestyle="--"
+            )
 
-        # plot a horizontal line for the minimum of the obs
-        axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
+            axs[0].axhline(obs_df[f"{Y_col}_pred"].min(), color="blue", linestyle="-.")
+        else:
+            # plot a horizontal line for the 20th percentil of the obs
+            axs[0].axhline(
+                np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--"
+            )
+
+            # plot a horizontal line for the minimum of the obs
+            axs[0].axhline(obs_df[obs_val_name].min(), color="blue", linestyle="-.")
 
         # Do the same for the model data
         # plot a horizontal line for the 20th percentil of the model data
@@ -4228,13 +4256,20 @@ def plot_events_ts_errorbars(
         axs[0].axhline(model_df[f"{Y_col}_pred"].min(), color="red", linestyle="-.")
 
     else:
-        # plot a horizontal line for the 80th percentil of the obs
-        axs[0].axhline(
-            np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--"
-        )
+        if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+            axs[0].axhline(
+                np.quantile(obs_df[f"{Y_col}_pred"], 0.8), color="blue", linestyle="--"
+            )
 
-        # plot a horizontal line for the maximum of the obs
-        axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
+            axs[0].axhline(obs_df[f"{Y_col}_pred"].max(), color="blue", linestyle="-.")
+        else:
+            # plot a horizontal line for the 80th percentil of the obs
+            axs[0].axhline(
+                np.quantile(obs_df[obs_val_name], 0.8), color="blue", linestyle="--"
+            )
+
+            # plot a horizontal line for the maximum of the obs
+            axs[0].axhline(obs_df[obs_val_name].max(), color="blue", linestyle="-.")
 
         # Do the same for the model data
         # plot a horizontal line for the 80th percentil of the model data
@@ -4253,6 +4288,9 @@ def plot_events_ts_errorbars(
     #     f"The shape of the model_df[f'{Y_col}_pred'].values is {model_df[f'{Y_col}_pred'].values[:, np.newaxis].shape}"
     # )
 
+    # # print the head of the model_df
+    # print(f"The head of the model_df is {model_df.head()}")
+
     # Set the index of the model df to be
     # init year, member, and lead
     model_df.set_index(
@@ -4265,6 +4303,41 @@ def plot_events_ts_errorbars(
         index=model_df.index,
         columns=range(num_trials),
     )
+
+    # if the dt columsn exist
+    if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+        # add the randome trials to the deterministic obs time series
+        trials_95_obs = pd.DataFrame(
+            obs_df[f"{Y_col}_pred"].values[:, np.newaxis] + stoch_95_obs,
+            index=obs_df.index,
+            columns=range(num_trials),
+        )
+
+        # group the trials by the year
+        trials_95_obs_grouped = trials_95_obs.groupby(obs_df.index).mean()
+
+        # Find the 5th and 95th percentiles of the trials
+        p05_95_obs, p95_95_obs = [trials_95_obs_grouped.T.quantile(q) for q in [0.05, 0.95]]
+
+        # convert to a dataframe
+        p05_95_obs = p05_95_obs.to_frame()
+        p95_95_obs = p95_95_obs.to_frame()
+
+        # reset the index of p05_95
+        p05_95_obs.reset_index(inplace=True)
+        p95_95_obs.reset_index(inplace=True)
+
+        # rename the columns
+        p05_95_obs.columns = [model_time_name, f"{Y_col}_pred"]
+        p95_95_obs.columns = [model_time_name, f"{Y_col}_pred"]
+
+        # turn them into series
+        p05_95_obs[[obs_time_name]] = p05_95_obs[model_time_name].apply(
+            lambda x: pd.Series(x)
+        )
+        p95_95_obs[[obs_time_name]] = p95_95_obs[model_time_name].apply(
+            lambda x: pd.Series(x)
+        )
 
     # # print the head of trials_95
     # print(f"The head of trials_95 is {trials_95.head()}")
@@ -4336,15 +4409,53 @@ def plot_events_ts_errorbars(
     # reset the index of model df
     model_df.reset_index(inplace=True)
 
-    # Plot the observed data as blue crosses on the first subplot
-    axs[0].scatter(
-        years,
-        obs_df[obs_val_name],
-        color="blue",
-        marker="x",
-        label="ERA5",
-        zorder=2,
-    )
+    # if the detrended columns exist
+    if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+        axs[0].scatter(
+            obs_df[obs_time_name],
+            obs_df[f"{Y_col}_pred"],
+            color="blue",
+            marker="x",
+            label="ERA5",
+            zorder=2,
+        )
+
+        # quantify the error bars
+        yerr = abs(p95_95_obs - p05_95_obs)
+
+        # # print the values of yerr
+        # print(f"The values of yerr are {yerr}")
+
+        # assign the error to the obs_df
+        # obs_df[f"{Y_col}_pred_err"] = (
+        #     obs_df[f"{Y_col}_pred"].values - yerr[f"{Y_col}_pred"].values / 2
+        # )
+
+        # # print the values of pred err
+        # print(f"The values of pred err are {obs_df[f'{Y_col}_pred_err']}")
+
+        # plot the error bars for the obs data
+        axs[0].errorbar(
+            obs_df[obs_time_name],
+            obs_df[f"{Y_col}_pred"],
+            yerr=yerr[f"{Y_col}_pred"] / 2,
+            fmt="o",
+            ecolor="blue",
+            color="blue",
+            alpha=0.5,
+            capsize=2,
+        )
+
+    else:
+        # Plot the observed data as blue crosses on the first subplot
+        axs[0].scatter(
+            years,
+            obs_df[obs_val_name],
+            color="blue",
+            marker="x",
+            label="ERA5",
+            zorder=2,
+        )
 
     # Loop over the unique members
     # and plot the scatter points with error bars
@@ -4404,6 +4515,9 @@ def plot_events_ts_errorbars(
             model_data[f"{Y_col}_pred_err"] = (
                 model_data[f"{Y_col}_pred"].values - yerr[f"{Y_col}_pred"].values / 2
             )
+
+            # # print the values of model data pred err
+            # print(f"The values of model data pred err are {model_data[f'{Y_col}_pred_err']}")
 
             # # if i is 0
             # # print the values
@@ -4490,6 +4604,12 @@ def plot_events_ts_errorbars(
             # subset yerr to only the values above the obs max
             yerr_subset = yerr.loc[model_data_above_obs_max]
 
+        # # print the values of the yerr subset model pred
+        # print(f"The values of the yerr subset model pred are {yerr_subset[f'{Y_col}_pred']}")
+
+        # # print the values of yerr_subset
+        # print(f"The values of yerr_subset are {yerr_subset}")
+
         # Plot the error bars for the model data above obs max
         axs[0].errorbar(
             model_data.loc[model_data_above_obs_max, model_time_name],
@@ -4502,25 +4622,58 @@ def plot_events_ts_errorbars(
             capsize=2,  # set the capsize to 5
         )
 
-    # Plot the boxplot for the observed data on the second subplot
-    axs[1].boxplot(
-        obs_df[obs_val_name],
-        positions=[1],
-        widths=0.6,
-        patch_artist=True,
-        boxprops=dict(facecolor="blue", color="blue"),
-        medianprops=dict(color="black"),
-        whiskerprops=dict(color="black"),
-        capprops=dict(color="black"),
-        zorder=1,
-        flierprops=dict(
-            marker="o",
-            markerfacecolor="k",
-            markersize=5,
-            linestyle="none",
-            markeredgecolor="k",
-        ),  # Set flier properties
-    )
+    # if the columns are not empty
+    if X1_col_obs_dt in obs_df.columns and X2_col_obs_dt in obs_df.columns:
+        # plot the boxplot for the observed data
+        axs[1].boxplot(
+            obs_df[f"{Y_col}_pred"],
+            positions=[1],
+            widths=0.6,
+            patch_artist=True,
+            boxprops=dict(facecolor="blue", color="blue"),
+            medianprops=dict(color="black"),
+            whiskerprops=dict(color="black"),
+            capprops=dict(color="black"),
+            zorder=1,
+            flierprops=dict(
+                marker="o",
+                markerfacecolor="k",
+                markersize=5,
+                linestyle="none",
+                markeredgecolor="k",
+            ),  # Set flier properties
+        )
+
+        # print the worst obs year (i.e. highest demand net wind)
+        print(
+            f"The worst observed year is {obs_df[obs_time_name].values[np.argmax(obs_df[f'{Y_col}_pred'])]}"
+        )
+
+    else:
+        # Plot the boxplot for the observed data on the second subplot
+        axs[1].boxplot(
+            obs_df[obs_val_name],
+            positions=[1],
+            widths=0.6,
+            patch_artist=True,
+            boxprops=dict(facecolor="blue", color="blue"),
+            medianprops=dict(color="black"),
+            whiskerprops=dict(color="black"),
+            capprops=dict(color="black"),
+            zorder=1,
+            flierprops=dict(
+                marker="o",
+                markerfacecolor="k",
+                markersize=5,
+                linestyle="none",
+                markeredgecolor="k",
+            ),  # Set flier properties
+        )
+
+        # print the worst observed year
+        print(
+            f"The worst observed year is {obs_df[obs_time_name].values[np.argmax(obs_df[obs_val_name])]}"
+        )
 
     # also include a red boxplot for the model data
     axs[1].boxplot(
@@ -4541,6 +4694,17 @@ def plot_events_ts_errorbars(
             markeredgecolor="k",
             alpha=0.5,
         ),  # Set flier properties
+    )
+
+    # print the worst model init year, member, and lead
+    print(
+        f"The worst model init year is {model_df[model_time_name].values[np.argmax(model_df[f'{Y_col}_pred'])]}"
+    )
+    print(
+        f"The worst model member is {model_df[model_member_name].values[np.argmax(model_df[f'{Y_col}_pred'])]}"
+    )
+    print(
+        f"The worst model lead is {model_df[model_lead_name].values[np.argmax(model_df[f'{Y_col}_pred'])]}"
     )
 
     # Set the x-axis label
