@@ -2562,6 +2562,98 @@ def stability_density(
     return
 
 
+# Define a function to plot the stability as boxplots
+def plot_stability_boxplots(
+    ensemble: pd.DataFrame,
+    var_name: str,
+    label: str,
+    lead_name: str = "lead",
+    fontsize: int = 12,
+    fig_size: tuple = (10, 10),
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    fname_root: str = "density_boxplot",
+):
+    """
+    Function which plots boxplots of the distribution for the different lead
+    times.
+
+    Inputs:
+    -------
+
+    ensemble: pd.DataFrame
+        The DataFrame containing the ensemble data. With columns for the
+        ensemble member, lead time, and the variable of interest.
+
+    var_name: str
+        The name of the variable of interest.
+
+    label: str
+        The label for the variable of interest.
+
+    lead_name: str
+        The name of the lead time column. Default is "lead".
+
+    fontsize: int
+        The fontsize for the labels. Default is 12.
+
+    fig_size: tuple
+        The figure size. Default is (10, 10).
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    fname_root: str
+        The root name for the file. Default is "density_boxplot".
+
+    Returns:
+    -------
+
+    None
+
+    """
+
+    # Set up the figure
+    fig, ax = plt.subplots(1, 1, figsize=fig_size)
+
+    # Get the unique lead times
+    leads = sorted(ensemble[lead_name].unique())
+
+    # Loop over the lead times
+    for lead in tqdm(leads, desc="Plotting boxplots"):
+        # Extract the data for the lead time
+        data = ensemble[ensemble[lead_name] == lead][var_name]
+
+        # Plot the boxplot
+        ax.boxplot(data, positions=[lead], widths=0.8)
+
+        # if the lead is the first one
+        if lead == leads[0]:
+            # plot a horixzontal line of the mean
+            ax.axhline(
+                data.mean(), color="black", linestyle="--", label="First lead mean"
+            )
+
+    # Set the x-axis label
+    ax.set_xlabel("Lead time", fontsize=fontsize)
+
+    # Set the y-axis label
+    ax.set_ylabel(label, fontsize=fontsize)
+
+    # Set the x-ticks
+    ax.set_xticks(leads)
+
+    # Set the x-tick labels
+    ax.set_xticklabels(leads)
+
+    # Set the current time
+    date_time_now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{fname_root}_{date_time_now}.pdf"), dpi=600)
+
+    return
+
+
 # Define a function to plot the model stability in terms of density
 # After Timo Kelders functions
 # Showing the confidence interval of the distribution of all lead times pooled
@@ -3181,17 +3273,23 @@ def plot_events_ts(
     # plot the mean trend as a red dashed line
     ax.plot(
         model_data_this[model_time_name],
-        intercepts.flatten().mean() + slopes.flatten().mean() * model_data_this[model_time_name],
+        intercepts.flatten().mean()
+        + slopes.flatten().mean() * model_data_this[model_time_name],
         color="red",
         linestyle="--",
         label="model mean trend",
     )
 
     # Quantify this trend line
-    trend_line = intercepts.flatten().mean() + slopes.flatten().mean() * model_data_this[model_time_name]
+    trend_line = (
+        intercepts.flatten().mean()
+        + slopes.flatten().mean() * model_data_this[model_time_name]
+    )
 
     # subtract this trend line from the model data
-    model_data_this[f"{model_val_name}_detrended"] = model_data_this[model_val_name] - trend_line
+    model_data_this[f"{model_val_name}_detrended"] = (
+        model_data_this[model_val_name] - trend_line
+    )
 
     # subtract this trend line from the obs data
     obs_df[f"{obs_val_name}_detrended"] = obs_df[obs_val_name] - trend_line
@@ -3200,7 +3298,7 @@ def plot_events_ts(
     obs_val_name = f"{obs_val_name}_detrended"
     model_val_name = f"{model_val_name}_detrended"
 
-        # Loop over the ensemble members
+    # Loop over the ensemble members
     for i, member in enumerate(model_df[model_member_name].unique()):
         # Seperate the data based on the condition
         model_data = model_df[model_df[model_member_name] == member]
@@ -4303,8 +4401,9 @@ def plot_events_ts_errorbars(
             #     print(f"The shape of the yerr is {yerr[f'{Y_col}_pred'].shape}")
 
             # Get the data - error
-            model_data[f"{Y_col}_pred_err"] = model_data[f"{Y_col}_pred"].values - yerr[
-                f"{Y_col}_pred"].values / 2
+            model_data[f"{Y_col}_pred_err"] = (
+                model_data[f"{Y_col}_pred"].values - yerr[f"{Y_col}_pred"].values / 2
+            )
 
             # # if i is 0
             # # print the values
@@ -4314,13 +4413,13 @@ def plot_events_ts_errorbars(
 
             # Seperate data by threshold
             model_data_above_obs_max = (
-                model_data[f"{Y_col}_pred_err"]
-                >= obs_df[obs_val_name].max()
+                model_data[f"{Y_col}_pred_err"] >= obs_df[obs_val_name].max()
             )
 
             # Model data above the 80th percentile but below the maximum of the obs
             model_data_above80 = (
-                np.quantile(obs_df[obs_val_name], 0.8) <= model_data[f"{Y_col}_pred_err"]
+                np.quantile(obs_df[obs_val_name], 0.8)
+                <= model_data[f"{Y_col}_pred_err"]
             ) & (model_data[f"{Y_col}_pred"] < obs_df[obs_val_name].max())
 
             # Model data below the 80th percentile
@@ -4341,7 +4440,7 @@ def plot_events_ts_errorbars(
             alpha=0.8,
             label="UNSEEN Events" if i == 0 else None,
         )
-        
+
         # Plot the points below the 20th percentile
         axs[0].scatter(
             model_data.loc[bad_events, model_time_name],
@@ -4379,9 +4478,11 @@ def plot_events_ts_errorbars(
         if not model_data_above_obs_max.index.isin(yerr.index).all():
             # reset the index of yerr
             yerr_reset = yerr.reset_index(drop=True)
-            
+
             # reset the index of the model data above obs max
-            model_data_above_obs_max_reset = model_data_above_obs_max.reset_index(drop=True)
+            model_data_above_obs_max_reset = model_data_above_obs_max.reset_index(
+                drop=True
+            )
 
             # subset yerr to only the values above the obs max
             yerr_subset = yerr_reset.loc[model_data_above_obs_max_reset]
