@@ -1770,8 +1770,12 @@ def plot_moments(
 
 # Write a function to plot the distribution of the model and obs data
 def plot_distribution(
-    model_data: dict,
-    obs_data: dict,
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    title: str = "Distribution of 10m wind speed",
+    obs_val_name: str = "obs",
+    model_val_name: str = "data",
+    fname_prefix: str = "distribution",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -1780,11 +1784,19 @@ def plot_distribution(
     Parameters
     ----------
 
-    model_data: dict
-        A dictionary of the model data
+    obs_df: pd.DataFrame
+        The observations dataframe
 
-    obs_data: dict
-        A dictionary containing the obs data
+    model_df: pd.DataFrame
+        The model dataframe
+
+    obs_val_name: str
+        The name of the observations value
+        Default is "obs"
+
+    model_val_name: str
+        The name of the model value
+        Default is "data"
 
     save_dir: str
         The directory to save the plots to
@@ -1796,20 +1808,44 @@ def plot_distribution(
     None
     """
 
-    # Assemble the model data into a continuous time series
-    model_data_flat = model_data.flatten()
-
-    # plot the model data
-    sns.distplot(model_data_flat, label="model", color="red")
+    # Plot the distributions of the data as histograms
+    plt.hist(
+        model_df[model_val_name],
+        bins=100,
+        alpha=0.5,
+        color="red",
+        label="model",
+        density=True,
+    )
 
     # Plot the obs data
-    sns.distplot(obs_data.mean(axis=1), label="obs", color="black")
+    plt.hist(
+        obs_df[obs_val_name],
+        bins=100,
+        alpha=0.5,
+        color="black",
+        label="obs",
+        density=True,
+    )
+
+    # include a dashed vertical line for the mean
+    plt.axvline(
+        model_df[model_val_name].mean(),
+        color="red",
+        linestyle="--",
+        label="model mean",
+    )
+
+    # include a dashed vertical line for the mean
+    plt.axvline(
+        obs_df[obs_val_name].mean(), color="black", linestyle="--", label="obs mean"
+    )
 
     # Include a textbox with the sample size
     plt.text(
         0.05,
         0.90,
-        f"model N = {model_data_flat.shape[0]}\n" f"obs N = {obs_data.shape[0]}",
+        f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
         transform=plt.gca().transAxes,
         bbox=dict(facecolor="white", alpha=0.5),
     )
@@ -1819,7 +1855,16 @@ def plot_distribution(
 
     # Add a title
     # TODO: hard coded title
-    plt.title("Distribution of 10m wind speed")
+    plt.title(title)
+
+    # Set the current time
+    current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"), dpi=600)
+
+    # Show the plot
+    plt.show()
 
     return
 
