@@ -1772,6 +1772,7 @@ def plot_moments(
 def plot_distribution(
     obs_df: pd.DataFrame,
     model_df: pd.DataFrame,
+    nbins: int = 100,
     title: str = "Distribution of 10m wind speed",
     obs_val_name: str = "obs",
     model_val_name: str = "data",
@@ -1789,6 +1790,9 @@ def plot_distribution(
 
     model_df: pd.DataFrame
         The model dataframe
+
+    nbins: int
+        The number of bins for the histogram
 
     obs_val_name: str
         The name of the observations value
@@ -1809,24 +1813,45 @@ def plot_distribution(
     """
 
     # Plot the distributions of the data as histograms
-    plt.hist(
-        model_df[model_val_name],
-        bins=100,
-        alpha=0.5,
-        color="red",
-        label="model",
-        density=True,
+    # Create a figure and a set of subplots
+    fig, ax1 = plt.subplots()
+
+    # Plot the model data on the first y-axis
+    sns.histplot(
+        model_df, 
+        x=model_val_name, 
+        bins=100, 
+        color="red", 
+        label="model", 
+        kde=True, 
+        ax=ax1
     )
 
-    # Plot the obs data
-    plt.hist(
-        obs_df[obs_val_name],
-        bins=100,
-        alpha=0.5,
-        color="black",
-        label="obs",
-        density=True,
+    # Create a second y-axis that shares the same x-axis
+    ax2 = ax1.twinx()
+
+    # Plot the obs data on the second y-axis
+    sns.histplot(
+        obs_df, 
+        x=obs_val_name, 
+        bins=nbins, 
+        color="black", 
+        label="obs", 
+        kde=True, 
+        ax=ax2
     )
+
+    # Include a textbox with the sample size
+    ax1.text(
+        0.95,
+        0.90,
+        f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
+        transform=ax1.transAxes,
+        bbox=dict(facecolor="white", alpha=0.5),
+        horizontalalignment='right'
+    )
+
+    # plt.show()
 
     # include a dashed vertical line for the mean
     plt.axvline(
@@ -1843,13 +1868,13 @@ def plot_distribution(
 
     # Include a textbox with the sample size
     plt.text(
-        0.05,
+        0.95,
         0.90,
         f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
         transform=plt.gca().transAxes,
         bbox=dict(facecolor="white", alpha=0.5),
+        horizontalalignment='right'
     )
-
     # Add a legend
     plt.legend()
 
