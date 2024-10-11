@@ -3445,7 +3445,7 @@ def plot_events_ts(
         # add to the counts
         n_extreme += model_data_below20.sum()
         n_unseen += model_data_below_obs_min_bool.sum()
-        
+
     # # plot the trend line for the 5%tile slope
     # ax.plot(
     #     model_data_this[model_time_name],
@@ -4861,3 +4861,94 @@ def plot_events_ts_errorbars(
     plt.show()
 
     return
+
+# Define a function to apply the detrending
+def apply_detrend(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str = "year",
+    model_time_name: str = "init_year",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+) -> pd.DataFrame:
+    """
+    Applies a detrend using Gillian's pivot method. Trend is quantified as
+    the ensemble mean trend from the model data. This same trend is then
+    removed from both the model and the observations data.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init_year".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    Returns
+    =======
+
+    pd.DataFrame
+        A DataFrame containing the detrended observations and model data.
+    
+    """
+
+    # Create empty arrays to store the slopes for different member lead combinations
+    slopes = np.zeros([len(model_df[model_member_name].unique()), len(model_df[model_lead_name].unique())])
+    intercepts = np.zeros([len(model_df[model_member_name].unique()), len(model_df[model_lead_name].unique())])
+
+    # Loop over the unique members
+    for m, member in enumerate(model_df[model_member_name].unique()):
+        for l, lead in enumerate(model_df[model_lead_name].unique()):
+            # Select the data for this member and lead
+            data = model_df[(model_df[model_member_name] == member) & (model_df[model_lead_name] == lead)]
+            
+            # Fit a linear trend to the model data
+            slope, intercept, _, _, _ = linregress(data[model_time_name], data[model_val_name])
+
+            # Store the slope and intercept
+            slopes[m, l] = slope
+            intercepts[m, l] = intercept
+
+    # Print the mean slope
+    print(f"The mean slope is {np.mean(slopes.flatten())}")
+
+    # print the 2.5th and 97.5th percentiles of the slopes
+    print(f"The 2.5th percentile of the slopes is {np.percentile(slopes.flatten(), 2.5)}")
+    print(f"The 97.5th percentile of the slopes is {np.percentile(slopes.flatten(), 97.5)}")
+
+    # Set up the trend line as the mean of slopes flat and intercepts flat
+    trend_line = np.mean(slopes.flatten()) * model_df[model_time_name].values + np.mean(intercepts.flatten())
+
+    # Calculate the value of the trend line at the final point
+    trend_final = np.mean(slopes.flatten()) * model_df[model_time_name].values[-1] + np.mean(intercepts.flatten())
+
+    # Detrend the data by subtracting the trend line and adding the final value
+    model_df[model_val_name + "_dt"] = model_df[model_val_name] - trend_line + trend_final
+
+    # Detrend the observations
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line + trend_final
+
+    return obs_df, model_df
