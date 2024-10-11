@@ -1772,6 +1772,8 @@ def plot_moments(
 def plot_distribution(
     obs_df: pd.DataFrame,
     model_df: pd.DataFrame,
+    xlabel: str,
+    figsize=(6, 6),
     nbins: int = 100,
     title: str = "Distribution of 10m wind speed",
     obs_val_name: str = "obs",
@@ -1814,57 +1816,50 @@ def plot_distribution(
 
     # Plot the distributions of the data as histograms
     # Create a figure and a set of subplots
-    fig, ax1 = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
 
     # Plot the model data on the first y-axis
-    sns.histplot(
-        model_df, 
-        x=model_val_name, 
-        bins=100, 
+    plt.hist(
+        model_df[model_val_name], 
         color="red", 
         label="model", 
-        kde=True, 
-        ax=ax1
+        alpha=0.5, 
+        density=True
     )
-
-    # Create a second y-axis that shares the same x-axis
-    ax2 = ax1.twinx()
 
     # Plot the obs data on the second y-axis
-    sns.histplot(
-        obs_df, 
-        x=obs_val_name, 
-        bins=nbins, 
+    plt.hist(
+        obs_df[obs_val_name], 
         color="black", 
         label="obs", 
-        kde=True, 
-        ax=ax2
+        alpha=0.5, 
+        density=True
     )
 
-    # Include a textbox with the sample size
-    ax1.text(
-        0.95,
-        0.90,
-        f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
-        transform=ax1.transAxes,
-        bbox=dict(facecolor="white", alpha=0.5),
-        horizontalalignment='right'
-    )
+    # # Include a textbox with the sample size
+    # ax.text(
+    #     0.95,
+    #     0.90,
+    #     f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
+    #     transform=ax.transAxes,
+    #     bbox=dict(facecolor="white", alpha=0.5),
+    #     horizontalalignment='right'
+    # )
 
     # plt.show()
 
     # include a dashed vertical line for the mean
-    plt.axvline(
-        model_df[model_val_name].mean(),
-        color="red",
-        linestyle="--",
-        label="model mean",
-    )
+    # plt.axvline(
+    #     model_df[model_val_name].mean(),
+    #     color="red",
+    #     linestyle="--",
+    #     label="model mean",
+    # )
 
-    # include a dashed vertical line for the mean
-    plt.axvline(
-        obs_df[obs_val_name].mean(), color="black", linestyle="--", label="obs mean"
-    )
+    # # include a dashed vertical line for the mean
+    # plt.axvline(
+    #     obs_df[obs_val_name].mean(), color="black", linestyle="--", label="obs mean"
+    # )
 
     # Include a textbox with the sample size
     plt.text(
@@ -1875,18 +1870,30 @@ def plot_distribution(
         bbox=dict(facecolor="white", alpha=0.5),
         horizontalalignment='right'
     )
-    # Add a legend
-    plt.legend()
+    # # Add a legend
+    # plt.legend()
+
+    # remove the ticks for the y axis
+    plt.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
+
+    # remove the numbers from the y axis
+    plt.yticks([])
 
     # Add a title
     # TODO: hard coded title
     plt.title(title)
 
+    # set the x-axis label
+    plt.xlabel(xlabel)
+
     # Set the current time
     current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
 
+    # tight layout
+    plt.tight_layout()
+
     # Save the plot
-    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"), dpi=600)
+    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"), dpi=600, bbox_inches="tight")
 
     # Show the plot
     plt.show()
@@ -3219,6 +3226,7 @@ def plot_events_ts(
     do_detrend: bool = False,
     figsize: tuple = (10, 10),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    fname_prefix: str = "events",
 ) -> None:
     """
     Plots the hindcast events on the same axis as the observed events.
@@ -3369,6 +3377,21 @@ def plot_events_ts(
     # obs_val_name = f"{obs_val_name}_detrended"
     # model_val_name = f"{model_val_name}_detrended"
 
+    # if the model time name column is not formatted as datetime
+    if not isinstance(model_df[model_time_name].values[0], np.datetime64):
+        # convert the column to datetime (years) from ints for the year
+        model_df[model_time_name] = pd.to_datetime(model_df[model_time_name], format="%Y")
+
+    # if the units are kelvin (we can tell by the values)
+    # convert both model and obs to celsius
+    if model_df[model_val_name].max() > 100:
+        model_df[model_val_name] = model_df[model_val_name] - 273.15
+        obs_df[obs_val_name] = obs_df[obs_val_name] - 273.15
+
+    # Set up the counts
+    n_extreme = 0
+    n_unseen = 0
+
     # Loop over the ensemble members
     for i, member in enumerate(model_df[model_member_name].unique()):
         # Seperate the data based on the condition
@@ -3391,22 +3414,22 @@ def plot_events_ts(
             model_data[model_val_name] < obs_df[obs_val_name].min()
         )
 
-        # Plot the points below the 20th percentile
-        ax.scatter(
-            model_data[model_data_below20][model_time_name],
-            model_data[model_data_below20][model_val_name],
-            color="blue",
-            alpha=0.8,
-            label="model wind drought" if i == 0 else None,
-        )
-
         # Plot the points above the 20th percentile
         ax.scatter(
             model_data[model_data_above20][model_time_name],
             model_data[model_data_above20][model_val_name],
             color="grey",
-            alpha=0.8,
+            alpha=0.3,
             label=model_name if i == 0 else None,
+        )
+
+        # Plot the points below the 20th percentile
+        ax.scatter(
+            model_data[model_data_below20][model_time_name],
+            model_data[model_data_below20][model_val_name],
+            color="blue",
+            alpha=0.3,
+            label="Extreme events" if i == 0 else None,
         )
 
         # Plot the points below the minimum of the obs
@@ -3416,9 +3439,13 @@ def plot_events_ts(
             color="red",
             alpha=0.8,
             marker="x",
-            label="model wind drought" if i == 0 else None,
+            label="Unseen events" if i == 0 else None,
         )
 
+        # add to the counts
+        n_extreme += model_data_below20.sum()
+        n_unseen += model_data_below_obs_min_bool.sum()
+        
     # # plot the trend line for the 5%tile slope
     # ax.plot(
     #     model_data_this[model_time_name],
@@ -3477,19 +3504,34 @@ def plot_events_ts(
         label="ERA5",
     )
 
-    # fit a linear trend to the observations
-    slope, intercept, r_value, p_value, std_err = stats.linregress(
-        obs_df[obs_time_name], obs_df[obs_val_name]
+    # # fit a linear trend to the observations
+    # slope, intercept, r_value, p_value, std_err = stats.linregress(
+    #     obs_df[obs_time_name], obs_df[obs_val_name]
+    # )
+
+    # # plot the obs trend as a dashed line
+    # ax.plot(
+    #     obs_df[obs_time_name],
+    #     intercept + slope * obs_df[obs_time_name],
+    #     color="black",
+    #     linestyle="--",
+    #     label="ERA5 trend",
+    # )
+
+    # include a textbox in the bottom right hand corner
+    # with N_extreme and N_unseen
+    ax.text(
+        0.95,
+        0.05,
+        f"N extreme: {n_extreme}\nN unseen: {n_unseen}",
+        transform=ax.transAxes,
+        fontsize=12,
+        va="bottom",
+        ha="right",
+        bbox=dict(facecolor="white", alpha=0.5),
+        zorder=100,
     )
 
-    # plot the obs trend as a dashed line
-    ax.plot(
-        obs_df[obs_time_name],
-        intercept + slope * obs_df[obs_time_name],
-        color="black",
-        linestyle="--",
-        label="ERA5 trend",
-    )
 
     # Plot the 20th percentile of the obs as a horizontal line
     ax.axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
@@ -3506,8 +3548,11 @@ def plot_events_ts(
     # Set the y-axis label
     ax.set_ylabel(ylabel)
 
-    # Show the plot
-    plt.show()
+    # tight layout
+    plt.tight_layout()
+
+    # # Show the plot
+    # plt.show()
 
     # Set the current time
     now = datetime.now()
@@ -3519,7 +3564,7 @@ def plot_events_ts(
     time = now.strftime("%H:%M:%S")
 
     # Save the plot
-    # plt.savefig(os.path.join(save_dir, f"events_{date}_{time}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"), dpi=600, bbox_inches="tight")
 
     return
 
