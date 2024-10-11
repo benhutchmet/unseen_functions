@@ -4948,7 +4948,13 @@ def apply_detrend(
     # Detrend the data by subtracting the trend line and adding the final value
     model_df[model_val_name + "_dt"] = model_df[model_val_name] - trend_line + trend_final
 
+    # interpolate the trend line for the observations
+    trend_line_obs = np.interp(obs_df[obs_time_name], model_df[model_time_name], trend_line)
+
+    # set up the trend final for the obs
+    trend_final_obs = np.mean(slopes.flatten()) * obs_df[obs_time_name].values[-1] + np.mean(intercepts.flatten())
+
     # Detrend the observations
-    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line + trend_final
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final_obs
 
     return obs_df, model_df
