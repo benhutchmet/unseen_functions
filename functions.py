@@ -4939,6 +4939,12 @@ def apply_detrend(
     print(f"The 2.5th percentile of the slopes is {np.percentile(slopes.flatten(), 2.5)}")
     print(f"The 97.5th percentile of the slopes is {np.percentile(slopes.flatten(), 97.5)}")
 
+    # quantify the slope of the observations
+    slope_obs, intercept_obs, _, _, _ = linregress(obs_df[obs_time_name].dt.year.astype(int).values, obs_df[obs_val_name])
+
+    # print the slope of the observations
+    print(f"The slope of the observations is {slope_obs}")
+
     # Set up the trend line as the mean of slopes flat and intercepts flat
     trend_line = np.mean(slopes.flatten()) * model_df[model_time_name].values + np.mean(intercepts.flatten())
 
@@ -4951,10 +4957,136 @@ def apply_detrend(
     # interpolate the trend line for the observations
     trend_line_obs = np.interp(obs_df[obs_time_name], model_df[model_time_name], trend_line)
 
-    # set up the trend final for the obs
-    trend_final_obs = np.mean(slopes.flatten()) * obs_df[obs_time_name].values[-1] + np.mean(intercepts.flatten())
+    # # print obs_df[obs_time_name]
+    # # print model_df[model_time_name]
+    # print(f"The type of obs_df[obs_time_name] is {type(obs_df[obs_time_name].values[0])}")
+
+    # # print the values
+    # print(f"The values of obs_df[obs_time_name] are {obs_df[obs_time_name].values}")
+
+    # # set up the trend final for the obs
+    trend_final_obs = np.mean(slopes.flatten()) * obs_df[obs_time_name].dt.year.astype(int).iloc[-1] + np.mean(intercepts.flatten())
 
     # Detrend the observations
-    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final_obs
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final
+
+    # print the trend line obs 
+    print(f"The trend line obs is {trend_line_obs}")
+
+    # print the trend line model
+    print(f"The trend line model is {trend_line}")
+
+    # print the trend final and trend final obs
+    print(f"The trend final is {trend_final}")
+    print(f"The trend final obs is {trend_final_obs}")
+
+    # print the model_val_name
+    print(f"The model_val_name is {model_val_name}")
+
+    # print the obs_val_name
+    print(f"The obs_val_name is {obs_val_name}")
+
+    # priny the mean of the model and obs data vlaues
+    # print the mean of the model and obs data values
+    print(f"The mean of the model data is {model_df[f'{model_val_name}_dt'].mean()}")
+
+    print(f"The mean of the obs data is {obs_df[f'{obs_val_name}_dt'].mean()}")
 
     return obs_df, model_df
+
+# write a function to peform the linear scaling bias correction
+# Linear scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
+def bc_linear_scaling(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+) -> pd.DataFrame:
+    """
+    Applies a linear scaling bias correction to the model data. 
+    
+    X(t) = Ohat_base - Xhat_base + X_fut(t)
+    
+    Parameters
+    ==========
+    
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    Returns
+    =======
+
+    pd.DataFrame
+        A DataFrame containing the bias corrected model data.
+
+    """
+
+    # Quantify the bias
+    bias = model_df[model_val_name].mean() - obs_df[obs_val_name].mean()
+
+    # Apply the linear scaling bias correction
+    model_df[model_val_name + "_bc"] = model_df[model_val_name] - bias
+
+    return model_df
+
+# write a function to perform the variance scaling bias correction
+# Variance scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
+def bc_variance_scaling(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+) -> pd.DataFrame:
+    """
+    Applies a mean-variance bias correction to the model data. 
+
+    X(t) = σX_fut/σX_base * (O_base(t) - X_base) + X_fut
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    Returns
+    =======
+
+    pd.DataFrame
+        A DataFrame containing the bias corrected model data.
+
+    """
+
+    # Calculate the means
+    obs_mean = obs_df[obs_val_name].mean()
+    model_mean = model_df[model_val_name].mean()
+
+    # Calculate the standard deviations
+    obs_std = obs_df[obs_val_name].std()
+    model_std = model_df[model_val_name].std()
+
+    # Apply the mean-variance bias correction
+    model_df[model_val_name + "_bc"] = (model_df[model_val_name] - model_mean) * (obs_std / model_std) + obs_mean
+
+    return model_df
