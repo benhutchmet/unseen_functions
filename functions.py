@@ -3002,11 +3002,14 @@ def plot_fidelity(
     """
 
     # print the mean bias
-    print(f"The mean bias is {np.mean(model_df[model_val_name] - obs_df[obs_val_name])}")
+    print(
+        f"The mean bias is {np.mean(model_df[model_val_name] - np.mean(obs_df[obs_val_name]))}"
+    )
 
     # print the spread bias
-    print(f"The spread bias is {np.std(model_df[model_val_name] - obs_df[obs_val_name])}")
-
+    print(
+        f"The spread bias is {np.std(model_df[model_val_name]) - np.std(obs_df[obs_val_name])}"
+    )
 
     # Set up the model stats dict
     model_stats = {
@@ -5128,14 +5131,13 @@ def bc_variance_scaling(
     obs_std = np.std(obs_df[obs_val_name])
     model_std = np.std(model_df[model_val_name])
 
-
     # print the obersed val name
     print(f"The observed value name is {obs_val_name}")
     # print the observed spread
     print(f"The observed spread is {obs_std}")
 
     # quantiy the observed spread
-    print(f"The observed spread is {np.std(obs_df[obs_val_name])}") 
+    print(f"The observed spread is {np.std(obs_df[obs_val_name])}")
 
     # print the model spread
     print(f"The model spread is {model_std}")
@@ -5173,9 +5175,210 @@ def bc_variance_scaling(
     )
 
     # print the observed spread
-    print(f"The observed spread before leaving function is {np.std(obs_df[obs_val_name])}")
+    print(
+        f"The observed spread before leaving function is {np.std(obs_df[obs_val_name])}"
+    )
 
     # pfing thd mocdl spread
-    print(f"The model spread before leaving function is {np.std(model_df[model_val_name + '_bc'])}")
+    print(
+        f"The model spread before leaving function is {np.std(model_df[model_val_name + '_bc'])}"
+    )
+
+    return model_df
+
+
+# Define a function to perform bias correction using quantile mapping
+def bc_quantile_mapping(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    save_prefix: str = "qmap",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> pd.DataFrame:
+    """
+    Applies a quantile mapping bias correction to the model data.
+
+    X(t) = F_O^-1(F_X(X(t)))
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "qmap".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    pd.DataFrame
+        A DataFrame containing the bias corrected model data.
+
+    """
+
+    # Set up a square figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # fit a normal distribution to the obs
+    obs_mu, obs_std = norm.fit(obs_df[obs_val_name])
+
+    # fit a normal distribution to the model
+    model_mu, model_std = norm.fit(model_df[model_val_name])
+
+    # generate evenly spaced values over the range of the data for plotting
+    x = np.linspace(
+        min(min(obs_df[obs_val_name]), min(model_df[model_val_name])),
+        max(max(obs_df[obs_val_name]), max(model_df[model_val_name])),
+        100,
+    )
+
+    # calculate the CDFs of the fitted normal distributions
+    obs_cdf = norm.cdf(x, obs_mu, obs_std)
+    model_cdf = norm.cdf(x, model_mu, model_std)
+
+    # plot the model data
+    plt.plot(x, model_cdf, label="HadGEM3-GC31-MM", color="red")
+
+    # plot the obs data
+    plt.plot(x, obs_cdf, label="ERA5", color="black")
+
+    plt.legend()
+
+    # set up the current time
+    now = datetime.now()
+
+    # set up the current date
+    date = now.strftime("%Y-%m-%d")
+
+    # set up the current time
+    time = now.strftime("%H:%M:%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_cdf_{date}_{time}.pdf"))
+
+    # Get an array of cdf values
+    # based on the model data and the normal distribution params
+    cdf_vals = norm.cdf(model_df[model_val_name], loc=model_mu, scale=model_std)
+
+    # set up the cdf hreshold as default
+    cdf_threshold = 1e-10
+
+    # threshold the array of cdf-values
+    # away from 0 and 1
+    threshold_cdf_vals = np.maximum(
+        np.minimum(cdf_vals, 1 - cdf_threshold), cdf_threshold
+    )
+
+    # compute the fitted quantiles using the thresholded cdf values
+    # and the fitted obs normal distribution
+    fitted_quantiles = norm.ppf(threshold_cdf_vals, loc=obs_mu, scale=obs_std)
+
+    # print the values of fitted quantiles and the type
+    print(f"The values of the fitted quantiles are {fitted_quantiles}")
+    print(f"The type of the fitted quantiles is {type(fitted_quantiles)}")
+
+    # print the values of the model data and the type
+    print(f"The values of the model data are {model_df[model_val_name]}")
+
+    # print the type of the model data
+    print(f"The type of the model data is {type(model_df[model_val_name])}")
+
+    # # quantify the differences between the fitted quantiles and the model data
+    # diff = fitted_quantiles - model_df[model_val_name]
+
+    # # print the cumulative sum of the dif
+    # print(f"The cumulative sum of the diff is {np.cumsum(diff)}")
+
+    # plot the fitted quantiles against the model data
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # plot the model data against the fitted quantiles
+    ax.scatter(model_df[model_val_name], fitted_quantiles, color="red")
+
+    # plot the 1:1 line
+    ax.plot(
+        [min(min(model_df[model_val_name]), min(fitted_quantiles)), max(max(model_df[model_val_name]), max(fitted_quantiles))],
+        [min(min(model_df[model_val_name]), min(fitted_quantiles)), max(max(model_df[model_val_name]), max(fitted_quantiles))],
+        color="black",
+        linestyle="--",
+    )
+
+    # set the x-axis label
+    ax.set_xlabel("HadGEM3-GC31-MM")
+
+    # set the y-axis label
+    ax.set_ylabel("ERA5")
+
+    # set the title
+    ax.set_title("Quantile Mapping")
+
+    # save the figure
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_qmap_{date}_{time}.pdf"))
+
+    # fit a normal distribution to the bias corrected data
+    bc_mu, bc_std = norm.fit(fitted_quantiles)
+
+    # print the values of the fitted quantiles
+    print(f"The values of the fitted quantiles are {fitted_quantiles}")
+
+    # print the bc_mu and bc_std
+    print(f"The bc_mu is {bc_mu}")
+    print(f"The bc_std is {bc_std}")
+
+    # set up a new x for the cdf
+    x = np.linspace(
+        min(min(fitted_quantiles), min(model_df[model_val_name])),
+        max(max(fitted_quantiles), max(model_df[model_val_name])),
+        100,
+    )
+
+    # calculate the cdf of the fitted normal distribution
+    bc_cdf = norm.cdf(x, bc_mu, bc_std)
+
+    # Set up another figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # plot the cdf of the obs data as a solid black line
+    plt.plot(x, obs_cdf, color="black", label="ERA5")
+
+    # plot the cdf of the bias corrected data as a red dashed line
+    plt.plot(x, bc_cdf, color="red", linestyle="--", label="HadGEM quantile mapping")
+
+    # plot the original model data as a solid red line
+    plt.plot(x, model_cdf, color="red", label="HadGEM3-GC31-MM")
+
+    # set the x-axis label
+    plt.xlabel("Value")
+
+    # set the y-axis label
+    plt.ylabel("Cumulative Probability")
+
+    # set the title
+    plt.title("CDFs of the model and bias corrected data")
+
+    # set the legend
+    plt.legend()
+
+    # save the figure
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_cdf_bc_{date}_{time}.pdf"))
+
+    # Apply the quantile mapping bias correction
+    model_df[model_val_name + "_bc"] = fitted_quantiles
 
     return model_df
