@@ -1820,21 +1820,11 @@ def plot_distribution(
 
     # Plot the model data on the first y-axis
     plt.hist(
-        model_df[model_val_name], 
-        color="red", 
-        label="model", 
-        alpha=0.5, 
-        density=True
+        model_df[model_val_name], color="red", label="model", alpha=0.5, density=True
     )
 
     # Plot the obs data on the second y-axis
-    plt.hist(
-        obs_df[obs_val_name], 
-        color="black", 
-        label="obs", 
-        alpha=0.5, 
-        density=True
-    )
+    plt.hist(obs_df[obs_val_name], color="black", label="obs", alpha=0.5, density=True)
 
     # # Include a textbox with the sample size
     # ax.text(
@@ -1868,7 +1858,7 @@ def plot_distribution(
         f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
         transform=plt.gca().transAxes,
         bbox=dict(facecolor="white", alpha=0.5),
-        horizontalalignment='right'
+        horizontalalignment="right",
     )
     # # Add a legend
     # plt.legend()
@@ -1893,7 +1883,11 @@ def plot_distribution(
     plt.tight_layout()
 
     # Save the plot
-    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"), dpi=600, bbox_inches="tight")
+    plt.savefig(
+        os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"),
+        dpi=600,
+        bbox_inches="tight",
+    )
 
     # Show the plot
     plt.show()
@@ -3007,6 +3001,13 @@ def plot_fidelity(
 
     """
 
+    # print the mean bias
+    print(f"The mean bias is {np.mean(model_df[model_val_name] - obs_df[obs_val_name])}")
+
+    # print the spread bias
+    print(f"The spread bias is {np.std(model_df[model_val_name] - obs_df[obs_val_name])}")
+
+
     # Set up the model stats dict
     model_stats = {
         "mean": [],
@@ -3380,7 +3381,9 @@ def plot_events_ts(
     # if the model time name column is not formatted as datetime
     if not isinstance(model_df[model_time_name].values[0], np.datetime64):
         # convert the column to datetime (years) from ints for the year
-        model_df[model_time_name] = pd.to_datetime(model_df[model_time_name], format="%Y")
+        model_df[model_time_name] = pd.to_datetime(
+            model_df[model_time_name], format="%Y"
+        )
 
     # if the units are kelvin (we can tell by the values)
     # convert both model and obs to celsius
@@ -3532,7 +3535,6 @@ def plot_events_ts(
         zorder=100,
     )
 
-
     # Plot the 20th percentile of the obs as a horizontal line
     ax.axhline(np.quantile(obs_df[obs_val_name], 0.2), color="blue", linestyle="--")
 
@@ -3564,7 +3566,11 @@ def plot_events_ts(
     time = now.strftime("%H:%M:%S")
 
     # Save the plot
-    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"), dpi=600, bbox_inches="tight")
+    plt.savefig(
+        os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"),
+        dpi=600,
+        bbox_inches="tight",
+    )
 
     return
 
@@ -4315,7 +4321,6 @@ def plot_events_ts_errorbars(
     else:
         print("Detrended columns do not exist")
 
-
     # Now set up the MLR model
     # which predicts CLEARHEADS DnW
     # given model data
@@ -4432,7 +4437,9 @@ def plot_events_ts_errorbars(
         trials_95_obs_grouped = trials_95_obs.groupby(obs_df.index).mean()
 
         # Find the 5th and 95th percentiles of the trials
-        p05_95_obs, p95_95_obs = [trials_95_obs_grouped.T.quantile(q) for q in [0.05, 0.95]]
+        p05_95_obs, p95_95_obs = [
+            trials_95_obs_grouped.T.quantile(q) for q in [0.05, 0.95]
+        ]
 
         # convert to a dataframe
         p05_95_obs = p05_95_obs.to_frame()
@@ -4862,6 +4869,7 @@ def plot_events_ts_errorbars(
 
     return
 
+
 # Define a function to apply the detrending
 def apply_detrend(
     obs_df: pd.DataFrame,
@@ -4912,21 +4920,36 @@ def apply_detrend(
 
     pd.DataFrame
         A DataFrame containing the detrended observations and model data.
-    
+
     """
 
     # Create empty arrays to store the slopes for different member lead combinations
-    slopes = np.zeros([len(model_df[model_member_name].unique()), len(model_df[model_lead_name].unique())])
-    intercepts = np.zeros([len(model_df[model_member_name].unique()), len(model_df[model_lead_name].unique())])
+    slopes = np.zeros(
+        [
+            len(model_df[model_member_name].unique()),
+            len(model_df[model_lead_name].unique()),
+        ]
+    )
+    intercepts = np.zeros(
+        [
+            len(model_df[model_member_name].unique()),
+            len(model_df[model_lead_name].unique()),
+        ]
+    )
 
     # Loop over the unique members
     for m, member in enumerate(model_df[model_member_name].unique()):
         for l, lead in enumerate(model_df[model_lead_name].unique()):
             # Select the data for this member and lead
-            data = model_df[(model_df[model_member_name] == member) & (model_df[model_lead_name] == lead)]
-            
+            data = model_df[
+                (model_df[model_member_name] == member)
+                & (model_df[model_lead_name] == lead)
+            ]
+
             # Fit a linear trend to the model data
-            slope, intercept, _, _, _ = linregress(data[model_time_name], data[model_val_name])
+            slope, intercept, _, _, _ = linregress(
+                data[model_time_name], data[model_val_name]
+            )
 
             # Store the slope and intercept
             slopes[m, l] = slope
@@ -4936,26 +4959,40 @@ def apply_detrend(
     print(f"The mean slope is {np.mean(slopes.flatten())}")
 
     # print the 2.5th and 97.5th percentiles of the slopes
-    print(f"The 2.5th percentile of the slopes is {np.percentile(slopes.flatten(), 2.5)}")
-    print(f"The 97.5th percentile of the slopes is {np.percentile(slopes.flatten(), 97.5)}")
+    print(
+        f"The 2.5th percentile of the slopes is {np.percentile(slopes.flatten(), 2.5)}"
+    )
+    print(
+        f"The 97.5th percentile of the slopes is {np.percentile(slopes.flatten(), 97.5)}"
+    )
 
     # quantify the slope of the observations
-    slope_obs, intercept_obs, _, _, _ = linregress(obs_df[obs_time_name].dt.year.astype(int).values, obs_df[obs_val_name])
+    slope_obs, intercept_obs, _, _, _ = linregress(
+        obs_df[obs_time_name].dt.year.astype(int).values, obs_df[obs_val_name]
+    )
 
     # print the slope of the observations
     print(f"The slope of the observations is {slope_obs}")
 
     # Set up the trend line as the mean of slopes flat and intercepts flat
-    trend_line = np.mean(slopes.flatten()) * model_df[model_time_name].values + np.mean(intercepts.flatten())
+    trend_line = np.mean(slopes.flatten()) * model_df[model_time_name].values + np.mean(
+        intercepts.flatten()
+    )
 
     # Calculate the value of the trend line at the final point
-    trend_final = np.mean(slopes.flatten()) * model_df[model_time_name].values[-1] + np.mean(intercepts.flatten())
+    trend_final = np.mean(slopes.flatten()) * model_df[model_time_name].values[
+        -1
+    ] + np.mean(intercepts.flatten())
 
     # Detrend the data by subtracting the trend line and adding the final value
-    model_df[model_val_name + "_dt"] = model_df[model_val_name] - trend_line + trend_final
+    model_df[model_val_name + "_dt"] = (
+        model_df[model_val_name] - trend_line + trend_final
+    )
 
     # interpolate the trend line for the observations
-    trend_line_obs = np.interp(obs_df[obs_time_name], model_df[model_time_name], trend_line)
+    trend_line_obs = np.interp(
+        obs_df[obs_time_name], model_df[model_time_name], trend_line
+    )
 
     # # print obs_df[obs_time_name]
     # # print model_df[model_time_name]
@@ -4965,12 +5002,14 @@ def apply_detrend(
     # print(f"The values of obs_df[obs_time_name] are {obs_df[obs_time_name].values}")
 
     # # set up the trend final for the obs
-    trend_final_obs = np.mean(slopes.flatten()) * obs_df[obs_time_name].dt.year.astype(int).iloc[-1] + np.mean(intercepts.flatten())
+    trend_final_obs = np.mean(slopes.flatten()) * obs_df[obs_time_name].dt.year.astype(
+        int
+    ).iloc[-1] + np.mean(intercepts.flatten())
 
     # Detrend the observations
     obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final
 
-    # print the trend line obs 
+    # print the trend line obs
     print(f"The trend line obs is {trend_line_obs}")
 
     # print the trend line model
@@ -4994,6 +5033,7 @@ def apply_detrend(
 
     return obs_df, model_df
 
+
 # write a function to peform the linear scaling bias correction
 # Linear scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
 def bc_linear_scaling(
@@ -5003,13 +5043,13 @@ def bc_linear_scaling(
     model_val_name: str,
 ) -> pd.DataFrame:
     """
-    Applies a linear scaling bias correction to the model data. 
-    
+    Applies a linear scaling bias correction to the model data.
+
     X(t) = Ohat_base - Xhat_base + X_fut(t)
-    
+
     Parameters
     ==========
-    
+
     obs_df: pd.DataFrame
         The DataFrame containing the observations with columns for the
         observation value and the observation time.
@@ -5040,6 +5080,7 @@ def bc_linear_scaling(
 
     return model_df
 
+
 # write a function to perform the variance scaling bias correction
 # Variance scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
 def bc_variance_scaling(
@@ -5049,7 +5090,7 @@ def bc_variance_scaling(
     model_val_name: str,
 ) -> pd.DataFrame:
     """
-    Applies a mean-variance bias correction to the model data. 
+    Applies a mean-variance bias correction to the model data.
 
     X(t) = σX_fut/σX_base * (O_base(t) - X_base) + X_fut
 
@@ -5087,32 +5128,54 @@ def bc_variance_scaling(
     obs_std = np.std(obs_df[obs_val_name])
     model_std = np.std(model_df[model_val_name])
 
+
+    # print the obersed val name
+    print(f"The observed value name is {obs_val_name}")
+    # print the observed spread
+    print(f"The observed spread is {obs_std}")
+
+    # quantiy the observed spread
+    print(f"The observed spread is {np.std(obs_df[obs_val_name])}") 
+
+    # print the model spread
+    print(f"The model spread is {model_std}")
+
     # Adjust the mean of the model data
     model_df[model_val_name + "_mean_bc"] = model_df[model_val_name] + (
         obs_mean - model_mean
     )
 
     # Normalise the mean corrected model data to a zero mean
-    model_df[model_val_name + "_mean_bc_norm"] = (
-        model_df[model_val_name + "_mean_bc"]
-        - np.mean(model_df[model_val_name + "_mean_bc"])
-    )
+    model_df[model_val_name + "_mean_bc_norm"] = model_df[
+        model_val_name + "_mean_bc"
+    ] - np.mean(model_df[model_val_name + "_mean_bc"])
 
     # Scale the variance
     model_df[model_val_name + "_mean_var_bc"] = (
-        np.std(obs_df[obs_val_name]) / np.std(model_df[model_val_name + "_mean_bc_norm"])
+        np.std(obs_df[obs_val_name])
+        / np.std(model_df[model_val_name + "_mean_bc_norm"])
     ) * model_df[model_val_name + "_mean_bc_norm"]
 
     # add the mean back to the variance scaled model data
-    model_df[model_val_name + "_bc"] = (
-        model_df[model_val_name + "_mean_var_bc"] + np.mean(model_df[model_val_name + "_mean_bc"])
-    )
+    model_df[model_val_name + "_bc"] = model_df[
+        model_val_name + "_mean_var_bc"
+    ] + np.mean(model_df[model_val_name + "_mean_bc"])
 
     # remove the columns that are not needed
     model_df.drop(
-        [model_val_name + "_mean_bc", model_val_name + "_mean_bc_norm", model_val_name + "_mean_var_bc"],
+        [
+            model_val_name + "_mean_bc",
+            model_val_name + "_mean_bc_norm",
+            model_val_name + "_mean_var_bc",
+        ],
         axis=1,
         inplace=True,
     )
-    
+
+    # print the observed spread
+    print(f"The observed spread before leaving function is {np.std(obs_df[obs_val_name])}")
+
+    # pfing thd mocdl spread
+    print(f"The model spread before leaving function is {np.std(model_df[model_val_name + '_bc'])}")
+
     return model_df
