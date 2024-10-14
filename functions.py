@@ -5078,15 +5078,19 @@ def bc_variance_scaling(
 
     """
 
+    # Apply the mean-variance bias correction
     # Calculate the means
-    obs_mean = obs_df[obs_val_name].mean()
-    model_mean = model_df[model_val_name].mean()
+    obs_mean = np.mean(obs_df[obs_val_name])
+    model_mean = np.mean(model_df[model_val_name])
 
     # Calculate the standard deviations
-    obs_std = obs_df[obs_val_name].std()
-    model_std = model_df[model_val_name].std()
+    obs_std = np.std(obs_df[obs_val_name])
+    model_std = np.std(model_df[model_val_name])
+
+    # Calculate the bias correction factor
+    correction_factor = (obs_mean - model_mean) * (obs_std / model_std)
 
     # Apply the mean-variance bias correction
-    model_df[model_val_name + "_bc"] = (model_df[model_val_name] - model_mean) * (obs_std / model_std) + obs_mean
-
+    model_df[model_val_name + "_bc"] = model_df[model_val_name] + correction_factor
+    
     return model_df
