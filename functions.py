@@ -5087,10 +5087,32 @@ def bc_variance_scaling(
     obs_std = np.std(obs_df[obs_val_name])
     model_std = np.std(model_df[model_val_name])
 
-    # Calculate the bias correction factor
-    correction_factor = (obs_mean - model_mean) * (obs_std / model_std)
+    # Adjust the mean of the model data
+    model_df[model_val_name + "_mean_bc"] = model_df[model_val_name] + (
+        obs_mean - model_mean
+    )
 
-    # Apply the mean-variance bias correction
-    model_df[model_val_name + "_bc"] = model_df[model_val_name] + correction_factor
+    # Normalise the mean corrected model data to a zero mean
+    model_df[model_val_name + "_mean_bc_norm"] = (
+        model_df[model_val_name + "_mean_bc"]
+        - np.mean(model_df[model_val_name + "_mean_bc"])
+    )
+
+    # Scale the variance
+    model_df[model_val_name + "_mean_var_bc"] = (
+        np.std(obs_df[obs_val_name]) / np.std(model_df[model_val_name + "_mean_bc_norm"])
+    ) * model_df[model_val_name + "_mean_bc_norm"]
+
+    # add the mean back to the variance scaled model data
+    model_df[model_val_name + "_bc"] = (
+        model_df[model_val_name + "_mean_var_bc"] + np.mean(model_df[model_val_name + "_mean_bc"])
+    )
+
+    # remove the columns that are not needed
+    model_df.drop(
+        [model_val_name + "_mean_bc", model_val_name + "_mean_bc_norm", model_val_name + "_mean_var_bc"],
+        axis=1,
+        inplace=True,
+    )
     
     return model_df
