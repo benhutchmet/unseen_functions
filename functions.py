@@ -14,7 +14,8 @@ import pandas as pd
 from tqdm import tqdm
 import seaborn as sns
 from scipy import stats, signal
-from scipy.stats import genextreme, linregress
+from scipy.stats import genextreme as gev
+from scipy.stats import linregress
 import matplotlib.pyplot as plt
 import iris
 import shapely.geometry
@@ -5382,3 +5383,166 @@ def bc_quantile_mapping(
     model_df[model_val_name + "_bc"] = fitted_quantiles
 
     return model_df
+
+# Define a function to plot the chance of an event
+# being worse (i.e. lower values)
+# than a specific year (in this case 2010)
+def plot_chance_of_event(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_year: int = 2010,
+    save_prefix: str = "chance_of_event",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the chance of an event being worse than a specific year.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_year: int
+        The year to compare against. Default is 2010.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "chance_of_event".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # Set up the params for the obs and the model
+    params_obs = [] ; params_model = [] 
+
+    # Set up the years
+    years = np.arange(1.1, 1000, 0.1)
+
+    # Generate 1000 values by resamlping data with replacement
+    for i in tqdm(range(1000)):
+        params_obs.append(
+            gev.fit(np.random.choice(obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True))
+        )
+        params_model.append(
+            gev.fit(np.random.choice(model_df[model_val_name], size=len(model_df[model_val_name]), replace=True))
+        )
+    
+    # initialize the list for return levels
+    levels_obs = [] ; levels_model = []
+
+    # Calculate the return levels for each of the 1000 samples
+    for i in range(1000):
+        levels_obs.append(gev.ppf(1 - 1 / years, *params_obs[i]))
+        levels_model.append(gev.ppf(1 - 1 / years, *params_model[i]))
+
+    # turn this into arrays
+    levels_obs = np.array(levels_obs)
+    levels_model = np.array(levels_model)
+
+    # set up the figure
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # Find empirical return levels
+    _ = empirical_return_level(obs_df[obs_val_name].values).plot(
+        ax=ax, color="black", linestyle="None", marker="."
+    )
+    _ = empirical_return_level(model_df[model_val_name].values).plot(
+        ax=ax, color="red", linestyle="None", marker="."
+    )
+
+    # Plot the return mean levels
+    _ = plt.plot(years, np.mean(levels_obs, axis=0), "k-", label="ERA5")
+    _ = plt.plot(years, np.mean(levels_model, axis=0), "r-", label="HadGEM3-GC31-MM")
+
+    # Plot the confidence intervals
+    _ = ax.plot(years, np.quantile(levels_obs, [0.025, 0.975], axis=0).T, "k--")
+    _ = ax.plot(years, np.quantile(levels_model, [0.025, 0.975], axis=0).T, "r--")
+
+    # aesthetics
+    ax.set_xlim(1.5, 1000)
+    ax.set_xscale("log")
+    ax.set_xlabel("Return period")
+    ax.set_ylabel("Return level")
+
+    # show the legend
+    ax.legend()
+
+    # set the title
+    time_now = datetime.now()
+
+    # set the date
+    date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # save the figure
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
+
+    return
+
+
+
+# define a function for calculating the empirical return period
+def empirical_return_level(
+    data: np.ndarray,
+):
+    """
+    Function to calculate the empirical return level for a given dataset.
+
+    Args:
+        data (np.ndarray): Array containing the data of interest.
+
+    Returns:
+        np.ndarray: Array containing the empirical return levels.
+
+    """
+
+    # assert that the data is a numpy array
+    assert isinstance(data, np.ndarray), "Data must be a numpy array"
+
+    # create a dataframe from the data
+    df = pd.DataFrame(index=np.arange(data.size))
+
+    # Sort the data
+    df["sorted"] = np.sort(data)[::-1]
+
+    # rank via scipy (notice the negative here)
+    df["rank_sp"] = np.sort(stats.rankdata(-data))
+
+    # find the exceedance probability
+    n = data.size
+    df["exceedance"] = df["rank_sp"] / (n + 1)
+
+    # find the return period
+    df["period"] = 1 / df["exceedance"]
+
+    # reverse the order of rows
+    df = df[::-1]
+
+    # transform into xarray dataarray
+    out = xr.DataArray(
+        dims=["period"],
+        coords={"period": df["period"]},
+        data=df["sorted"],
+        name="level",
+    )
+
+    return out
