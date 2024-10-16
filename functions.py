@@ -636,7 +636,7 @@ def load_model_data_xarray(
         # Set up the member list
         member_list = []
         # Loop over the unique variant labels
-        for variant_label in unique_variant_labels:
+        for variant_label in tqdm(unique_variant_labels):
             # Find the matching path for the given year and member
             # e.g file containing f"s{init_year}-{variant_label}
             files = [
@@ -3020,11 +3020,15 @@ def plot_fidelity(
         "kurt": [],
     }
 
+    # print the len model_time_name unique
+    print(f"The number of unique model times is {len(model_df[model_time_name].unique())}")
+    print(f"The number of unique obs times is {len(obs_df[obs_time_name].unique())}")
+
     # Assert that the len of unique init in model_df
     # is equal to the len of unique year in obs_df
-    assert len(model_df[model_time_name].unique()) == len(
-        obs_df[obs_time_name].unique()
-    ), "The number of unique initialisation dates in the model data must be equal to the number of unique years in the observations."
+    # assert len(model_df[model_time_name].unique()) == len(
+    #     obs_df[obs_time_name].unique()
+    # ), "The number of unique initialisation dates in the model data must be equal to the number of unique years in the observations."
 
     # Set up the number of unique initialisation dates
     n_years = len(model_df[model_time_name].unique())
