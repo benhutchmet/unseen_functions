@@ -5577,60 +5577,121 @@ def plot_chance_of_event(
     # inclduie a dotted line for the 1% threshold (i.e. 1 in 100 year event)
     ax.axhline(1, color="black", linestyle="dotted")  # 1 in 100 year event
 
-    # find where the vertical line zero intersects the mean of the obs return levels
-    return_period_worst_obs = np.interp(0, np.mean(levels_obs_anomaly, axis=0), probs)
+    # # plot a vertical line at 0
+    # ax.axvline(0, color="black", linestyle="dotted")
 
-    # Using the y value at this point, find where this intersects the 5% confidence interval
-    return_period_5_obs = np.interp(
-        return_period_worst_obs,
-        np.quantile(levels_obs_anomaly, 0.05, axis=0),
-        probs,
+    # create a list of levels to quantify the values for
+    levels = [5, 10, 20, 100, 1000]
+
+    # loop over the levels
+    for level in levels:
+        return_level_obs = estimate_return_level_period(
+            period=level,
+            loc=np.mean(params_obs, axis=0)[1],
+            scale=np.mean(params_obs, axis=0)[2],
+            shape=np.mean(params_obs, axis=0)[0],
+        )
+
+        return_level_model = estimate_return_level_period(
+            period=level,
+            loc=np.mean(params_model, axis=0)[1],
+            scale=np.mean(params_model, axis=0)[2],
+            shape=np.mean(params_model, axis=0)[0],
+        )
+
+        # print the level and the return level
+        print(f"The level is {level} and the return value for the obs fit is {return_level_obs} m/s")
+
+        # print the level and the return level
+        print(f"The level is {level} and the return value for the model fit is {return_level_model} m/s")
+
+    # create a lits of values to estimate for
+    values = [4.5, 4.0, 3.75, 3.5, 3.25]
+
+    # loop over the values
+    for value in values:
+        period_obs = estimate_period(
+            return_level=value,
+            loc=np.mean(params_obs, axis=0)[1],
+            scale=np.mean(params_obs, axis=0)[2],
+            shape=np.mean(params_obs, axis=0)[0],
+        )
+
+        period_model = estimate_period(
+            return_level=value,
+            loc=np.mean(params_model, axis=0)[1],
+            scale=np.mean(params_model, axis=0)[2],
+            shape=np.mean(params_model, axis=0)[0],
+        )
+
+        # print the values for the obs
+        print(f"The value is {value} and the period for the obs fit is {period_obs} years")
+
+        # print the values for the model
+        print(f"The value is {value} and the period for the model fit is {period_model} years")
+
+    # assign a variable to the obs lowest value
+    lowest_obs = obs_df[obs_val_name].min()
+
+    # Estimate the period for the obs mean data
+    period_obs_mean = estimate_period(
+        return_level=lowest_obs,
+        loc=np.mean(params_obs, axis=0)[1],
+        scale=np.mean(params_obs, axis=0)[2],
+        shape=np.mean(params_obs, axis=0)[0],
     )
 
-    # same for the 95% confidence interval
-    return_period_95_obs = np.interp(
-        return_period_worst_obs,
-        np.quantile(levels_obs_anomaly, 0.95, axis=0),
-        probs,
+    # period model mean
+    period_model_mean = estimate_period(
+        return_level=lowest_obs,
+        loc=np.mean(params_model, axis=0)[1],
+        scale=np.mean(params_model, axis=0)[2],
+        shape=np.mean(params_model, axis=0)[0],
     )
 
-    # do the same for the model data
-    return_period_worst_model = np.interp(0, np.mean(levels_model_anomaly, axis=0), probs)
-
-    # Using the y value at this point, find where this intersects the 5% confidence interval
-    return_period_5_model = np.interp(
-        return_period_worst_model,
-        np.quantile(levels_model_anomaly, 0.05, axis=0),
-        probs,
+    # obs 05 percentile
+    period_obs_05 = estimate_period(
+        return_level=lowest_obs,
+        loc=np.percentile(params_obs, 5, axis=0)[1],
+        scale=np.percentile(params_obs, 5, axis=0)[2],
+        shape=np.percentile(params_obs, 5, axis=0)[0],
     )
 
-    # same for the 95% confidence interval
-    return_period_95_model = np.interp(
-        return_period_worst_model,
-        np.quantile(levels_model_anomaly, 0.95, axis=0),
-        probs,
+    # obs 95 percentile
+    period_obs_95 = estimate_period(
+        return_level=lowest_obs,
+        loc=np.percentile(params_obs, 95, axis=0)[1],
+        scale=np.percentile(params_obs, 95, axis=0)[2],
+        shape=np.percentile(params_obs, 95, axis=0)[0],
     )
 
-    # calculate the 5-95% range in both cases
-    return_period_range_obs = return_period_95_obs - return_period_5_obs
-    return_period_range_model = return_period_95_model - return_period_5_model
+    # model 05 percentile
+    period_model_05 = estimate_period(
+        return_level=lowest_obs,
+        loc=np.percentile(params_model, 5, axis=0)[1],
+        scale=np.percentile(params_model, 5, axis=0)[2],
+        shape=np.percentile(params_model, 5, axis=0)[0],
+    )
 
-    # print all of these values
-    print(f"ERA5: {return_period_worst_obs:.3f}% (+- {return_period_range_obs:.3f})")
-    print(f"HadGEM3-GC31-MM: {return_period_worst_model:.3f}%  (+- {return_period_range_model:.3f})")
+    # model 95 percentile
+    period_model_95 = estimate_period(
+        return_level=lowest_obs,
+        loc=np.percentile(params_model, 95, axis=0)[1],
+        scale=np.percentile(params_model, 95, axis=0)[2],
+        shape=np.percentile(params_model, 95, axis=0)[0],
+    )
 
-    # print the worst values
-    print(f"return period worst obs is {return_period_worst_obs}")
-    print(f"return period worst model is {return_period_worst_model}")
-
+    # quantify the obs 90th percentile
+    period_obs_90 = abs(period_obs_95 - period_obs_05)
+    period_model_90 = abs(period_model_95 - period_model_05)
 
     # include a textbox with this information in the top right
     ax.text(
         0.95,
         0.95,
-        f"ERA5: {return_period_worst_obs:.3f}% (+- {return_period_range_obs:.3f}) \nHadGEM3-GC31-MM: {return_period_worst_model:.3f}%  (+- {return_period_range_model:.3f})",
+        f"ERA5: {period_obs_mean:.2f}% (+- {period_obs_90:.2f}%), 1:{round(1/period_obs_mean * 100)}-yr  \nHadGEM3-GC31-MM: {period_model_mean:.2f}% (+- {period_model_90:.2f}%), 1:{round(1/period_model_mean * 100)}-yr",
         transform=ax.transAxes,
-        fontsize=10,
+        fontsize=8,
         verticalalignment="top",
         horizontalalignment="right",
         bbox=dict(facecolor="white", alpha=0.5),
@@ -5712,3 +5773,22 @@ def empirical_return_level(
     # )
 
     return df
+
+def estimate_return_level_period(period,loc,scale,shape):
+    '''
+    Compute GEV-based return level for a given return period, and GEV parameters
+    '''
+    return gev.ppf(1/period,shape,loc=loc,scale=scale)
+
+
+def estimate_period(return_level, loc, scale, shape):
+    # Use the cumulative distribution function (CDF) of the GEV distribution
+    # to estimate the cumulative probability for a given return level
+    prob = gev.cdf(return_level, c=shape, loc=loc, scale=scale)
+    
+    # Take the reciprocal of the probability to get the period
+    period = 1 / prob
+
+    probs = 1 / period * 100
+
+    return probs
