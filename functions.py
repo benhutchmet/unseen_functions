@@ -16,6 +16,7 @@ import seaborn as sns
 from scipy import stats, signal
 from scipy.stats import genextreme as gev
 from scipy.stats import linregress
+import matplotlib
 import matplotlib.pyplot as plt
 import iris
 import shapely.geometry
@@ -33,6 +34,7 @@ from scipy.stats import pearsonr, norm
 from sklearn.metrics import r2_score, mean_squared_error
 from tqdm import tqdm
 from typing import Any, List, Tuple
+from datetime import datetime
 
 # Path to modules
 sys.path.append("/home/users/benhutch/unseen_multi_year/")
@@ -5396,6 +5398,8 @@ def plot_chance_of_event(
     model_df: pd.DataFrame,
     obs_val_name: str,
     model_val_name: str,
+    variable: str,
+    num_samples: int = 1000,
     obs_year: int = 2010,
     save_prefix: str = "chance_of_event",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
@@ -5439,11 +5443,34 @@ def plot_chance_of_event(
     # Set up the params for the obs and the model
     params_obs = [] ; params_model = [] 
 
+    # find the years of the lowest value event in the obs data
+    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()]["time"].values[0]
+
+    # print the year and the value
+    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+
+    # print the value at this time
+    print(f"The value at this time is {obs_df[obs_val_name].min()}")
+
+    # Convert numpy.datetime64 to datetime
+    obs_time_lowest = obs_time_lowest.astype(datetime)
+
+    # Convert timestamp to datetime
+    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit='ns')
+
+    # print obs time lowesty
+    print(f"The obs time lowest is {obs_time_lowest}")
+
+    # Format datetime to "YYYY-MM"
+    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+
+    print(f"The obs time lowest is {obs_time_lowest}")
+
     # Set up the years
     years = np.arange(1.1, 1000, 0.1)
 
     # Generate 1000 values by resamlping data with replacement
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(num_samples)):
         params_obs.append(
             gev.fit(np.random.choice(obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True))
         )
@@ -5454,42 +5481,174 @@ def plot_chance_of_event(
     # initialize the list for return levels
     levels_obs = [] ; levels_model = []
 
+    # # print params obs
+    # print(f"The params obs are {params_obs}")
+
+    # # print params model
+    # print(f"The params model are {params_model}")
+
+    # negate each of the params individually
+    # Negate each element in each tuple
+    # params_obs = [tuple(-x for x in param) for param in params_obs]
+    # params_model = [tuple(-x for x in param) for param in params_model]
+
+    # print(f"The params obs are {params_obs}")
+
+    # print(f"The params model are {params_model}")
+
     # Calculate the return levels for each of the 1000 samples
-    for i in range(1000):
-        levels_obs.append(gev.ppf(1 - 1 / years, *params_obs[i]))
-        levels_model.append(gev.ppf(1 - 1 / years, *params_model[i]))
+    for i in range(num_samples):
+        levels_obs.append(gev.ppf(1 / years, *params_obs[i]))
+        levels_model.append(gev.ppf(1 / years, *params_model[i]))
 
     # turn this into arrays
     levels_obs = np.array(levels_obs)
     levels_model = np.array(levels_model)
 
     # set up the figure
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(6, 6))
 
-    # Find empirical return levels
-    _ = empirical_return_level(obs_df[obs_val_name].values).plot(
-        ax=ax, color="black", linestyle="None", marker="."
-    )
-    _ = empirical_return_level(model_df[model_val_name].values).plot(
-        ax=ax, color="red", linestyle="None", marker="."
-    )
+    # # Find empirical return levels
+    # _ = empirical_return_level(obs_df[obs_val_name].values).plot(
+    #     ax=ax, color="black", linestyle="None", marker="."
+    # )
+    # _ = empirical_return_level(model_df[model_val_name].values).plot(
+    #     ax=ax, color="red", linestyle="None", marker="."
+    # )
+
+    # set up the probablities
+    probs = 1 / years * 100
+
+    # print the years
+    print(f"The years are {years}")
+
+    # print the probabilities
+    print(f"The probabilities are {probs}")
+
+    # worst obs event
+    obs_worst_event = obs_df[obs_val_name].min()
+
+    # Calculate the empirical return levels
+    obs_df_rl = empirical_return_level(obs_df[obs_val_name].values)
+    model_df_rl = empirical_return_level(model_df[model_val_name].values)
+
+    # add a new column for the anomalies from the worst observed event
+    obs_df_rl["anomalies"] = obs_df_rl["sorted"] - obs_worst_event
+    model_df_rl["anomalies"] = model_df_rl["sorted"] - obs_worst_event
+
+    # Plot the anomalies and the probabilities
+    _ = plt.plot(obs_df_rl["anomalies"], obs_df_rl["probability"], color="black", linestyle="None", marker=".")
+    _ = plt.plot(model_df_rl["anomalies"], model_df_rl["probability"], color="red", linestyle="None", marker=".")
+
+    # _ = plt.plot(probs, obs_anomalies, color="black", linestyle="None", marker=".")
+    # _ = plt.plot(probs, model_anomalies, color="red", linestyle="None", marker=".")
+
+    # subtract the worst event from the obs data
+    levels_obs_anomaly = levels_obs - obs_worst_event
+    levels_model_anomaly = levels_model - obs_worst_event
 
     # Plot the return mean levels
-    _ = plt.plot(years, np.mean(levels_obs, axis=0), "k-", label="ERA5")
-    _ = plt.plot(years, np.mean(levels_model, axis=0), "r-", label="HadGEM3-GC31-MM")
+    _ = plt.plot(np.mean(levels_obs_anomaly, axis=0), probs, "k-", label="ERA5")
+    _ = plt.plot(np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM")
 
     # Plot the confidence intervals
-    _ = ax.plot(years, np.quantile(levels_obs, [0.025, 0.975], axis=0).T, "k--")
-    _ = ax.plot(years, np.quantile(levels_model, [0.025, 0.975], axis=0).T, "r--")
+    _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
+    _ = ax.plot(np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
 
     # aesthetics
-    ax.set_xlim(1.5, 1000)
-    ax.set_xscale("log")
-    ax.set_xlabel("Return period")
-    ax.set_ylabel("Return level")
+    ax.set_ylim(0.1, 20)  # Adjust as needed
+    ax.set_xlim(1, -1)  # Adjust as needed
+
+    # set the xpoints
+    x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
+
+    # y_labels = [f"{x:.1f}%" for x in x_points]
+
+    # depending on the variable set up the unnits
+    if variable == "sfcWind":
+        # set the units
+        units = "m/s"
+    elif variable == "tas":
+        # set the units
+        units = "°C"
+    else:
+        print(f"variable {variable} not recognized")
+
+    # inclduie a dotted line for the 1% threshold (i.e. 1 in 100 year event)
+    ax.axhline(1, color="black", linestyle="dotted")  # 1 in 100 year event
+
+    # find where the vertical line zero intersects the mean of the obs return levels
+    return_period_worst_obs = np.interp(0, np.mean(levels_obs_anomaly, axis=0), probs)
+
+    # Using the y value at this point, find where this intersects the 5% confidence interval
+    return_period_5_obs = np.interp(
+        return_period_worst_obs,
+        np.quantile(levels_obs_anomaly, 0.05, axis=0),
+        probs,
+    )
+
+    # same for the 95% confidence interval
+    return_period_95_obs = np.interp(
+        return_period_worst_obs,
+        np.quantile(levels_obs_anomaly, 0.95, axis=0),
+        probs,
+    )
+
+    # do the same for the model data
+    return_period_worst_model = np.interp(0, np.mean(levels_model_anomaly, axis=0), probs)
+
+    # Using the y value at this point, find where this intersects the 5% confidence interval
+    return_period_5_model = np.interp(
+        return_period_worst_model,
+        np.quantile(levels_model_anomaly, 0.05, axis=0),
+        probs,
+    )
+
+    # same for the 95% confidence interval
+    return_period_95_model = np.interp(
+        return_period_worst_model,
+        np.quantile(levels_model_anomaly, 0.95, axis=0),
+        probs,
+    )
+
+    # calculate the 5-95% range in both cases
+    return_period_range_obs = return_period_95_obs - return_period_5_obs
+    return_period_range_model = return_period_95_model - return_period_5_model
+
+    # print all of these values
+    print(f"ERA5: {return_period_worst_obs:.3f}% (+- {return_period_range_obs:.3f})")
+    print(f"HadGEM3-GC31-MM: {return_period_worst_model:.3f}%  (+- {return_period_range_model:.3f})")
+
+    # print the worst values
+    print(f"return period worst obs is {return_period_worst_obs}")
+    print(f"return period worst model is {return_period_worst_model}")
+
+
+    # include a textbox with this information in the top right
+    ax.text(
+        0.95,
+        0.95,
+        f"ERA5: {return_period_worst_obs:.3f}% (+- {return_period_range_obs:.3f}) \nHadGEM3-GC31-MM: {return_period_worst_model:.3f}%  (+- {return_period_range_model:.3f})",
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        horizontalalignment="right",
+        bbox=dict(facecolor="white", alpha=0.5),
+    )
+
+
+    ax.set_yscale("log")
+    # set the yticks
+    ax.set_yticks(x_points)
+    ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_ylabel("Chance of event (%)")
+    ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
+
+    # Set the title
+    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest}")
 
     # show the legend
-    ax.legend()
+    ax.legend(loc="lower left")
 
     # set the title
     time_now = datetime.now()
@@ -5498,7 +5657,7 @@ def plot_chance_of_event(
     date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # save the figure
-    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), bbox_inches="tight")
 
     return
 
@@ -5526,10 +5685,10 @@ def empirical_return_level(
     df = pd.DataFrame(index=np.arange(data.size))
 
     # Sort the data
-    df["sorted"] = np.sort(data)[::-1]
+    df["sorted"] = np.sort(data)
 
-    # rank via scipy (notice the negative here)
-    df["rank_sp"] = np.sort(stats.rankdata(-data))
+    # rank via scipy
+    df["rank_sp"] = np.sort(stats.rankdata(data))
 
     # find the exceedance probability
     n = data.size
@@ -5538,15 +5697,18 @@ def empirical_return_level(
     # find the return period
     df["period"] = 1 / df["exceedance"]
 
+    # calculate the probability in %
+    df["probability"] = 1 / df["period"] * 100
+
     # reverse the order of rows
     df = df[::-1]
 
-    # transform into xarray dataarray
-    out = xr.DataArray(
-        dims=["period"],
-        coords={"period": df["period"]},
-        data=df["sorted"],
-        name="level",
-    )
+    # # transform into xarray dataarray
+    # out = xr.DataArray(
+    #     dims=["probability"],
+    #     coords={"probability": df["probability"]},
+    #     data=df["sorted"],
+    #     name="level",
+    # )
 
-    return out
+    return df
