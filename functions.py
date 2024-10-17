@@ -30,7 +30,7 @@ import cftime
 from typing import Any, Callable, Union, List
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.linear_model import LinearRegression
-from scipy.stats import pearsonr, norm
+from scipy.stats import pearsonr, norm, ks_2samp
 from sklearn.metrics import r2_score, mean_squared_error
 from tqdm import tqdm
 from typing import Any, List, Tuple
@@ -5792,3 +5792,218 @@ def estimate_period(return_level, loc, scale, shape):
     probs = 1 / period * 100
 
     return probs
+
+# plot the cdfs for the two datasets
+def plot_cdfs(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    save_prefix: str = "cdfs",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the CDFs of the observations and model data.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "cdfs".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # Set up the figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # sort the obs data
+    obs_x = np.sort(obs_df[obs_val_name])
+    obs_y = np.arange(1, len(obs_x) + 1) / float(len(obs_x))
+
+    # sort the model data
+    model_x = np.sort(model_df[model_val_name])
+    model_y = np.arange(1, len(model_x) + 1) / float(len(model_x))
+
+    # plot the observed cdf
+    ax.plot(obs_x, obs_y, color="black", label="ERA5")
+
+    # plot the model cdf
+    ax.plot(model_x, model_y, color="red", label="HadGEM3-GC31-MM")
+
+    # Set the x-axis label
+    plt.xlabel("Sum")
+
+    # Set the y-axis label
+    plt.ylabel("CDF")
+
+    # Set the title
+    # plt.title("CDFs of the model and bias corrected data")
+
+    # quantify the two sample ks test
+    ks_stat, ks_p = ks_2samp(obs_df[obs_val_name], model_df[model_val_name])
+
+    # print the ks stat and the ks p
+    print(f"The ks stat is {ks_stat}")
+    print(f"The ks p is {ks_p}")
+
+    upper_alpha = 0.05 ; lower_alpha = 0.01
+    c_upper_alpha = 1.36 ; c_lower_alpha = 1.63
+
+    # quantify the critical value D_alpha
+    d_alpha_upper = c_upper_alpha * np.sqrt((len(obs_df[obs_val_name]) + len(model_df[model_val_name])) / (len(obs_df[obs_val_name]) * len(model_df[model_val_name])))
+    d_alpha_lower = c_lower_alpha * np.sqrt((len(obs_df[obs_val_name]) + len(model_df[model_val_name])) / (len(obs_df[obs_val_name]) * len(model_df[model_val_name])))
+
+    # print the critical values
+    print(f"at alpha = {upper_alpha}, the critical value is {d_alpha_upper}")
+    print(f"at alpha = {lower_alpha}, the critical value is {d_alpha_lower}")
+
+    # if the statistic value is higher than the critical value
+    if ks_stat > d_alpha_lower:
+        print("The null hypothesis is rejected at the 1% level")
+        print("The two samples are not drawn from the same distribution")
+    elif ks_stat > d_alpha_upper:
+        print("The null hypothesis is rejected at the 5% level")
+        print("The two samples are not drawn from the same distribution")
+    else:
+        print("The null hypothesis is not rejected")
+
+    # if the ks_p is smaller than the alpha
+    if ks_p < lower_alpha:
+        print("The null hypothesis is rejected at the 1% level")
+        print("The two samples are not drawn from the same distribution")
+    elif ks_p < upper_alpha:
+        print("The null hypothesis is rejected at the 5% level")
+        print("The two samples are not drawn from the same distribution")
+    else:
+        print("The null hypothesis is not rejected")
+
+    # set the current time
+    now = datetime.now()
+
+    # set the current date
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
+
+    return
+
+# Define a function to plot the quantile quantile plot
+# comparing the two distributions
+def plot_qq(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    save_prefix: str = "qq",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the quantile-quantile plot comparing the observations and model data.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "qq".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # Set up the figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # set up the quantiles
+    quantiles = np.linspace(0, 1, 100)
+
+    quantiles_x = np.linspace(0, 10, 1000)
+
+    # set up qunatiles y for the 1 to 1 line
+    quantiles_y = np.linspace(0, 10, 1000)
+
+    # set up the quantiles for the obs data
+    obs_quantiles = np.quantile(obs_df[obs_val_name], quantiles)
+
+    # set up the quantiles for the model data
+    model_quantiles = np.quantile(model_df[model_val_name], quantiles)
+
+    # # plot the 1:1 line
+    # ax.plot(quantiles_x, quantiles_y, color="black", linestyle="--")
+
+    # round down from the value of the lowest quantile
+    min_val = np.floor(min(min(obs_quantiles), min(model_quantiles)))
+
+    # round up from the value of the highest quantile
+    max_val = np.ceil(max(max(obs_quantiles), max(model_quantiles)))
+
+    # create a x = y line
+    x = np.linspace(min_val, max_val, 100)
+
+    # plot the quantile-quantile plot
+    ax.plot(x, x, color="black", linestyle="--")
+
+    # plot the obs and model quantiles
+    ax.plot(obs_quantiles, model_quantiles, color="red", linestyle="None", marker="o")
+
+    # set the x-axis label
+    ax.set_xlabel("ERA5")
+
+    # set the y-axis label
+    ax.set_ylabel("HadGEM3-GC31-MM")
+
+    # set the title
+    ax.set_title("Quantile-Quantile Plot")
+
+    # set the current time
+    now = datetime.now()
+
+    # set the current date
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
+
+    return
