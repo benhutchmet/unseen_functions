@@ -1988,11 +1988,11 @@ def plot_distribution_months(
         
         # plot all of the model data
         ax.hist(
-            model_df[model_val_name], color="red", label="model", alpha=0.2, density=True
+            model_df[model_val_name], color="red", label="model", alpha=0.0, density=True
         )
 
         # Plot the obs data on the second y-axis
-        ax.hist(obs_df[obs_val_name], color="black", label="obs", alpha=0.2, density=True)
+        ax.hist(obs_df[obs_val_name], color="black", label="obs", alpha=0.0, density=True)
 
         # subset the model_df for the leads
         model_df_sub = model_df[model_df["lead"].isin(leads)]
@@ -2023,6 +2023,22 @@ def plot_distribution_months(
         
         # include a subplot title for the month
         ax.set_title(f"{calendar.month_abbr[month]}")
+
+        # Include a vertical dahsed red line for the model mean
+        ax.axvline(
+            model_df_sub[model_val_name].mean(),
+            color="red",
+            linestyle="--",
+            label="model mean",
+        )
+
+        # Include a vertical dashed black line for the obs mean
+        ax.axvline(
+            obs_df_sub[obs_val_name].mean(),
+            color="black",
+            linestyle="--",
+            label="obs mean",
+        )
 
         # print the month
         print(f"Month: {month}")
