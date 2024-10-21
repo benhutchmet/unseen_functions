@@ -5768,9 +5768,9 @@ def plot_chance_of_event(
     _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
     _ = ax.plot(np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
 
-    # aesthetics
-    ax.set_ylim(0.1, 20)  # Adjust as needed
-    ax.set_xlim(1, -1)  # Adjust as needed
+    # # aesthetics
+    # ax.set_ylim(0.1, 20)  # Adjust as needed
+    # ax.set_xlim(1, -1)  # Adjust as needed
 
     # set the xpoints
     x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
@@ -5911,10 +5911,10 @@ def plot_chance_of_event(
     )
 
 
-    ax.set_yscale("log")
-    # set the yticks
-    ax.set_yticks(x_points)
-    ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    # ax.set_yscale("log")
+    # # set the yticks
+    # ax.set_yticks(x_points)
+    # ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_ylabel("Chance of event (%)")
     ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
 
