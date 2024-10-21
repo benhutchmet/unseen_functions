@@ -6,6 +6,7 @@ import sys
 import glob
 import random
 import re
+import calendar
 
 # Third party imports
 import numpy as np
@@ -1878,6 +1879,169 @@ def plot_distribution(
 
     # set the x-axis label
     plt.xlabel(xlabel)
+
+    # Set the current time
+    current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # tight layout
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(
+        os.path.join(save_dir, f"{fname_prefix}_{current_datetime}.pdf"),
+        dpi=600,
+        bbox_inches="tight",
+    )
+
+    # Show the plot
+    plt.show()
+
+    return
+
+# write a function to plot the distributions for the indiviudal months
+def plot_distribution_months(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    xlabel: str,
+    months: list,
+    figsize=(10, 8),
+    n_fcst_years: int = 10,
+    nbins: int = 100,
+    title: str = "Distribution of 10m wind speed",
+    obs_val_name: str = "obs",
+    model_val_name: str = "data",
+    fname_prefix: str = "distribution_months",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the direct comparison of the model and obs data for the individual months.
+
+    E.g. O, N, D, J, F, M all on the same plot.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The observations dataframe
+
+    model_df: pd.DataFrame
+        The model dataframe
+
+    xlabel: str
+        The x-axis label
+
+    months: list
+        The months to plot
+
+    figsize: tuple
+        The figure size
+        Default is (6, 6)
+
+    nbins: int
+        The number of bins for the histogram
+        Default is 100
+
+    title: str
+        The title of the plot
+        Default is "Distribution of 10m wind speed"
+
+    obs_val_name: str
+        The name of the observations value
+        Default is "obs"
+
+    model_val_name: str
+        The name of the model value
+        Default is "data"
+
+    fname_prefix: str
+        The prefix for the filename
+        Default is "distribution_months"
+
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+    """
+
+    # Set up the figure
+    fig, axes = plt.subplots(ncols=3, nrows=2, figsize=figsize)
+
+    if months != [10, 11, 12, 1, 2, 3]:
+        raise ValueError("The months must be [10, 11, 12, 1, 2, 3]")
+
+    # Loop over the months
+    for i, month in enumerate(months):
+        # set up the axes
+        ax = axes.ravel()[i]
+
+        # if the month has two digits
+        if month >= 10:
+            # Set up the leads to sel
+            leads = [12 * i +  (month - 10) for i in range(1, n_fcst_years + 1)]
+        elif month < 10:
+            # Set up the leads to sel
+            leads = [12 * i +  (month - 10 + 12) for i in range(1, n_fcst_years + 1)]
+        
+        # plot all of the model data
+        ax.hist(
+            model_df[model_val_name], color="red", label="model", alpha=0.2, density=True
+        )
+
+        # Plot the obs data on the second y-axis
+        ax.hist(obs_df[obs_val_name], color="black", label="obs", alpha=0.2, density=True)
+
+        # subset the model_df for the leads
+        model_df_sub = model_df[model_df["lead"].isin(leads)]
+
+        # subset the obs_df for the leads
+        obs_df_sub = obs_df[obs_df["time"].dt.month.isin([month])]
+
+        # print obs df sub
+        print(obs_df_sub.head())
+
+        # plot the model data
+        ax.hist(
+            model_df_sub[model_val_name],
+            color="red",
+            label="model",
+            alpha=0.5,
+            density=True,
+        )
+
+        # plot the obs data
+        ax.hist(
+            obs_df_sub[obs_val_name],
+            color="black",
+            label="obs",
+            alpha=0.5,
+            density=True,
+        )
+        
+        # include a subplot title for the month
+        ax.set_title(f"{calendar.month_abbr[month]}")
+
+        # print the month
+        print(f"Month: {month}")
+
+        # print the leads
+        print(f"Leads: {leads}")
+
+        # Set the x-axis label
+        ax.set_xlabel(xlabel)
+
+        ax.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
+        ax.set_yticks([])
+
+
+    # Remove the ticks for the y axis
+    plt.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
+
+    # remove the numbers from the y axis
+    plt.yticks([])
 
     # Set the current time
     current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -5994,8 +6158,8 @@ def plot_qq(
     # set the y-axis label
     ax.set_ylabel("HadGEM3-GC31-MM")
 
-    # set the title
-    ax.set_title("Quantile-Quantile Plot")
+    # # set the title
+    # ax.set_title("Quantile-Quantile Plot")
 
     # set the current time
     now = datetime.now()
