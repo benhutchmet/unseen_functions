@@ -2000,8 +2000,8 @@ def plot_distribution_months(
         # subset the obs_df for the leads
         obs_df_sub = obs_df[obs_df["time"].dt.month.isin([month])]
 
-        # print obs df sub
-        print(obs_df_sub.head())
+        # # print obs df sub
+        # print(obs_df_sub.head())
 
         # plot the model data
         ax.hist(
@@ -2040,11 +2040,11 @@ def plot_distribution_months(
             label="obs mean",
         )
 
-        # print the month
-        print(f"Month: {month}")
+        # # print the month
+        # print(f"Month: {month}")
 
-        # print the leads
-        print(f"Leads: {leads}")
+        # # print the leads
+        # print(f"Leads: {leads}")
 
         # Set the x-axis label
         ax.set_xlabel(xlabel)
@@ -3287,6 +3287,11 @@ def plot_fidelity(
                     & (model_df[model_member_name] == model_member_this[0])
                 ][model_val_name].values
 
+            # Check if model_data is empty
+            if model_data.size == 0:
+                # print(f"No data available for time {model_time_this}, member {model_member_this}, lead {model_lead_this if model_lead_name else 'N/A'}")
+                continue  # Skip this iteration if no data is available
+
             # Append the model data to the bootstrapped array
             model_boot[idx_year] = model_data
 
@@ -3418,6 +3423,7 @@ def plot_events_ts(
     figsize: tuple = (10, 10),
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
     fname_prefix: str = "events",
+    ind_months_flag: bool = False,
 ) -> None:
     """
     Plots the hindcast events on the same axis as the observed events.
@@ -3468,6 +3474,12 @@ def plot_events_ts(
 
     save_dir: str
         The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots/".
+
+    fname_prefix: str
+        The prefix for the saved files. Default is "events".
+
+    ind_months_flag: bool
+        Whether to plot the individual months. Default is False.
 
     Returns
     -------
@@ -3612,7 +3624,7 @@ def plot_events_ts(
             model_data[model_data_above20][model_time_name],
             model_data[model_data_above20][model_val_name],
             color="grey",
-            alpha=0.3,
+            alpha=0.2,
             label=model_name if i == 0 else None,
         )
 
@@ -3621,7 +3633,7 @@ def plot_events_ts(
             model_data[model_data_below20][model_time_name],
             model_data[model_data_below20][model_val_name],
             color="blue",
-            alpha=0.3,
+            alpha=0.2,
             label="Extreme events" if i == 0 else None,
         )
 
@@ -3688,6 +3700,27 @@ def plot_events_ts(
     #     linestyle="--",
     #     label="model 95% quantile",
     # )
+
+    # if the individual months flag is true
+    if ind_months_flag:
+        print("Plotting the individual months")
+        # assert that the time axis of the obs is datetime
+        assert isinstance(obs_df[obs_time_name].values[0], np.datetime64)
+
+        # shift each row value back by 3 months
+        obs_df[obs_time_name] = obs_df[obs_time_name] - pd.DateOffset(months=3)
+
+        # Assuming obs_df is your DataFrame and obs_time_name is the column name
+        obs_df[obs_time_name] = pd.to_datetime(obs_df[obs_time_name]).dt.year
+
+        # Convert the year back to a datetime object with only the year component
+        obs_df[obs_time_name] = pd.to_datetime(obs_df[obs_time_name], format="%Y")
+
+        # Print the head of the dataframe
+        print(obs_df.head())
+
+        # print the head of the dataframe
+        print(obs_df.head())
 
     # Plot the observed data
     ax.scatter(
@@ -5898,7 +5931,7 @@ def plot_chance_of_event(
     date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # save the figure
-    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), bbox_inches="tight")
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), bbox_inches="tight", dpi=600)
 
     return
 
@@ -6144,11 +6177,25 @@ def plot_qq(
     # set up qunatiles y for the 1 to 1 line
     quantiles_y = np.linspace(0, 10, 1000)
 
-    # set up the quantiles for the obs data
-    obs_quantiles = np.quantile(obs_df[obs_val_name], quantiles)
+    # if the datsets contain NaNs
+    if obs_df[obs_val_name].isnull().values.any() or model_df[model_val_name].isnull().values.any():
+        print("The datasets contain NaNs")
+        
+        # Drop NaNs from the observation and model data
+        obs_df_clean = obs_df.dropna(subset=[obs_val_name])
+        model_df_clean = model_df.dropna(subset=[model_val_name])
 
-    # set up the quantiles for the model data
-    model_quantiles = np.quantile(model_df[model_val_name], quantiles)
+        # Set up the quantiles
+        obs_quantiles = np.quantile(obs_df_clean[obs_val_name], quantiles)
+        
+        # Set up the quantiles
+        model_quantiles = np.quantile(model_df_clean[model_val_name], quantiles)
+    else:
+        # set up the quantiles for the obs data
+        obs_quantiles = np.quantile(obs_df[obs_val_name], quantiles)
+
+        # set up the quantiles for the model data
+        model_quantiles = np.quantile(model_df[model_val_name], quantiles)
 
     # # plot the 1:1 line
     # ax.plot(quantiles_x, quantiles_y, color="black", linestyle="--")
