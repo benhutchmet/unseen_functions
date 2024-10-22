@@ -6557,3 +6557,58 @@ def plot_qq(
     plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
 
     return
+
+# Define a function to plot the composite SLP patterns for the obs
+def plot_composite_obs(
+    obs_df: pd.DataFrame,
+    obs_val_name: str,
+    percentile: float,
+    psl_variable: str = "msl",
+    freq: str = "Amon",
+    save_prefix: str = "composite_obs",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    
+    Plots the composite SLP patterns for the observations.
+    
+    Args:
+        obs_df (pd.DataFrame): The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+        
+        obs_val_name (str): The name of the observation value column.
+        
+        percentile (float): The percentile to use for the composite. E.g. 0.95 for the 95th percentile.
+        
+        psl_variable (str): The name of the variable to use for the composite. Default is "msl".
+        
+        freq (str): The frequency of the data. Default is "Amon".
+        
+        save_prefix (str): The prefix to use when saving the plots. Default is "composite_obs".
+        
+        save_dir (str): The directory to save the plots to. Default is the current directory.
+
+    Returns:
+        None
+    """
+
+    # Work out the percentile threshold for the obs data
+    obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
+
+    # print the len of the full obs_df
+    print(f"The length of the obs df is {len(obs_df)}")
+
+    # Apply a boolean to the df to where values are beneath 
+    # this threshold
+    obs_df_composite = obs_df[obs_df[obs_val_name] < obs_threshold]
+
+    # the percentile is print
+    print(f"The {percentile}th percentile is {obs_threshold}")
+
+    # Print the len of the obs df composite
+    print(f"The length of the obs df composite is {len(obs_df_composite)}")
+
+    # print the head of the obs df composite
+    print(obs_df_composite.head())
+
+    return
