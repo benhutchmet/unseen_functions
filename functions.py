@@ -5769,8 +5769,8 @@ def plot_chance_of_event(
     _ = ax.plot(np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
 
     # # aesthetics
-    # ax.set_ylim(0.1, 20)  # Adjust as needed
-    # ax.set_xlim(1, -1)  # Adjust as needed
+    ax.set_ylim(0.1, 20)  # Adjust as needed
+    ax.set_xlim(1, -1)  # Adjust as needed
 
     # set the xpoints
     x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
@@ -5911,10 +5911,10 @@ def plot_chance_of_event(
     )
 
 
-    # ax.set_yscale("log")
-    # # set the yticks
-    # ax.set_yticks(x_points)
-    # ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_yscale("log")
+    # set the yticks
+    ax.set_yticks(x_points)
+    ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_ylabel("Chance of event (%)")
     ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
 
@@ -5934,6 +5934,183 @@ def plot_chance_of_event(
     plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), bbox_inches="tight", dpi=600)
 
     return
+
+# Define a function to plot the chance of an event
+# with time
+def plot_chance_of_event_with_time(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    variable: str,
+    num_samples: int = 1000,
+    fname_prefix: str = "chance_of_event_with_time",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+
+    Plots the chance of an event being worse than a specific year with time.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    variable: str
+        The name of the variable being analysed.
+
+    num_samples: int
+        The number of samples to use when estimating the return levels. Default is 1000.
+
+    fname_prefix: str
+        The prefix to use when saving the plots. Default is "chance_of_event_with_time".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    None
+    """
+
+    # Set up the params for the obs and the model
+    params_obs = [] ; params_model = []
+
+    # extrcat the unique years from th3e model df
+    unique_years = np.unique(model_df["init_year"])
+
+    # Find the time with the lowest value in the obs data
+    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()]["time"].values[0]
+
+    # Print the time and the value
+    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+    print(f"The value at this time is {obs_df[obs_val_name].min()}")
+
+    # Convert numpy.datetime64 to datetime
+    obs_time_lowest = obs_time_lowest.astype(datetime)
+
+    # convert back to datetime
+    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit='ns')
+
+    # Format datetime to "YYYY-MM"
+    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+
+    # print the obs time lowest
+    print(f"The obs time lowest is {obs_time_lowest}")
+
+    # Set up the years
+    years = np.arange(1.1, 1000, 0.1)
+
+    # set up the probabilities
+    probs = 1 / years * 100
+
+    # Initialize the lists for th return levels
+    level_model_year = {}
+
+    # set up params year
+    params_model_year = {}
+
+    # Loop over unique years to get the model params
+    for year in tqdm(unique_years, desc="Fitting GEV"):
+        # Subset the model data to this year
+        model_year = model_df[model_df["init_year"] == year]
+        
+        # initialize the list for the model data
+        params_model = []
+
+        # Generate 1000 values by resampling data with replacement
+        for i in range(num_samples):
+            params_model.append(
+                gev.fit(np.random.choice(model_year[model_val_name], size=len(model_year[model_val_name]), replace=True))
+            )
+        
+        # append the params to the model year
+        params_model_year[year] = params_model
+
+    # loop over the unique years to fit the ppfs
+    for year in tqdm(unique_years, desc="Fitting PPFS"):
+        # Set up the levels model list
+        levels_model = []
+
+        # select the year params
+        params_model = params_model_year[year]
+
+        # Calculate the return levels for each of the 1000 samples
+        for i in range(num_samples):
+            levels_model.append(gev.ppf(1 / years, *params_model[i]))
+
+        # turn this into arrays
+        levels_model = np.array(levels_model)
+
+        # set up the levels model year
+        level_model_year[year] = levels_model
+
+    mean_return_level = np.zeros([len(unique_years)])
+    return_level_025 = np.zeros([len(unique_years)])
+    return_level_975 = np.zeros([len(unique_years)])
+
+    # loop over the unique years
+    for i, year in enumerate(unique_years):
+        # Select the levels model year
+        levels_model = level_model_year[year]
+
+        # add the mean return level
+        mean_return_level[i] = np.mean(levels_model, axis=0)[0]
+
+        # add the 025 return level
+        return_level_025[i] = np.quantile(levels_model, 0.025, axis=0).T[0]
+
+        # add the 975 return level
+        return_level_975[i] = np.quantile(levels_model, 0.975, axis=0).T[0]
+
+    # set up the figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Set up the worst obs event
+    obs_worst_event = obs_df[obs_val_name].min()
+
+    # plot the mean return level
+    ax.plot(unique_years, mean_return_level - obs_worst_event, color="red", label="HadGEM3-GC31-MM")
+
+    # plot the 025 return level
+    ax.plot(unique_years, return_level_025 - obs_worst_event, color="red", linestyle="--")
+    ax.plot(unique_years, return_level_975 - obs_worst_event, color="red", linestyle="--")
+
+    # shadde between the 025 and 975 return levels
+    ax.fill_between(unique_years, return_level_025 - obs_worst_event, return_level_975 - obs_worst_event, color="red", alpha=0.2)
+
+    # set the x-axis label
+    ax.set_xlabel("Year")
+
+    # set the y-axis label
+    ax.set_ylabel(f"Anomaly from {obs_time_lowest} ({variable})")
+
+    # Set the title
+    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest} with time")
+
+    # set the current date_time
+    time_now = datetime.now() ; date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # save the figure
+    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}.pdf"), bbox_inches="tight", dpi=600)
+
+    return
+
+
+
 
 
 
