@@ -1898,6 +1898,7 @@ def plot_distribution(
 
     return
 
+
 # write a function to plot the distributions for the indiviudal months
 def plot_distribution_months(
     obs_df: pd.DataFrame,
@@ -1981,18 +1982,24 @@ def plot_distribution_months(
         # if the month has two digits
         if month >= 10:
             # Set up the leads to sel
-            leads = [12 * i +  (month - 10) for i in range(1, n_fcst_years + 1)]
+            leads = [12 * i + (month - 10) for i in range(1, n_fcst_years + 1)]
         elif month < 10:
             # Set up the leads to sel
-            leads = [12 * i +  (month - 10 + 12) for i in range(1, n_fcst_years + 1)]
-        
+            leads = [12 * i + (month - 10 + 12) for i in range(1, n_fcst_years + 1)]
+
         # plot all of the model data
         ax.hist(
-            model_df[model_val_name], color="red", label="model", alpha=0.0, density=True
+            model_df[model_val_name],
+            color="red",
+            label="model",
+            alpha=0.0,
+            density=True,
         )
 
         # Plot the obs data on the second y-axis
-        ax.hist(obs_df[obs_val_name], color="black", label="obs", alpha=0.0, density=True)
+        ax.hist(
+            obs_df[obs_val_name], color="black", label="obs", alpha=0.0, density=True
+        )
 
         # subset the model_df for the leads
         model_df_sub = model_df[model_df["lead"].isin(leads)]
@@ -2020,7 +2027,7 @@ def plot_distribution_months(
             alpha=0.5,
             density=True,
         )
-        
+
         # include a subplot title for the month
         ax.set_title(f"{calendar.month_abbr[month]}")
 
@@ -2051,7 +2058,6 @@ def plot_distribution_months(
 
         ax.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
         ax.set_yticks([])
-
 
     # Remove the ticks for the y axis
     plt.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
@@ -3203,7 +3209,9 @@ def plot_fidelity(
     }
 
     # print the len model_time_name unique
-    print(f"The number of unique model times is {len(model_df[model_time_name].unique())}")
+    print(
+        f"The number of unique model times is {len(model_df[model_time_name].unique())}"
+    )
     print(f"The number of unique obs times is {len(obs_df[obs_time_name].unique())}")
 
     # Assert that the len of unique init in model_df
@@ -5533,8 +5541,14 @@ def bc_quantile_mapping(
 
     # plot the 1:1 line
     ax.plot(
-        [min(min(model_df[model_val_name]), min(fitted_quantiles)), max(max(model_df[model_val_name]), max(fitted_quantiles))],
-        [min(min(model_df[model_val_name]), min(fitted_quantiles)), max(max(model_df[model_val_name]), max(fitted_quantiles))],
+        [
+            min(min(model_df[model_val_name]), min(fitted_quantiles)),
+            max(max(model_df[model_val_name]), max(fitted_quantiles)),
+        ],
+        [
+            min(min(model_df[model_val_name]), min(fitted_quantiles)),
+            max(max(model_df[model_val_name]), max(fitted_quantiles)),
+        ],
         color="black",
         linestyle="--",
     )
@@ -5603,6 +5617,7 @@ def bc_quantile_mapping(
 
     return model_df
 
+
 # Define a function to plot the chance of an event
 # being worse (i.e. lower values)
 # than a specific year (in this case 2010)
@@ -5654,10 +5669,13 @@ def plot_chance_of_event(
     """
 
     # Set up the params for the obs and the model
-    params_obs = [] ; params_model = [] 
+    params_obs = []
+    params_model = []
 
     # find the years of the lowest value event in the obs data
-    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()]["time"].values[0]
+    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+        "time"
+    ].values[0]
 
     # print the year and the value
     print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
@@ -5669,7 +5687,7 @@ def plot_chance_of_event(
     obs_time_lowest = obs_time_lowest.astype(datetime)
 
     # Convert timestamp to datetime
-    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit='ns')
+    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
 
     # print obs time lowesty
     print(f"The obs time lowest is {obs_time_lowest}")
@@ -5685,14 +5703,25 @@ def plot_chance_of_event(
     # Generate 1000 values by resamlping data with replacement
     for i in tqdm(range(num_samples)):
         params_obs.append(
-            gev.fit(np.random.choice(obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True))
+            gev.fit(
+                np.random.choice(
+                    obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True
+                )
+            )
         )
         params_model.append(
-            gev.fit(np.random.choice(model_df[model_val_name], size=len(model_df[model_val_name]), replace=True))
+            gev.fit(
+                np.random.choice(
+                    model_df[model_val_name],
+                    size=len(model_df[model_val_name]),
+                    replace=True,
+                )
+            )
         )
-    
+
     # initialize the list for return levels
-    levels_obs = [] ; levels_model = []
+    levels_obs = []
+    levels_model = []
 
     # # print params obs
     # print(f"The params obs are {params_obs}")
@@ -5750,8 +5779,20 @@ def plot_chance_of_event(
     model_df_rl["anomalies"] = model_df_rl["sorted"] - obs_worst_event
 
     # Plot the anomalies and the probabilities
-    _ = plt.plot(obs_df_rl["anomalies"], obs_df_rl["probability"], color="black", linestyle="None", marker=".")
-    _ = plt.plot(model_df_rl["anomalies"], model_df_rl["probability"], color="red", linestyle="None", marker=".")
+    _ = plt.plot(
+        obs_df_rl["anomalies"],
+        obs_df_rl["probability"],
+        color="black",
+        linestyle="None",
+        marker=".",
+    )
+    _ = plt.plot(
+        model_df_rl["anomalies"],
+        model_df_rl["probability"],
+        color="red",
+        linestyle="None",
+        marker=".",
+    )
 
     # _ = plt.plot(probs, obs_anomalies, color="black", linestyle="None", marker=".")
     # _ = plt.plot(probs, model_anomalies, color="red", linestyle="None", marker=".")
@@ -5762,11 +5803,15 @@ def plot_chance_of_event(
 
     # Plot the return mean levels
     _ = plt.plot(np.mean(levels_obs_anomaly, axis=0), probs, "k-", label="ERA5")
-    _ = plt.plot(np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM")
+    _ = plt.plot(
+        np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM"
+    )
 
     # Plot the confidence intervals
     _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
-    _ = ax.plot(np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
+    _ = ax.plot(
+        np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--"
+    )
 
     # # aesthetics
     ax.set_ylim(0.1, 20)  # Adjust as needed
@@ -5813,10 +5858,14 @@ def plot_chance_of_event(
         )
 
         # print the level and the return level
-        print(f"The level is {level} and the return value for the obs fit is {return_level_obs} m/s")
+        print(
+            f"The level is {level} and the return value for the obs fit is {return_level_obs} m/s"
+        )
 
         # print the level and the return level
-        print(f"The level is {level} and the return value for the model fit is {return_level_model} m/s")
+        print(
+            f"The level is {level} and the return value for the model fit is {return_level_model} m/s"
+        )
 
     # create a lits of values to estimate for
     values = [4.5, 4.0, 3.75, 3.5, 3.25]
@@ -5838,10 +5887,14 @@ def plot_chance_of_event(
         )
 
         # print the values for the obs
-        print(f"The value is {value} and the period for the obs fit is {period_obs} years")
+        print(
+            f"The value is {value} and the period for the obs fit is {period_obs} years"
+        )
 
         # print the values for the model
-        print(f"The value is {value} and the period for the model fit is {period_model} years")
+        print(
+            f"The value is {value} and the period for the model fit is {period_model} years"
+        )
 
     # assign a variable to the obs lowest value
     lowest_obs = obs_df[obs_val_name].min()
@@ -5910,7 +5963,6 @@ def plot_chance_of_event(
         bbox=dict(facecolor="white", alpha=0.5),
     )
 
-
     ax.set_yscale("log")
     # set the yticks
     ax.set_yticks(x_points)
@@ -5931,9 +5983,14 @@ def plot_chance_of_event(
     date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # save the figure
-    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), bbox_inches="tight", dpi=600)
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        bbox_inches="tight",
+        dpi=600,
+    )
 
     return
+
 
 # Define a function to plot the chance of an event
 # with time
@@ -5987,13 +6044,16 @@ def plot_chance_of_event_with_time(
     """
 
     # Set up the params for the obs and the model
-    params_obs = [] ; params_model = []
+    params_obs = []
+    params_model = []
 
     # extrcat the unique years from th3e model df
     unique_years = np.unique(model_df["init_year"])
 
     # Find the time with the lowest value in the obs data
-    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()]["time"].values[0]
+    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+        "time"
+    ].values[0]
 
     # Print the time and the value
     print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
@@ -6003,7 +6063,7 @@ def plot_chance_of_event_with_time(
     obs_time_lowest = obs_time_lowest.astype(datetime)
 
     # convert back to datetime
-    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit='ns')
+    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
 
     # Format datetime to "YYYY-MM"
     obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
@@ -6027,91 +6087,163 @@ def plot_chance_of_event_with_time(
     for year in tqdm(unique_years, desc="Fitting GEV"):
         # Subset the model data to this year
         model_year = model_df[model_df["init_year"] == year]
-        
+
         # initialize the list for the model data
         params_model = []
 
         # Generate 1000 values by resampling data with replacement
         for i in range(num_samples):
             params_model.append(
-                gev.fit(np.random.choice(model_year[model_val_name], size=len(model_year[model_val_name]), replace=True))
+                gev.fit(
+                    np.random.choice(
+                        model_year[model_val_name],
+                        size=len(model_year[model_val_name]),
+                        replace=True,
+                    )
+                )
             )
-        
+
         # append the params to the model year
         params_model_year[year] = params_model
-
-    # loop over the unique years to fit the ppfs
-    for year in tqdm(unique_years, desc="Fitting PPFS"):
-        # Set up the levels model list
-        levels_model = []
-
-        # select the year params
-        params_model = params_model_year[year]
-
-        # Calculate the return levels for each of the 1000 samples
-        for i in range(num_samples):
-            levels_model.append(gev.ppf(1 / years, *params_model[i]))
-
-        # turn this into arrays
-        levels_model = np.array(levels_model)
-
-        # set up the levels model year
-        level_model_year[year] = levels_model
-
-    mean_return_level = np.zeros([len(unique_years)])
-    return_level_025 = np.zeros([len(unique_years)])
-    return_level_975 = np.zeros([len(unique_years)])
-
-    # loop over the unique years
-    for i, year in enumerate(unique_years):
-        # Select the levels model year
-        levels_model = level_model_year[year]
-
-        # add the mean return level
-        mean_return_level[i] = np.mean(levels_model, axis=0)[0]
-
-        # add the 025 return level
-        return_level_025[i] = np.quantile(levels_model, 0.025, axis=0).T[0]
-
-        # add the 975 return level
-        return_level_975[i] = np.quantile(levels_model, 0.975, axis=0).T[0]
-
-    # set up the figure
-    fig, ax = plt.subplots(figsize=(6, 6))
 
     # Set up the worst obs event
     obs_worst_event = obs_df[obs_val_name].min()
 
+    period_model_year = {}
+
+    # set up empty arrays for the return levels
+    period_model_mean = np.zeros([len(unique_years)])
+    period_model_025 = np.zeros([len(unique_years)])
+    period_model_975 = np.zeros([len(unique_years)])
+
+    # loop over the unique years to fit the ppfs
+    for i, year in tqdm(enumerate(unique_years), desc="estimating return periods"):
+        # select the year params
+        params_model = params_model_year[year]
+
+        # Estimate the period for the model mean data
+        period_model_mean[i] = estimate_period(
+            return_level=obs_worst_event,
+            loc=np.mean(params_model, axis=0)[1],
+            scale=np.mean(params_model, axis=0)[2],
+            shape=np.mean(params_model, axis=0)[0],
+        )
+
+        # model 025 percentile
+        period_model_025[i] = estimate_period(
+            return_level=obs_worst_event,
+            loc=np.percentile(params_model, 2.5, axis=0)[1],
+            scale=np.percentile(params_model, 2.5, axis=0)[2],
+            shape=np.percentile(params_model, 2.5, axis=0)[0],
+        )
+
+        # model 95 percentile
+        period_model_975[i] = estimate_period(
+            return_level=obs_worst_event,
+            loc=np.percentile(params_model, 97.5, axis=0)[1],
+            scale=np.percentile(params_model, 97.5, axis=0)[2],
+            shape=np.percentile(params_model, 97.5, axis=0)[0],
+        )
+
+    # mean_return_level = np.zeros([len(unique_years)])
+    # return_level_025 = np.zeros([len(unique_years)])
+    # return_level_975 = np.zeros([len(unique_years)])
+
+    # # loop over the unique years
+    # for i, year in enumerate(unique_years):
+    #     # Select the levels model year
+    #     levels_model = level_model_year[year]
+
+    #     # add the mean return level
+    #     mean_return_level[i] = np.mean(levels_model, axis=0)[0]
+
+    #     # add the 025 return level
+    #     return_level_025[i] = np.quantile(levels_model, 0.025, axis=0).T[0]
+
+    #     # add the 975 return level
+    #     return_level_975[i] = np.quantile(levels_model, 0.975, axis=0).T[0]
+
+    # put these into a dataframe with the years
+    model_df_rl = pd.DataFrame(
+        {
+            "year": unique_years,
+            "mean": period_model_mean,
+            "025": period_model_025,
+            "975": period_model_975,
+        }
+    )
+
+    # for the mean, 025, and 975 columns
+    # turn into year 
+
+    # print the head of the model df rl
+    print(model_df_rl.head())
+
+    # take a centred 8-year running mean for mean 025 and 975
+    model_df_rl["mean_8yr"] = model_df_rl["mean"].rolling(window=8, center=True).mean()
+    model_df_rl["025_8yr"] = model_df_rl["025"].rolling(window=8, center=True).mean()
+    model_df_rl["975_8yr"] = model_df_rl["975"].rolling(window=8, center=True).mean()
+
+    # remove Nans from the dataframe
+    model_df_rl = model_df_rl.dropna()
+
+    # set up the figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
     # plot the mean return level
-    ax.plot(unique_years, mean_return_level - obs_worst_event, color="red", label="HadGEM3-GC31-MM")
+    ax.plot(
+        model_df_rl["year"],
+        model_df_rl["mean_8yr"],
+        color="red",
+        label="HadGEM3-GC31-MM",
+    )
 
     # plot the 025 return level
-    ax.plot(unique_years, return_level_025 - obs_worst_event, color="red", linestyle="--")
-    ax.plot(unique_years, return_level_975 - obs_worst_event, color="red", linestyle="--")
+    ax.plot(
+        model_df_rl["year"],
+        model_df_rl["025_8yr"],
+        color="red",
+        linestyle="--",
+    )
+    ax.plot(
+        model_df_rl["year"],
+        model_df_rl["975_8yr"],
+        color="red",
+        linestyle="--",
+    )
 
     # shadde between the 025 and 975 return levels
-    ax.fill_between(unique_years, return_level_025 - obs_worst_event, return_level_975 - obs_worst_event, color="red", alpha=0.2)
+    ax.fill_between(
+        model_df_rl["year"],
+        model_df_rl["025_8yr"],
+        model_df_rl["975_8yr"],
+        color="red",
+        alpha=0.2,
+    )
 
-    # set the x-axis label
-    ax.set_xlabel("Year")
+    # # set the x-axis label
+    # ax.set_xlabel("Year")
 
     # set the y-axis label
-    ax.set_ylabel(f"Anomaly from {obs_time_lowest} ({variable})")
+    ax.set_ylabel(f"Chance of event (%)")
 
     # Set the title
-    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest} with time")
+    ax.set_title(
+        f"Chance of {variable} event <{obs_time_lowest}"
+    )
 
     # set the current date_time
-    time_now = datetime.now() ; date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
+    time_now = datetime.now()
+    date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # save the figure
-    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}.pdf"), bbox_inches="tight", dpi=600)
+    plt.savefig(
+        os.path.join(save_dir, f"{fname_prefix}_{date}.pdf"),
+        bbox_inches="tight",
+        dpi=600,
+    )
 
     return
-
-
-
-
 
 
 # define a function for calculating the empirical return period
@@ -6164,24 +6296,26 @@ def empirical_return_level(
 
     return df
 
-def estimate_return_level_period(period,loc,scale,shape):
-    '''
+
+def estimate_return_level_period(period, loc, scale, shape):
+    """
     Compute GEV-based return level for a given return period, and GEV parameters
-    '''
-    return gev.ppf(1/period,shape,loc=loc,scale=scale)
+    """
+    return gev.ppf(1 / period, shape, loc=loc, scale=scale)
 
 
 def estimate_period(return_level, loc, scale, shape):
     # Use the cumulative distribution function (CDF) of the GEV distribution
     # to estimate the cumulative probability for a given return level
     prob = gev.cdf(return_level, c=shape, loc=loc, scale=scale)
-    
+
     # Take the reciprocal of the probability to get the period
     period = 1 / prob
 
     probs = 1 / period * 100
 
     return probs
+
 
 # plot the cdfs for the two datasets
 def plot_cdfs(
@@ -6258,12 +6392,20 @@ def plot_cdfs(
     print(f"The ks stat is {ks_stat}")
     print(f"The ks p is {ks_p}")
 
-    upper_alpha = 0.05 ; lower_alpha = 0.01
-    c_upper_alpha = 1.36 ; c_lower_alpha = 1.63
+    upper_alpha = 0.05
+    lower_alpha = 0.01
+    c_upper_alpha = 1.36
+    c_lower_alpha = 1.63
 
     # quantify the critical value D_alpha
-    d_alpha_upper = c_upper_alpha * np.sqrt((len(obs_df[obs_val_name]) + len(model_df[model_val_name])) / (len(obs_df[obs_val_name]) * len(model_df[model_val_name])))
-    d_alpha_lower = c_lower_alpha * np.sqrt((len(obs_df[obs_val_name]) + len(model_df[model_val_name])) / (len(obs_df[obs_val_name]) * len(model_df[model_val_name])))
+    d_alpha_upper = c_upper_alpha * np.sqrt(
+        (len(obs_df[obs_val_name]) + len(model_df[model_val_name]))
+        / (len(obs_df[obs_val_name]) * len(model_df[model_val_name]))
+    )
+    d_alpha_lower = c_lower_alpha * np.sqrt(
+        (len(obs_df[obs_val_name]) + len(model_df[model_val_name]))
+        / (len(obs_df[obs_val_name]) * len(model_df[model_val_name]))
+    )
 
     # print the critical values
     print(f"at alpha = {upper_alpha}, the critical value is {d_alpha_upper}")
@@ -6299,6 +6441,7 @@ def plot_cdfs(
     plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"))
 
     return
+
 
 # Define a function to plot the quantile quantile plot
 # comparing the two distributions
@@ -6355,16 +6498,19 @@ def plot_qq(
     quantiles_y = np.linspace(0, 10, 1000)
 
     # if the datsets contain NaNs
-    if obs_df[obs_val_name].isnull().values.any() or model_df[model_val_name].isnull().values.any():
+    if (
+        obs_df[obs_val_name].isnull().values.any()
+        or model_df[model_val_name].isnull().values.any()
+    ):
         print("The datasets contain NaNs")
-        
+
         # Drop NaNs from the observation and model data
         obs_df_clean = obs_df.dropna(subset=[obs_val_name])
         model_df_clean = model_df.dropna(subset=[model_val_name])
 
         # Set up the quantiles
         obs_quantiles = np.quantile(obs_df_clean[obs_val_name], quantiles)
-        
+
         # Set up the quantiles
         model_quantiles = np.quantile(model_df_clean[model_val_name], quantiles)
     else:
