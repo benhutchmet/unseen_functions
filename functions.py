@@ -6563,8 +6563,12 @@ def plot_composite_obs(
     obs_df: pd.DataFrame,
     obs_val_name: str,
     percentile: float,
+    climatology_period: list[int] = [1990, 2020],
+    lat_bounds: list = [30, 80],
+    lon_bounds: list = [-90, 30],
     psl_variable: str = "msl",
     freq: str = "Amon",
+    obs_time_name: str = "time",
     save_prefix: str = "composite_obs",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ) -> None:
@@ -6579,6 +6583,12 @@ def plot_composite_obs(
         obs_val_name (str): The name of the observation value column.
         
         percentile (float): The percentile to use for the composite. E.g. 0.95 for the 95th percentile.
+
+        climatology_period (list[int]): The period to use for the climatology. Default is [1990, 2020].
+
+        lat_bounds (list): The latitude bounds to use for the composite. Default is [30, 80].
+
+        lon_bounds (list): The longitude bounds to use for the composite. Default is [-90, 30].
         
         psl_variable (str): The name of the variable to use for the composite. Default is "msl".
         
@@ -6591,6 +6601,9 @@ def plot_composite_obs(
     Returns:
         None
     """
+
+    # Set up the regrid ERA5 path
+    regrid_era5_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/global_regrid_sel_region_psl.nc"
 
     # Work out the percentile threshold for the obs data
     obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
@@ -6610,5 +6623,51 @@ def plot_composite_obs(
 
     # print the head of the obs df composite
     print(obs_df_composite.head())
+
+    # Load the regridded ERA5 data
+    ds = xr.open_mfdataset(
+        regrid_era5_path,
+        chunks={"time": 10},
+        combine="by_coords",
+        parallel=False,
+        engine="netcdf4",
+        coords="minimal",
+    )
+
+    # If expver is present in the observations
+    if "expver" in ds.coords:
+        # Combine the first two expver variables
+        ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+
+        # if calc anoms is true
+    if calc_anoms:
+        print("Calculating the climatology for the observations")
+
+        # assert that the months are integers
+        assert all(
+            isinstance(month, int) for month in months
+        ), "Months must be integers"
+
+        # subset the data to the region
+        ds_clim = ds.sel(
+            lat=slice(lat_bounds[0], lat_bounds[1]),
+            lon=slice(lon_bounds[0], lon_bounds[1]),
+        )
+
+        # subset the data to the months
+        ds_clim = ds_clim.sel(time=ds_clim["time.month"].isin(months))
+
+        # Select the years
+        ds_clim = ds_clim.sel(
+            time=slice(
+                f"{climatology_period[0]}-01-01", f"{climatology_period[1]}-12-31"
+            )
+        )
+
+        # Calculate the climatology
+        ds_clim = ds_clim[psl_variable].mean(dim="time")
+
+    # Set up an empty list
+    for time in obs_df_composite[obs_time_name]
 
     return
