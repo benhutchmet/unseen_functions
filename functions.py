@@ -19,6 +19,7 @@ from scipy.stats import genextreme as gev
 from scipy.stats import linregress
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mplticker
 import iris
 import shapely.geometry
 import cartopy.io.shapereader as shpreader
@@ -33,6 +34,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr, norm, ks_2samp
 from sklearn.metrics import r2_score, mean_squared_error
+from matplotlib import colors
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+from matplotlib.ticker import FuncFormatter
 from tqdm import tqdm
 from typing import Any, List, Tuple
 from datetime import datetime
@@ -6563,6 +6567,9 @@ def plot_composite_obs(
     obs_df: pd.DataFrame,
     obs_val_name: str,
     percentile: float,
+    title: str,
+    calc_anoms: bool = False,
+    months: list[int] = [10, 11, 12, 1, 2, 3],
     climatology_period: list[int] = [1990, 2020],
     lat_bounds: list = [30, 80],
     lon_bounds: list = [-90, 30],
@@ -6639,7 +6646,7 @@ def plot_composite_obs(
         # Combine the first two expver variables
         ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
 
-        # if calc anoms is true
+    # if calc anoms is true
     if calc_anoms:
         print("Calculating the climatology for the observations")
 
@@ -6660,14 +6667,248 @@ def plot_composite_obs(
         # Select the years
         ds_clim = ds_clim.sel(
             time=slice(
-                f"{climatology_period[0]}-01-01", f"{climatology_period[1]}-12-31"
+                f"{climatology_period[0]}-{months[0]}-01", f"{climatology_period[1]}-{months[-1]}-31"
             )
         )
 
         # Calculate the climatology
         ds_clim = ds_clim[psl_variable].mean(dim="time")
 
+    ds_list = []
+
     # Set up an empty list
-    for time in obs_df_composite[obs_time_name]
+    for time in obs_df_composite[obs_time_name]:
+        # Subset the data to the region
+        ds_subset = ds.sel(
+            lat=slice(lat_bounds[0], lat_bounds[1]),
+            lon=slice(lon_bounds[0], lon_bounds[1]),
+        )
+
+        # Subset the data to the time
+        ds_subset = ds_subset.sel(time=time)
+
+        # append this to the ds list
+        ds_list.append(ds_subset[psl_variable])
+
+    # Concatenate the list with a time dimension
+    ds_composite = xr.concat(ds_list, dim="time")
+
+    # take the time mean of ds composite
+    ds_composite = ds_composite.mean(dim="time")
+
+        # Etract the lat and lon points
+    lats = ds_composite["lat"].values
+    lons = ds_composite["lon"].values
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # Calculate the anomalies
+        field = (ds_composite.values - ds_clim.values) / 100  # convert to hPa
+    else:
+        # Extract the data values
+        field = ds_composite.values / 100  # convert to hPa
+
+    # set up the figure
+    fig, ax = plt.subplots(
+        figsize=(10, 5), subplot_kw=dict(projection=ccrs.PlateCarree())
+    )
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # clevs = np.linspace(-8, 8, 18)
+        clevs = np.array(
+            [
+                -8.0,
+                -7.0,
+                -6.0,
+                -5.0,
+                -4.0,
+                -3.0,
+                -2.0,
+                -1.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+            ]
+        )
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+    else:
+        # define the contour levels
+        clevs = np.array(np.arange(988, 1024 + 1, 2))
+        ticks = clevs
+
+        # ensure that these are ints
+        clevs = clevs.astype(int)
+        ticks = ticks.astype(int)
+
+    # # print the shape of the inputs
+    # print(f"lons shape: {lons.shape}")
+    # print(f"lats shape: {lats.shape}")
+    # print(f"field shape: {field.shape}")
+    # print(f"clevs shape: {clevs.shape}")
+
+    # # print the field values
+    # print(f"field values: {field}")
+
+    # Define the custom diverging colormap
+    # cs = ["purple", "blue", "lightblue", "lightgreen", "lightyellow", "orange", "red", "darkred"]
+    # cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+    # cs = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"]
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # plot the data
+    mymap = ax.contourf(
+        lons, lats, field, clevs, transform=ccrs.PlateCarree(), cmap=cmap, extend="both"
+    )
+    contours = ax.contour(
+        lons,
+        lats,
+        field,
+        clevs,
+        colors="black",
+        transform=ccrs.PlateCarree(),
+        linewidth=0.2,
+        alpha=0.5,
+    )
+    if calc_anoms:
+        ax.clabel(
+            contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+        )
+    else:
+        ax.clabel(
+            contours, clevs, fmt="%.4g", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+    # add coastlines
+    ax.coastlines()
+
+    # format the gridlines and labels
+    gl = ax.gridlines(
+        draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+    )
+    gl.xlabels_top = False
+    gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.xlabel_style = {"size": 7, "color": "black"}
+    gl.ylabels_right = False
+    gl.yformatter = LATITUDE_FORMATTER
+    gl.ylabel_style = {"size": 7, "color": "black"}
+
+    # include a textbox in the top left
+    ax.text(
+        0.02,
+        0.95,
+        f"N = {num_events}",
+        verticalalignment="top",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+        color="black",
+        fontsize=10,
+        bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+    )
+
+    if calc_anoms:
+        cbar = plt.colorbar(
+            mymap,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+        # add colorbar label
+        cbar.set_label(
+            f"mean sea level pressure {climatology_period[0]}-{climatology_period[1]} anomaly (hPa)",
+            rotation=0,
+            fontsize=10,
+        )
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours)
+    else:
+        # add colorbar
+        cbar = plt.colorbar(
+            mymap,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func),
+        )
+        cbar.set_label("mean sea level pressure (hPa)", rotation=0, fontsize=10)
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours)
+    cbar.ax.tick_params(labelsize=7, length=0)
+    # set the ticks
+    cbar.set_ticks(ticks)
+
+    # add title
+    ax.set_title(title, fontsize=12, weight="bold")
+
+    # make plot look nice
+    plt.tight_layout()
+
+    # Set up the current date time
+    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), dpi=300)
 
     return
+
+# Formatting functions for 4 significant figures and 1 decimal point
+def format_func(
+    x: float,
+    pos: int,
+):
+    """
+    Formats the x-axis ticks as significant figures.
+
+    Args:
+        x (float): The tick value.
+        pos (int): The position of the tick.
+
+    Returns:
+        str: The formatted tick value.
+    """
+    return f"{x:.4g}"
+
+
+def format_func_one_decimal(
+    x: float,
+    pos: int,
+):
+    """
+    Formats the x-axis ticks to one decimal point.
+
+    Args:
+        x (float): The tick value.
+        pos (int): The position of the tick.
+
+    Returns:
+        str: The formatted tick value.
+    """
+    return f"{x:.1f}"
