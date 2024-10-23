@@ -7,6 +7,7 @@ import glob
 import random
 import re
 import calendar
+import time
 
 # Third party imports
 import numpy as np
@@ -22,6 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mplticker
 import iris
 import shapely.geometry
+import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 from datetime import datetime, timedelta
 import xesmf as xe
@@ -150,10 +152,10 @@ def load_model_data(
     # /badc/cmip6/data/CMIP6/DCPP/$model_group/$model/${experiment}/s${year}-r${run}i${init_scheme}p?f?/Amon/tas/g?/files/d????????/*.nc"
 
     # Extract the first part of the model_path
-    model_path_root = model_path.split("/")[1]
+    model_path_root_psl = model_path.split("/")[1]
 
     # If the model path root is gws
-    if model_path_root == "gws":
+    if model_path_root_psl == "gws":
         print("The model path root is gws")
         # List the files in the model path
         model_files = os.listdir(model_path)
@@ -199,7 +201,7 @@ def load_model_data(
 
             # Append the year files to the model file list
             model_file_list.append(year_files)
-    elif model_path_root == "badc":
+    elif model_path_root_psl == "badc":
         print("The model path root is badc")
 
         # Loop over the years
@@ -321,21 +323,21 @@ def load_model_data(
     return model_data
 
 
-# Define a function for preprocessing the model data
-def preprocess(
-    ds: xr.Dataset,
-):
-    """
-    Preprocess the model data using xarray
+# # Define a function for preprocessing the model data
+# def preprocess(
+#     ds: xr.Dataset,
+# ):
+#     """
+#     Preprocess the model data using xarray
 
-    Parameters
+#     Parameters
 
-    ds: xr.Dataset
-        The dataset to preprocess
-    """
+#     ds: xr.Dataset
+#         The dataset to preprocess
+#     """
 
-    # Return the dataset
-    return ds
+#     # Return the dataset
+#     return ds
 
 
 # Write a new function for loading the model data using xarray
@@ -441,10 +443,10 @@ def load_model_data_xarray(
     assert os.listdir(model_path), "The model path is empty"
 
     # Extract the first part of the model_path
-    model_path_root = model_path.split("/")[1]
+    model_path_root_psl = model_path.split("/")[1]
 
     # If the model path root is gws
-    if model_path_root == "gws":
+    if model_path_root_psl == "gws":
         print("The model path root is gws")
 
         # List the files in the model path
@@ -472,7 +474,7 @@ def load_model_data_xarray(
                 year_files
             ), "The number of unique combinations is not the same as the number of members"
 
-    elif model_path_root == "badc":
+    elif model_path_root_psl == "badc":
         print("The model path root is badc")
 
         # Loop over the years
@@ -526,7 +528,7 @@ def load_model_data_xarray(
     member_files = []
 
     # If the model path root is gws
-    if model_path_root == "gws":
+    if model_path_root_psl == "gws":
         print("Forming the list of files for each ensemble member for gws")
 
         # Loop over the unique variant labels
@@ -550,7 +552,7 @@ def load_model_data_xarray(
 
             # Append the member files to the member files
             member_files.append(variant_label_files)
-    elif model_path_root == "badc":
+    elif model_path_root_psl == "badc":
         print("Forming the list of files for each ensemble member for badc")
 
         # Loop over the unique variant labels
@@ -6178,7 +6180,7 @@ def plot_chance_of_event_with_time(
     )
 
     # for the mean, 025, and 975 columns
-    # turn into year 
+    # turn into year
 
     # print the head of the model df rl
     print(model_df_rl.head())
@@ -6232,9 +6234,7 @@ def plot_chance_of_event_with_time(
     ax.set_ylabel(f"Chance of event (%)")
 
     # Set the title
-    ax.set_title(
-        f"Chance of {variable} event <{obs_time_lowest}"
-    )
+    ax.set_title(f"Chance of {variable} event <{obs_time_lowest}")
 
     # set the current date_time
     time_now = datetime.now()
@@ -6562,6 +6562,7 @@ def plot_qq(
 
     return
 
+
 # Define a function to plot the composite SLP patterns for the obs
 def plot_composite_obs(
     obs_df: pd.DataFrame,
@@ -6580,15 +6581,15 @@ def plot_composite_obs(
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ) -> None:
     """
-    
+
     Plots the composite SLP patterns for the observations.
-    
+
     Args:
         obs_df (pd.DataFrame): The DataFrame containing the observations with columns for the
         observation value and the observation time.
-        
+
         obs_val_name (str): The name of the observation value column.
-        
+
         percentile (float): The percentile to use for the composite. E.g. 0.95 for the 95th percentile.
 
         climatology_period (list[int]): The period to use for the climatology. Default is [1990, 2020].
@@ -6596,13 +6597,13 @@ def plot_composite_obs(
         lat_bounds (list): The latitude bounds to use for the composite. Default is [30, 80].
 
         lon_bounds (list): The longitude bounds to use for the composite. Default is [-90, 30].
-        
+
         psl_variable (str): The name of the variable to use for the composite. Default is "msl".
-        
+
         freq (str): The frequency of the data. Default is "Amon".
-        
+
         save_prefix (str): The prefix to use when saving the plots. Default is "composite_obs".
-        
+
         save_dir (str): The directory to save the plots to. Default is the current directory.
 
     Returns:
@@ -6610,7 +6611,9 @@ def plot_composite_obs(
     """
 
     # Set up the regrid ERA5 path
-    regrid_era5_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/global_regrid_sel_region_psl.nc"
+    regrid_era5_path = (
+        "/gws/nopw/j04/canari/users/benhutch/ERA5/global_regrid_sel_region_psl.nc"
+    )
 
     # Work out the percentile threshold for the obs data
     obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
@@ -6618,7 +6621,7 @@ def plot_composite_obs(
     # print the len of the full obs_df
     print(f"The length of the obs df is {len(obs_df)}")
 
-    # Apply a boolean to the df to where values are beneath 
+    # Apply a boolean to the df to where values are beneath
     # this threshold
     obs_df_composite = obs_df[obs_df[obs_val_name] < obs_threshold]
 
@@ -6667,7 +6670,8 @@ def plot_composite_obs(
         # Select the years
         ds_clim = ds_clim.sel(
             time=slice(
-                f"{climatology_period[0]}-{months[0]}-01", f"{climatology_period[1]}-{months[-1]}-31"
+                f"{climatology_period[0]}-{months[0]}-01",
+                f"{climatology_period[1]}-{months[-1]}-31",
             )
         )
 
@@ -6696,7 +6700,7 @@ def plot_composite_obs(
     # take the time mean of ds composite
     ds_composite = ds_composite.mean(dim="time")
 
-        # Etract the lat and lon points
+    # Etract the lat and lon points
     lats = ds_composite["lat"].values
     lons = ds_composite["lon"].values
 
@@ -6818,6 +6822,605 @@ def plot_composite_obs(
     gl.yformatter = LATITUDE_FORMATTER
     gl.ylabel_style = {"size": 7, "color": "black"}
 
+    # Set up the num events
+    num_events = len(obs_df_composite)
+
+    # include a textbox in the top left
+    ax.text(
+        0.02,
+        0.95,
+        f"N = {num_events}",
+        verticalalignment="top",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+        color="black",
+        fontsize=10,
+        bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+    )
+
+    if calc_anoms:
+        cbar = plt.colorbar(
+            mymap,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+        # add colorbar label
+        cbar.set_label(
+            f"mean sea level pressure {climatology_period[0]}-{climatology_period[1]} anomaly (hPa)",
+            rotation=0,
+            fontsize=10,
+        )
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours)
+    else:
+        # add colorbar
+        cbar = plt.colorbar(
+            mymap,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func),
+        )
+        cbar.set_label("mean sea level pressure (hPa)", rotation=0, fontsize=10)
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours)
+    cbar.ax.tick_params(labelsize=7, length=0)
+    # set the ticks
+    cbar.set_ticks(ticks)
+
+    # add title
+    ax.set_title(title, fontsize=12, weight="bold")
+
+    # make plot look nice
+    plt.tight_layout()
+
+    # Set up the current date time
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    return
+
+
+# Formatting functions for 4 significant figures and 1 decimal point
+def format_func(
+    x: float,
+    pos: int,
+):
+    """
+    Formats the x-axis ticks as significant figures.
+
+    Args:
+        x (float): The tick value.
+        pos (int): The position of the tick.
+
+    Returns:
+        str: The formatted tick value.
+    """
+    return f"{x:.4g}"
+
+
+def format_func_one_decimal(
+    x: float,
+    pos: int,
+):
+    """
+    Formats the x-axis ticks to one decimal point.
+
+    Args:
+        x (float): The tick value.
+        pos (int): The position of the tick.
+
+    Returns:
+        str: The formatted tick value.
+    """
+    return f"{x:.1f}"
+
+
+# define a function to plot the composite SLP events
+# for the model
+def plot_composite_model(
+    model_df: pd.DataFrame,
+    model_val_name: str,
+    percentile: float,
+    title: str,
+    model: str = "HadGEM3-GC31-MM",
+    psl_variable: str = "psl",
+    freq: str = "Amon",
+    experiment: str = "dcppA-hindcast",
+    calc_anoms: bool = False,
+    months: list[int] = [10, 11, 12, 1, 2, 3],
+    climatology_period: list[int] = [1990, 2020],
+    lat_bounds: list = [30, 80],
+    lon_bounds: list = [-90, 30],
+    files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+    save_prefix: str = "composite_model",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the composite SLP events for the model data.
+
+    Args:
+        model_df (pd.DataFrame): The DataFrame containing the model data with columns for the model value.
+        model_val_name (str): The name of the model value column.
+        percentile (float): The percentile to use for the composite.
+        model (str, optional): The name of the model. Defaults to "HadGEM3-GC31-MM".
+        psl_variable (str, optional): The name of the sea level pressure variable. Defaults to "psl".
+        freq (str, optional): The frequency of the data. Defaults to "Amon".
+        experiment (str, optional): The name of the experiment. Defaults to "dcppA-hindcast".
+        calc_anoms (bool, optional): Whether to calculate anomalies. Defaults to False.
+        months (list[int], optional): The months to include in the composite. Defaults to [10, 11, 12, 1, 2, 3].
+        climatology_period (list[int], optional): The period to use for climatology. Defaults to [1990, 2020].
+        lat_bounds (list, optional): The latitude bounds for the composite. Defaults to [30, 80].
+        lon_bounds (list, optional): The longitude bounds for the composite. Defaults to [-90, 30].
+        files_loc_path (str, optional): The path to the file location. Defaults to "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv".
+
+    Returns:
+        None
+    """
+
+    # Work out the percentile threshold for the model data
+    model_threshold = np.percentile(model_df[model_val_name], percentile)
+
+    # Print the full len of the model df
+    print(f"The length of the model df is {len(model_df)}")
+
+    # Apply a boolean to the df to where values are beneath
+    model_df_composite = model_df[model_df[model_val_name] < model_threshold]
+
+    # Print the percentile value
+    print(f"The {percentile}th percentile is {model_threshold}")
+
+    # Print the len of the model df composite
+    print(f"The length of the model df composite is {len(model_df_composite)}")
+
+    # print the head of the model df composite
+    print(model_df_composite.head())
+
+    # extract the unique members
+    unique_members = np.unique(model_df_composite["member"])
+
+    # assert that the files loc path exists
+    assert os.path.exists(files_loc_path), "The files loc path does not exist"
+
+    # Load the files location
+    files_loc = pd.read_csv(files_loc_path)
+
+    # print the data we seek
+    print(f"model: {model}")
+    print(f"experiment: {experiment}")
+    print(f"freq: {freq}")
+    print(f"psl_variable: {psl_variable}")
+
+    # # extract the model_path_var
+    # model_path_var = files_loc.loc[
+    #     (files_loc["model"] == model)
+    #     & (files_loc["experiment"] == experiment)
+    #     & (files_loc["frequency"] == freq)
+    #     & (files_loc["variable"] == sf_variable)
+    # ]["path"].values[0]
+
+    # Extract the path for the given model, experiment, freq, and variable
+    model_path_psl = files_loc.loc[
+        (files_loc["model"] == model)
+        & (files_loc["experiment"] == experiment)
+        & (files_loc["frequency"] == freq)
+        & (files_loc["variable"] == psl_variable)
+    ]["path"].values[0]
+
+    # asser that the model path psl exists
+    assert os.path.exists(model_path_psl), "The model path psl does not exist"
+
+    # extract the model path root
+    model_path_root_psl = model_path_psl.split("/")[1]
+
+    # Set up an empty list of files
+    files_list = []
+
+    # Extract unique (init_year, member) pairs
+    unique_year_member_pairs = model_df_composite[
+        ["init_year", "member"]
+    ].drop_duplicates()
+    unique_year_member_pairs = list(
+        unique_year_member_pairs.itertuples(index=False, name=None)
+    )
+
+    # print(unique_year_member_pairs)
+
+    # loop over the unique year member pairs
+    for year, member in unique_year_member_pairs:
+        # find the leads to extract
+        # leads_ym = model_df_composite.loc[
+        #     (model_df_composite["init_year"] == year)
+        #     & (model_df_composite["member"] == member)
+        # ]["lead"].values
+
+        # # print the year and member
+        # print(f"year: {year}, member: {member}")
+
+        # # print the lead
+        # print(f"leads: {leads_ym}")
+
+        if model_path_root_psl == "work":
+            raise NotImplementedError("work path not implemented yet")
+        elif model_path_root_psl == "gws":
+            # Create the path
+            path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
+
+            # glob this path
+            files = glob.glob(path)
+
+            # assert that files has length 1
+            assert len(files) == 1, f"files has length {len(files)}"
+
+            # extract the file
+            file = files[0]
+        elif model_path_root_psl == "badc":
+            raise NotImplementedError("home path not implemented yet")
+        else:
+            raise ValueError(f"Unknown model path root {model_path_root_psl}")
+
+        # append the file to the files list
+        files_list.append(file)
+
+    # # print the files
+    # print(f"The files are {files_list}")
+
+    # print the len of files
+    print(f"The length of files is {len(files_list)}")
+
+    # # print the unique year member pairs
+    # print(f"The unique year member pairs are {unique_year_member_pairs}")
+
+    # print the len of the unique year member paris
+    print(
+        f"The length of the unique year member pairs is {len(unique_year_member_pairs)}"
+    )
+
+    # create an empty list for the files
+    dss = []
+
+    # loop over the files and year members
+    for idx, (file, (year, member)) in tqdm(
+        enumerate(zip(files_list, unique_year_member_pairs)), total=len(files_list)
+    ):
+        # Your existing code here
+        # find the leads to extract
+        leads_ym = model_df_composite.loc[
+            (model_df_composite["init_year"] == year)
+            & (model_df_composite["member"] == member)
+        ]["lead"].values
+
+        # load the file
+        ds = xr.open_dataset(file)
+
+        # Format the lead as an int
+        ds = set_integer_time_axis(
+            xro=ds,
+            frequency=freq,
+        )
+
+        # select the leads from the time variable
+        ds = ds.sel(time=leads_ym)
+
+        # take the mean over the time axis
+        ds = ds.mean(dim="time")
+
+        # Add a new coordinate 'number' with a unique value
+        ds = ds.expand_dims({"number": [idx]})
+
+        # Append the ds to the dss list
+        dss.append(ds[psl_variable])
+
+    # Concatenate all datasets along the 'number' dimension
+    combined_ds = xr.concat(dss, dim="number")
+
+    # Take the mean over the 'number' dimension
+    mean_ds = combined_ds.mean(dim="number")
+
+    # convert to a cube
+    cube_psl = mean_ds.to_iris()
+
+    # # print the cube psl
+    # print(cube_psl)
+
+    # # print the lats and the lons
+    # print(cube_psl.coord("latitude").points)
+    # print(cube_psl.coord("longitude").points)
+
+    # subset to region of interest
+    cube_psl = cube_psl.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+    # subset to the actual region of interest
+    cube_psl = cube_psl.intersection(
+        longitude=(lon_bounds[0], lon_bounds[1]),
+        latitude=(lat_bounds[0], lat_bounds[1]),
+    )
+
+    # if calc anoms is true
+    if calc_anoms:
+
+        # set up a save directory for the climatologies
+        save_dir_clim = "/gws/nopw/j04/canari/users/benhutch/unseen/saved_clim"
+
+        # assert that this directory exists
+        assert os.path.exists(save_dir_clim), "The save directory does not exist"
+
+        # set up the fname
+        fname = f"climatology_{model}_{experiment}_{freq}_{psl_variable}_{climatology_period[0]}-{climatology_period[1]}_{lat_bounds[0]}-{lat_bounds[1]}_{lon_bounds[0]}-{lon_bounds[1]}_{months[0]}-{months[-1]}.nc"
+
+        # set up the full climatology path
+        climatology_path = os.path.join(save_dir_clim, fname)
+
+        # if the climatology path exists
+        if os.path.exists(climatology_path):
+            print("The climatology file exists")
+            print("Loading the climatology file")
+
+            # load the file using iris
+            cube_clim = iris.load_cube(climatology_path)
+
+        else:
+            print("The climatology file does not exist")
+            print("Calculating the climatology")
+
+            # Set up a list for the full ds's
+            clim_dss = []
+            # Loop over the years
+            for year in tqdm(range(climatology_period[0], climatology_period[1] + 1)):
+                member_list = []
+                for member in unique_members:
+                    start_time = time.time()
+                    
+                    path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
+
+                    # glob this path
+                    glob_start = time.time()
+                    files = glob.glob(path)
+                    glob_end = time.time()
+                    
+                    # assert
+                    assert (
+                        len(files) == 1
+                    ), f"files has length {len(files)} for year {year} and member {member} and path {path}"
+
+                    # open all of the files
+                    # open_start = time.time()
+                    member_ds = xr.open_mfdataset(
+                        files[0],
+                        combine="nested",
+                        concat_dim="time",
+                        preprocess=lambda ds: preprocess(
+                            ds=ds,
+                            year=year,
+                            variable=psl_variable,
+                            months=months,
+                        ),
+                        parallel=True,
+                        engine="netcdf4",
+                        coords="minimal",  # expecting identical coords
+                        data_vars="minimal",  # expecting identical vars
+                        compat="override",  # speed up
+                    ).squeeze()
+                    # open_end = time.time()
+
+                    # id init year == climatology_period[0]
+                    # and member == unique_members[0]
+                    # set_time_start = time.time()
+                    if year == climatology_period[0] and member == unique_members[0]:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                            first_month_attr=True,
+                        )
+                    else:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                        )
+                    # set_time_end = time.time()
+
+                    # take the mean over the time axis
+                    # mean_start = time.time()
+                    member_ds = member_ds.mean(dim="time")
+                    # mean_end = time.time()
+
+                    # append the member_ds to the member_list
+                    member_list.append(member_ds)
+                    
+                    # end_time = time.time()
+                    
+                    # # Print timing information
+                    # print(f"Year: {year}, Member: {member}")
+                    # print(f"  Total time: {end_time - start_time:.2f} seconds")
+                    # print(f"  glob time: {glob_end - glob_start:.2f} seconds")
+                    # print(f"  open_mfdataset time: {open_end - open_start:.2f} seconds")
+                    # print(f"  set_integer_time_axis time: {set_time_end - set_time_start:.2f} seconds")
+                    # print(f"  mean time: {mean_end - mean_start:.2f} seconds")
+
+                # Concatenate with a new member dimension using xarray
+                member_ds = xr.concat(member_list, dim="member")
+                # append the member_ds to the init_year_list
+                clim_dss.append(member_ds)
+            # Concatenate the init_year list along the init dimension
+            # and rename as lead time
+            ds = xr.concat(clim_dss, "init")
+
+            # print ds
+            print(ds)
+
+            # set up the members
+            ds["member"] = unique_members
+            ds["init"] = np.arange(climatology_period[0], climatology_period[1] + 1)
+
+            # extract the variable
+            ds_var = ds[psl_variable]
+
+            # # take the mean over lead dimension
+            # ds_clim = ds_var.mean(dim="lead")
+
+            # take the mean over member dimension
+            ds_clim = ds_var.mean(dim="member")
+
+            # take the mean over init dimension
+            ds_clim = ds_clim.mean(dim="init")
+
+            # convert to a cube
+            cube_clim = ds_clim.to_iris()
+
+            # # regrid the model data to the obs grid
+            # cube_clim_regrid = cube_clim.regrid(cube_obs, iris.analysis.Linear())
+
+            # subset to the correct grid
+            cube_clim = cube_clim.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+            # subset to the region of interest
+            cube_clim = cube_clim.intersection(
+                latitude=(lat_bounds[0], lat_bounds[1]),
+                longitude=(lon_bounds[0], lon_bounds[1]),
+            )
+
+            # if the climatology file does not exist
+            print("Saving the climatology file")
+
+            # save the cube_clim
+            iris.save(cube_clim, climatology_path)
+
+    # extract the lats and lons
+    lats = cube_psl.coord("latitude").points
+    lons = cube_psl.coord("longitude").points
+
+    # if calc_anoms is True
+    if calc_anoms:
+        field = (cube_psl.data - cube_clim.data) / 100  # convert to hPa
+    else:
+        field = cube_psl.data / 100
+
+    # set up the figure
+    fig, ax = plt.subplots(
+        figsize=(10, 5), subplot_kw=dict(projection=ccrs.PlateCarree())
+    )
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # clevs = np.linspace(-8, 8, 18)
+        clevs = np.array(
+            [
+                -8.0,
+                -7.0,
+                -6.0,
+                -5.0,
+                -4.0,
+                -3.0,
+                -2.0,
+                -1.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+            ]
+        )
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+    else:
+        # define the contour levels
+        clevs = np.array(np.arange(988, 1024 + 1, 2))
+        ticks = clevs
+
+        # ensure that these are ints
+        clevs = clevs.astype(int)
+        ticks = ticks.astype(int)
+
+    # # print the shape of the inputs
+    # print(f"lons shape: {lons.shape}")
+    # print(f"lats shape: {lats.shape}")
+    # print(f"field shape: {field.shape}")
+    # print(f"clevs shape: {clevs.shape}")
+
+    # # print the field values
+    # print(f"field values: {field}")
+
+    # Define the custom diverging colormap
+    # cs = ["purple", "blue", "lightblue", "lightgreen", "lightyellow", "orange", "red", "darkred"]
+    # cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+    # cs = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"]
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # plot the data
+    mymap = ax.contourf(
+        lons, lats, field, clevs, transform=ccrs.PlateCarree(), cmap=cmap, extend="both"
+    )
+    contours = ax.contour(
+        lons,
+        lats,
+        field,
+        clevs,
+        colors="black",
+        transform=ccrs.PlateCarree(),
+        linewidth=0.2,
+        alpha=0.5,
+    )
+    if calc_anoms:
+        ax.clabel(
+            contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+        )
+    else:
+        ax.clabel(
+            contours, clevs, fmt="%.4g", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+    # add coastlines
+    ax.coastlines()
+
+    # format the gridlines and labels
+    gl = ax.gridlines(
+        draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+    )
+    gl.xlabels_top = False
+    gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.xlabel_style = {"size": 7, "color": "black"}
+    gl.ylabels_right = False
+    gl.yformatter = LATITUDE_FORMATTER
+    gl.ylabel_style = {"size": 7, "color": "black"}
+
+    # set up the num events
+    num_events = len(model_df_composite)
+
     # include a textbox in the top left
     ax.text(
         0.02,
@@ -6875,40 +7478,54 @@ def plot_composite_obs(
     now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the plot
-    plt.savefig(os.path.join(save_dir, f"{save_prefix}_{date}.pdf"), dpi=300)
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        dpi=300,
+        bbox_inches="tight",
+    )
 
     return
 
-# Formatting functions for 4 significant figures and 1 decimal point
-def format_func(
-    x: float,
-    pos: int,
-):
+# define a function for preprocessing
+def preprocess(
+    ds: xr.Dataset,
+    year: int,
+    variable: str,
+    months: list[int] = [11, 12, 1, 2, 3],
+) -> xr.Dataset:
     """
-    Formats the x-axis ticks as significant figures.
+    Preprocesses the model data by subsetting to the months of interest.
 
     Args:
-        x (float): The tick value.
-        pos (int): The position of the tick.
+        ds (xr.Dataset): The model dataset to be preprocessed.
+        year (int): The year of the data.
+        variable (str): The variable to be preprocessed.
+        months (list[int], optional): The months to be used for the preprocessing. Defaults to [11, 12, 1, 2, 3].
 
     Returns:
-        str: The formatted tick value.
+        xr.Dataset: The preprocessed model dataset.
     """
-    return f"{x:.4g}"
 
+    # if year is not an int, format as an int
+    if not isinstance(year, int):
+        year = int(year)
 
-def format_func_one_decimal(
-    x: float,
-    pos: int,
-):
-    """
-    Formats the x-axis ticks to one decimal point.
+    # if the variable is not in the ds
+    if variable not in ds:
+        raise ValueError(f"Cannot find the variable {variable} in the ds")
 
-    Args:
-        x (float): The tick value.
-        pos (int): The position of the tick.
+    # # Set up the times to extract
+    # start_date_this = cftime.datetime.strptime(
+    #     f"{year}-{months[0]}-01", "%Y-%m-%d", calendar="360_day"
+    # )
+    # end_date_this = cftime.datetime.strptime(
+    #     f"{year + 1}-{months[-1]}-30", "%Y-%m-%d", calendar="360_day"
+    # )
 
-    Returns:
-        str: The formatted tick value.
-    """
-    return f"{x:.1f}"
+    # # slice between the start and end dates
+    # ds = ds.sel(time=slice(start_date_this, end_date_this))
+
+    # extract the specific months
+    ds = ds.sel(time=ds["time.month"].isin(months))
+
+    return ds
