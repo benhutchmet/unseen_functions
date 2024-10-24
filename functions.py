@@ -42,6 +42,7 @@ from matplotlib.ticker import FuncFormatter
 from tqdm import tqdm
 from typing import Any, List, Tuple
 from datetime import datetime
+from iris.util import equalise_attributes
 
 # Path to modules
 sys.path.append("/home/users/benhutch/unseen_multi_year/")
@@ -6579,6 +6580,7 @@ def plot_composite_obs(
     obs_time_name: str = "time",
     save_prefix: str = "composite_obs",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+    regrid_file: str = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/psl/HadGEM3-GC31-MM/psl_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1_gn_196011-197103.nc",
 ) -> None:
     """
 
@@ -6612,7 +6614,7 @@ def plot_composite_obs(
 
     # Set up the regrid ERA5 path
     regrid_era5_path = (
-        "/gws/nopw/j04/canari/users/benhutch/ERA5/global_regrid_sel_region_psl.nc"
+        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
     )
 
     # Work out the percentile threshold for the obs data
@@ -6634,20 +6636,62 @@ def plot_composite_obs(
     # print the head of the obs df composite
     print(obs_df_composite.head())
 
-    # Load the regridded ERA5 data
-    ds = xr.open_mfdataset(
-        regrid_era5_path,
-        chunks={"time": 10},
-        combine="by_coords",
-        parallel=False,
-        engine="netcdf4",
-        coords="minimal",
-    )
+    # # Load the regridded ERA5 data
+    # ds = xr.open_mfdataset(
+    #     regrid_era5_path,
+    #     combine="by_coords",
+    #     parallel=False,
+    #     engine="netcdf4",
+    #     coords="minimal",
+    # )
 
-    # If expver is present in the observations
-    if "expver" in ds.coords:
-        # Combine the first two expver variables
-        ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+    # # If expver is present in the observations
+    # if "expver" in ds.coords:
+    #     # Combine the first two expver variables
+    #     ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+
+    # # convert ds to a cube
+    # cube = ds.to_iris()
+
+    # # load in the ERA5 data with iris
+    cube = iris.load_cube(regrid_era5_path, psl_variable)
+
+    # load the sample file
+    model_cube_example = iris.load_cube(regrid_file)
+
+    # regrid the cube to the model cube
+    cube = cube.regrid(model_cube_example, iris.analysis.Linear())
+
+    # subset the cube to the correct grid
+    cube = cube.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+    # print the cube
+    print(cube)
+
+    # print the lats
+    print(cube.coord("latitude").points)
+
+    # print the lons
+    print(cube.coord("longitude").points)
+
+    # prtint the lat bounds
+    print(lat_bounds)
+
+    # print the lon bounds
+    print(lon_bounds)
+
+    # Select the data for expver=1 and expver=5
+    cube_expver1 = cube.extract(iris.Constraint(expver=1))
+    cube_expver5 = cube.extract(iris.Constraint(expver=5))
+
+    # # Merge the two cubes
+    # cube = iris.cube.CubeList([cube_expver1, cube_expver5]).concatenate()
+
+    # print the cube
+    print(cube_expver1)
+
+    # assuming that this has most of the data
+    cube = cube_expver1
 
     # if calc anoms is true
     if calc_anoms:
@@ -6659,58 +6703,92 @@ def plot_composite_obs(
         ), "Months must be integers"
 
         # subset the data to the region
-        ds_clim = ds.sel(
-            lat=slice(lat_bounds[0], lat_bounds[1]),
-            lon=slice(lon_bounds[0], lon_bounds[1]),
+        cube_clim = cube.intersection(
+            latitude=(lat_bounds[0], lat_bounds[1]),
+            longitude=(lon_bounds[0], lon_bounds[1]),
         )
+
+        # print the months
+        print(months)
+
+        # set up the months constraint
+        months_constraint = iris.Constraint(time=lambda cell: cell.point.month in months)
 
         # subset the data to the months
-        ds_clim = ds_clim.sel(time=ds_clim["time.month"].isin(months))
+        cube_clim = cube_clim.extract(months_constraint)
+
+        # set up the years constraint
+        years_constraint = iris.Constraint(time=lambda cell: cell.point.year in climatology_period)
 
         # Select the years
-        ds_clim = ds_clim.sel(
-            time=slice(
-                f"{climatology_period[0]}-{months[0]}-01",
-                f"{climatology_period[1]}-{months[-1]}-31",
-            )
-        )
+        cube_clim = cube_clim.extract(years_constraint)
+
+        # print cube clim
+        print(cube_clim)
+
+        # print the type of cub clime
+        print(type(cube_clim))
 
         # Calculate the climatology
-        ds_clim = ds_clim[psl_variable].mean(dim="time")
+        cube_clim = cube_clim.collapsed("time", iris.analysis.MEAN)
 
     ds_list = []
 
     # Set up an empty list
-    for time in obs_df_composite[obs_time_name]:
+    for i, time in enumerate(obs_df_composite[obs_time_name]):
         # Subset the data to the region
-        ds_subset = ds.sel(
-            lat=slice(lat_bounds[0], lat_bounds[1]),
-            lon=slice(lon_bounds[0], lon_bounds[1]),
+        cube_subset = cube.intersection(
+            latitude=(lat_bounds[0], lat_bounds[1]),
+            longitude=(lon_bounds[0], lon_bounds[1]),
         )
 
         # Subset the data to the time
-        ds_subset = ds_subset.sel(time=time)
+        cube_subset = cube_subset.extract(iris.Constraint(time=time))
 
-        # append this to the ds list
-        ds_list.append(ds_subset[psl_variable])
+        # # Add a new coordinate 'number' to the cube
+        # number_coord = iris.coords.AuxCoord(i, long_name="number", units="1")
+        
+        # # add this as a dimensioned coordinate
+        # cube_subset.add_dim_coord(number_coord, 0)
+
+        # # print the cube subset
+        # print(cube_subset)
+
+        # append the cube to the list
+        ds_list.append(cube_subset)
+
+    # print ds_list
+    print(ds_list)
+
+    # make sure ds_list is an iris cube list
+    ds_list = iris.cube.CubeList(ds_list)
+
+    # remove the attributes which don't match up
+    removed_attributes = equalise_attributes(ds_list)
 
     # Concatenate the list with a time dimension
-    ds_composite = xr.concat(ds_list, dim="time")
+    ds_composite = ds_list.merge_cube()
 
-    # take the time mean of ds composite
-    ds_composite = ds_composite.mean(dim="time")
+    # print ds copmosite
+    print(ds_composite)
+
+    # print the type of ds_compopsite
+    print(type(ds_composite))
+
+    # take the mean over the time dimension
+    ds_composite = ds_composite.collapsed("time", iris.analysis.MEAN)
 
     # Etract the lat and lon points
-    lats = ds_composite["lat"].values
-    lons = ds_composite["lon"].values
+    lats = ds_composite.coord("latitude").points
+    lons = ds_composite.coord("longitude").points
 
     # if calc_anoms is True
     if calc_anoms:
         # Calculate the anomalies
-        field = (ds_composite.values - ds_clim.values) / 100  # convert to hPa
+        field = (ds_composite.data - cube_clim.data) / 100  # convert to hPa
     else:
         # Extract the data values
-        field = ds_composite.values / 100  # convert to hPa
+        field = ds_composite.data / 100  # convert to hPa
 
     # set up the figure
     fig, ax = plt.subplots(
@@ -7529,3 +7607,579 @@ def preprocess(
     ds = ds.sel(time=ds["time.month"].isin(months))
 
     return ds
+
+# define a function to plot both composites for the obs and the model
+def plot_composite_obs_model(
+    obs_df: pd.DataFrame,
+    obs_val_name: str,
+    obs_time_name: str,
+    model_df: pd.DataFrame,
+    model_val_name: str,
+    percentile: float,
+    title: str,
+    nboot: int = 1000,
+    obs_variable: str = "msl",
+    model: str = "HadGEM3-GC31-MM",
+    psl_variable: str = "psl",
+    freq: str = "Amon",
+    experiment: str = "dcppA-hindcast",
+    calc_anoms: bool = False,
+    months: list[int] = [10, 11, 12, 1, 2, 3],
+    climatology_period: list[int] = [1990, 2018],
+    lat_bounds: list = [30, 80],
+    lon_bounds: list = [-90, 30],
+    files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+    save_prefix: str = "composite_obs_model",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the composite SLP events for both the observations and the model data.
+
+    Args:
+        obs_df (pd.DataFrame): The DataFrame containing the observation data with columns for the observation value and the observation time.
+        obs_val_name (str): The name of the observation value column.
+        obs_time_name (str): The name of the observation time column.
+        model_df (pd.DataFrame): The DataFrame containing the model data with columns for the model value.
+        model_val_name (str): The name of the model value column.
+        percentile (float): The percentile to use for the composite.
+        title (str): The title of the plot.
+        obs_variable (str, optional): The name of the observation variable. Defaults to "msl".
+        model (str, optional): The name of the model. Defaults to "HadGEM3-GC31-MM".
+        psl_variable (str, optional): The name of the sea level pressure variable. Defaults to "psl".
+        freq (str, optional): The frequency of the data. Defaults to "Amon".
+        experiment (str, optional): The name of the experiment. Defaults to "dcppA-hindcast".
+        calc_anoms (bool, optional): Whether to calculate anomalies. Defaults to False.
+        months (list[int], optional): The months to include in the composite. Defaults to [10, 11, 12, 1, 2, 3].
+        climatology_period (list[int], optional): The period to use for climatology. Defaults to [1990, 2018].
+        lat_bounds (list, optional): The latitude bounds for the composite. Defaults to [30, 80].
+        lon_bounds (list, optional): The longitude bounds for the composite. Defaults to [-90, 30].
+        files_loc_path (str, optional): The path to the file location. Defaults to "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv".
+        save_prefix (str, optional): The prefix to use for the saved plot. Defaults to "composite_obs_model".
+        save_dir (str, optional): The directory to save the plot in. Defaults to "/gws/nopw/j04/canari/users/benhutch/plots".
+
+    Returns:
+        None
+    """
+
+    # Set up the regrid ERA5 path
+    regrid_era5_path = (
+        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1694423850.2771118-29739-1-db661393-5c44-4603-87a8-2d7abee184d8.nc"
+    )
+
+    # Work out the percentile threshold for the obs data
+    obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
+
+    # print the len of the full obs_df
+    print(f"The length of the obs df is {len(obs_df)}")
+
+    # Apply a boolean to the df to where values are beneath
+    # this threshold
+    obs_df_composite = obs_df[obs_df[obs_val_name] < obs_threshold]
+
+    # the percentile is print
+    print(f"The {percentile}th percentile is {obs_threshold}")
+
+    # Print the len of the obs df composite
+    print(f"The length of the obs df composite is {len(obs_df_composite)}")
+
+    # save the len as the n events
+    num_obs_events = len(obs_df_composite)
+
+    # print the head of the obs df composite
+    print(obs_df_composite.head())
+
+    # Load the regridded ERA5 data
+    ds = xr.open_mfdataset(
+        regrid_era5_path,
+        chunks={"time": 10},
+        combine="by_coords",
+        parallel=False,
+        engine="netcdf4",
+        coords="minimal",
+    )
+
+    # If expver is present in the observations
+    if "expver" in ds.coords:
+        # Combine the first two expver variables
+        ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+
+    # if calc anoms is true
+    if calc_anoms:
+        print("Calculating the climatology for the observations")
+
+        # assert that the months are integers
+        assert all(
+            isinstance(month, int) for month in months
+        ), "Months must be integers"
+
+        # subset the data to the region
+        ds_clim = ds.sel(
+            lat=slice(lat_bounds[0], lat_bounds[1]),
+            lon=slice(lon_bounds[0], lon_bounds[1]),
+        )
+
+        # subset the data to the months
+        ds_clim = ds_clim.sel(time=ds_clim["time.month"].isin(months))
+
+        # Select the years
+        ds_clim = ds_clim.sel(
+            time=slice(
+                f"{climatology_period[0]}-{months[0]}-01",
+                f"{climatology_period[1]}-{months[-1]}-31",
+            )
+        )
+
+        # Calculate the climatology
+        ds_clim = ds_clim[obs_variable].mean(dim="time")
+
+    ds_list = []
+
+    # Set up an empty list
+    for time in obs_df_composite[obs_time_name]:
+        # Subset the data to the region
+        ds_subset = ds.sel(
+            lat=slice(lat_bounds[0], lat_bounds[1]),
+            lon=slice(lon_bounds[0], lon_bounds[1]),
+        )
+
+        # Subset the data to the time
+        ds_subset = ds_subset.sel(time=time)
+
+        # append this to the ds list
+        ds_list.append(ds_subset[obs_variable])
+
+    # Concatenate the list with a time dimension
+    ds_composite = xr.concat(ds_list, dim="time")
+
+    # extract this as an array
+    ds_composite_obs = ds_composite.values
+
+    # take the time mean of ds composite
+    ds_composite = ds_composite.mean(dim="time")
+
+    # Etract the lat and lon points
+    lats = ds_composite["lat"].values
+    lons = ds_composite["lon"].values
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # Calculate the anomalies
+        field_obs = (ds_composite.values - ds_clim.values) / 100  # convert to hPa
+    else:
+        # Extract the data values
+        field_obs = ds_composite.values / 100  # convert to hPa
+
+        # Work out the percentile threshold for the model data
+    model_threshold = np.percentile(model_df[model_val_name], percentile)
+
+    # Print the full len of the model df
+    print(f"The length of the model df is {len(model_df)}")
+
+    # Apply a boolean to the df to where values are beneath
+    model_df_composite = model_df[model_df[model_val_name] < model_threshold]
+
+    # Print the percentile value
+    print(f"The {percentile}th percentile is {model_threshold}")
+
+    # Print the len of the model df composite
+    print(f"The length of the model df composite is {len(model_df_composite)}")
+
+    # print the head of the model df composite
+    print(model_df_composite.head())
+
+    # extract the unique members
+    unique_members = np.unique(model_df_composite["member"])
+
+    # assert that the files loc path exists
+    assert os.path.exists(files_loc_path), "The files loc path does not exist"
+
+    # Load the files location
+    files_loc = pd.read_csv(files_loc_path)
+
+    # print the data we seek
+    print(f"model: {model}")
+    print(f"experiment: {experiment}")
+    print(f"freq: {freq}")
+    print(f"psl_variable: {psl_variable}")
+
+    # # extract the model_path_var
+    # model_path_var = files_loc.loc[
+    #     (files_loc["model"] == model)
+    #     & (files_loc["experiment"] == experiment)
+    #     & (files_loc["frequency"] == freq)
+    #     & (files_loc["variable"] == sf_variable)
+    # ]["path"].values[0]
+
+    # Extract the path for the given model, experiment, freq, and variable
+    model_path_psl = files_loc.loc[
+        (files_loc["model"] == model)
+        & (files_loc["experiment"] == experiment)
+        & (files_loc["frequency"] == freq)
+        & (files_loc["variable"] == psl_variable)
+    ]["path"].values[0]
+
+    # asser that the model path psl exists
+    assert os.path.exists(model_path_psl), "The model path psl does not exist"
+
+    # extract the model path root
+    model_path_root_psl = model_path_psl.split("/")[1]
+
+    # Set up an empty list of files
+    files_list = []
+
+    # Extract unique (init_year, member) pairs
+    unique_year_member_pairs = model_df_composite[
+        ["init_year", "member"]
+    ].drop_duplicates()
+    unique_year_member_pairs = list(
+        unique_year_member_pairs.itertuples(index=False, name=None)
+    )
+
+    # print(unique_year_member_pairs)
+
+    # loop over the unique year member pairs
+    for year, member in unique_year_member_pairs:
+        # find the leads to extract
+        # leads_ym = model_df_composite.loc[
+        #     (model_df_composite["init_year"] == year)
+        #     & (model_df_composite["member"] == member)
+        # ]["lead"].values
+
+        # # print the year and member
+        # print(f"year: {year}, member: {member}")
+
+        # # print the lead
+        # print(f"leads: {leads_ym}")
+
+        if model_path_root_psl == "work":
+            raise NotImplementedError("work path not implemented yet")
+        elif model_path_root_psl == "gws":
+            # Create the path
+            path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
+
+            # glob this path
+            files = glob.glob(path)
+
+            # assert that files has length 1
+            assert len(files) == 1, f"files has length {len(files)}"
+
+            # extract the file
+            file = files[0]
+        elif model_path_root_psl == "badc":
+            raise NotImplementedError("home path not implemented yet")
+        else:
+            raise ValueError(f"Unknown model path root {model_path_root_psl}")
+
+        # append the file to the files list
+        files_list.append(file)
+
+    # # print the files
+    # print(f"The files are {files_list}")
+
+    # print the len of files
+    print(f"The length of files is {len(files_list)}")
+
+    # # print the unique year member pairs
+    # print(f"The unique year member pairs are {unique_year_member_pairs}")
+
+    # print the len of the unique year member paris
+    print(
+        f"The length of the unique year member pairs is {len(unique_year_member_pairs)}"
+    )
+
+    # create an empty list for the files
+    dss = []
+
+    # loop over the files and year members
+    for idx, (file, (year, member)) in tqdm(
+        enumerate(zip(files_list, unique_year_member_pairs)), total=len(files_list)
+    ):
+        # Your existing code here
+        # find the leads to extract
+        leads_ym = model_df_composite.loc[
+            (model_df_composite["init_year"] == year)
+            & (model_df_composite["member"] == member)
+        ]["lead"].values
+
+        # load the file
+        ds = xr.open_dataset(file)
+
+        # Format the lead as an int
+        ds = set_integer_time_axis(
+            xro=ds,
+            frequency=freq,
+        )
+
+        # select the leads from the time variable
+        ds = ds.sel(time=leads_ym)
+
+        # take the mean over the time axis
+        ds = ds.mean(dim="time")
+
+        # Add a new coordinate 'number' with a unique value
+        ds = ds.expand_dims({"number": [idx]})
+
+        # Append the ds to the dss list
+        dss.append(ds[psl_variable])
+
+    # Concatenate all datasets along the 'number' dimension
+    combined_ds = xr.concat(dss, dim="number")
+
+    # print combined_ds
+    print("The combined_ds is", combined_ds)
+
+    # convert to a cube
+    cube_psl = combined_ds.to_iris()
+
+    # subset to teh correct grid
+    cube_psl = cube_psl.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+    # subset to the region of interest
+    cube_psl = cube_psl.intersection(
+        longitude=(lon_bounds[0], lon_bounds[1]),
+        latitude=(lat_bounds[0], lat_bounds[1]),
+    )
+
+    # print the lats and lons
+    print(cube_psl.coord("latitude").points)
+    print(cube_psl.coord("longitude").points)
+
+    # print obs lats and lons
+    print(lats)
+    print(lons)
+
+    # print the combined ds
+    print("The cube_psl is", cube_psl)
+
+    # assert that combined_ds lats array == lats
+    assert np.allclose(cube_psl.coord("latitude").points, lats), "The lats do not match"
+
+    # assert that combined_ds lons array == lons
+    assert np.allclose(cube_psl.coord("longitude").points, lons), "The lons do not match"
+    
+    # extract combined_ds as an array
+    combined_ds_arr = cube_psl.data
+
+    # set up the nrows for the data
+    nrows = combined_ds_arr.shape[0]
+
+    # set up the shapes of the arrays to be filled
+    nlats = len(lats) ; nlons = len(lons)
+
+    # set up an empty array of zeros to be filled
+    model_boot = np.zeros([nboot, num_obs_events, nlats, nlons])
+
+    # Set up the array for the p-values
+    p_values = np.zeros([nlats, nlons])
+
+    # Loop over the bootstraps
+    for iboot in tqdm(range(nboot)):
+        # Create an array of randomly selected rows with length num_obs_events
+        random_rows = np.random.choice(nrows, num_obs_events, replace=True)
+
+        # Extract the data for these rows
+        model_boot[iboot, :, :, :] = combined_ds_arr[random_rows, :, :]
+
+    # take the bootstrapped mean
+    model_boot_mean = np.mean(model_boot, axis=0)
+
+    # Calculate the p-values
+    _, p_values = stats.ttest_ind(ds_composite_obs, model_boot_mean, axis=0)
+
+    # print the p-values
+    print(f"The p-values are {p_values}")
+
+    # print the shape of the p-values
+    print(f"The shape of the p-values is {p_values.shape}")
+
+    # Take the mean over the 'number' dimension
+    mean_ds = combined_ds.mean(dim="number")
+
+    # convert to a cube
+    cube_psl = mean_ds.to_iris()
+
+    # # print the cube psl
+    # print(cube_psl)
+
+    # # print the lats and the lons
+    # print(cube_psl.coord("latitude").points)
+    # print(cube_psl.coord("longitude").points)
+
+    # subset to region of interest
+    cube_psl = cube_psl.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+    # subset to the actual region of interest
+    cube_psl = cube_psl.intersection(
+        longitude=(lon_bounds[0], lon_bounds[1]),
+        latitude=(lat_bounds[0], lat_bounds[1]),
+    )
+
+    # if calc anoms is true
+    if calc_anoms:
+
+        # set up a save directory for the climatologies
+        save_dir_clim = "/gws/nopw/j04/canari/users/benhutch/unseen/saved_clim"
+
+        # assert that this directory exists
+        assert os.path.exists(save_dir_clim), "The save directory does not exist"
+
+        # set up the fname
+        fname = f"climatology_{model}_{experiment}_{freq}_{psl_variable}_{climatology_period[0]}-{climatology_period[1]}_{lat_bounds[0]}-{lat_bounds[1]}_{lon_bounds[0]}-{lon_bounds[1]}_{months[0]}-{months[-1]}.nc"
+
+        # set up the full climatology path
+        climatology_path = os.path.join(save_dir_clim, fname)
+
+        # if the climatology path exists
+        if os.path.exists(climatology_path):
+            print("The climatology file exists")
+            print("Loading the climatology file")
+
+            # load the file using iris
+            cube_clim = iris.load_cube(climatology_path)
+
+        else:
+            print("The climatology file does not exist")
+            print("Calculating the climatology")
+
+            # Set up a list for the full ds's
+            clim_dss = []
+            # Loop over the years
+            for year in tqdm(range(climatology_period[0], climatology_period[1] + 1)):
+                member_list = []
+                for member in unique_members:
+                    start_time = time.time()
+                    
+                    path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
+
+                    # glob this path
+                    glob_start = time.time()
+                    files = glob.glob(path)
+                    glob_end = time.time()
+                    
+                    # assert
+                    assert (
+                        len(files) == 1
+                    ), f"files has length {len(files)} for year {year} and member {member} and path {path}"
+
+                    # open all of the files
+                    # open_start = time.time()
+                    member_ds = xr.open_mfdataset(
+                        files[0],
+                        combine="nested",
+                        concat_dim="time",
+                        preprocess=lambda ds: preprocess(
+                            ds=ds,
+                            year=year,
+                            variable=psl_variable,
+                            months=months,
+                        ),
+                        parallel=True,
+                        engine="netcdf4",
+                        coords="minimal",  # expecting identical coords
+                        data_vars="minimal",  # expecting identical vars
+                        compat="override",  # speed up
+                    ).squeeze()
+                    # open_end = time.time()
+
+                    # id init year == climatology_period[0]
+                    # and member == unique_members[0]
+                    # set_time_start = time.time()
+                    if year == climatology_period[0] and member == unique_members[0]:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                            first_month_attr=True,
+                        )
+                    else:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                        )
+                    # set_time_end = time.time()
+
+                    # take the mean over the time axis
+                    # mean_start = time.time()
+                    member_ds = member_ds.mean(dim="time")
+                    # mean_end = time.time()
+
+                    # append the member_ds to the member_list
+                    member_list.append(member_ds)
+                    
+                    # end_time = time.time()
+                    
+                    # # Print timing information
+                    # print(f"Year: {year}, Member: {member}")
+                    # print(f"  Total time: {end_time - start_time:.2f} seconds")
+                    # print(f"  glob time: {glob_end - glob_start:.2f} seconds")
+                    # print(f"  open_mfdataset time: {open_end - open_start:.2f} seconds")
+                    # print(f"  set_integer_time_axis time: {set_time_end - set_time_start:.2f} seconds")
+                    # print(f"  mean time: {mean_end - mean_start:.2f} seconds")
+
+                # Concatenate with a new member dimension using xarray
+                member_ds = xr.concat(member_list, dim="member")
+                # append the member_ds to the init_year_list
+                clim_dss.append(member_ds)
+            # Concatenate the init_year list along the init dimension
+            # and rename as lead time
+            ds = xr.concat(clim_dss, "init")
+
+            # print ds
+            print(ds)
+
+            # set up the members
+            ds["member"] = unique_members
+            ds["init"] = np.arange(climatology_period[0], climatology_period[1] + 1)
+
+            # extract the variable
+            ds_var = ds[psl_variable]
+
+            # # take the mean over lead dimension
+            # ds_clim = ds_var.mean(dim="lead")
+
+            # take the mean over member dimension
+            ds_clim = ds_var.mean(dim="member")
+
+            # take the mean over init dimension
+            ds_clim = ds_clim.mean(dim="init")
+
+            # convert to a cube
+            cube_clim = ds_clim.to_iris()
+
+            # # regrid the model data to the obs grid
+            # cube_clim_regrid = cube_clim.regrid(cube_obs, iris.analysis.Linear())
+
+            # subset to the correct grid
+            cube_clim = cube_clim.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+            # subset to the region of interest
+            cube_clim = cube_clim.intersection(
+                latitude=(lat_bounds[0], lat_bounds[1]),
+                longitude=(lon_bounds[0], lon_bounds[1]),
+            )
+
+            # if the climatology file does not exist
+            print("Saving the climatology file")
+
+            # save the cube_clim
+            iris.save(cube_clim, climatology_path)
+
+    # # extract the lats and lons
+    # lats = cube_psl.coord("latitude").points
+    # lons = cube_psl.coord("longitude").points
+
+    # if calc_anoms is True
+    if calc_anoms:
+        field_model = (cube_psl.data - cube_clim.data) / 100  # convert to hPa
+    else:
+        field_model = cube_psl.data / 100
+
+    # print the shape of field model
+    print(f"The shape of field model is {field_model.shape}")
+
+    # print the shape of field obs
+    print(f"The shape of field obs is {field_obs.shape}")
+
+
+    return
