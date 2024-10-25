@@ -6662,6 +6662,9 @@ def plot_composite_obs(
     # regrid the cube to the model cube
     cube = cube.regrid(model_cube_example, iris.analysis.Linear())
 
+    # print the regrid cube
+    print(cube)
+
     # subset the cube to the correct grid
     cube = cube.intersection(longitude=(-180, 180), latitude=(-90, 90))
 
@@ -7663,7 +7666,7 @@ def plot_composite_obs_model(
 
     # Set up the regrid ERA5 path
     regrid_era5_path = (
-        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1694423850.2771118-29739-1-db661393-5c44-4603-87a8-2d7abee184d8.nc"
+        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
     )
 
     # Work out the percentile threshold for the obs data
@@ -7682,26 +7685,68 @@ def plot_composite_obs_model(
     # Print the len of the obs df composite
     print(f"The length of the obs df composite is {len(obs_df_composite)}")
 
-    # save the len as the n events
-    num_obs_events = len(obs_df_composite)
-
     # print the head of the obs df composite
     print(obs_df_composite.head())
 
-    # Load the regridded ERA5 data
-    ds = xr.open_mfdataset(
-        regrid_era5_path,
-        chunks={"time": 10},
-        combine="by_coords",
-        parallel=False,
-        engine="netcdf4",
-        coords="minimal",
-    )
+    # # Load the regridded ERA5 data
+    # ds = xr.open_mfdataset(
+    #     regrid_era5_path,
+    #     combine="by_coords",
+    #     parallel=False,
+    #     engine="netcdf4",
+    #     coords="minimal",
+    # )
 
-    # If expver is present in the observations
-    if "expver" in ds.coords:
-        # Combine the first two expver variables
-        ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+    # # If expver is present in the observations
+    # if "expver" in ds.coords:
+    #     # Combine the first two expver variables
+    #     ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+
+    # # convert ds to a cube
+    # cube = ds.to_iris()
+
+    # # load in the ERA5 data with iris
+    cube = iris.load_cube(regrid_era5_path, psl_variable)
+
+    # load the sample file
+    model_cube_example = iris.load_cube(regrid_file)
+
+    # regrid the cube to the model cube
+    cube = cube.regrid(model_cube_example, iris.analysis.Linear())
+
+    # print the regrid cube
+    print(cube)
+
+    # subset the cube to the correct grid
+    cube = cube.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+    # print the cube
+    print(cube)
+
+    # print the lats
+    print(cube.coord("latitude").points)
+
+    # print the lons
+    print(cube.coord("longitude").points)
+
+    # prtint the lat bounds
+    print(lat_bounds)
+
+    # print the lon bounds
+    print(lon_bounds)
+
+    # Select the data for expver=1 and expver=5
+    cube_expver1 = cube.extract(iris.Constraint(expver=1))
+    cube_expver5 = cube.extract(iris.Constraint(expver=5))
+
+    # # Merge the two cubes
+    # cube = iris.cube.CubeList([cube_expver1, cube_expver5]).concatenate()
+
+    # print the cube
+    print(cube_expver1)
+
+    # assuming that this has most of the data
+    cube = cube_expver1
 
     # if calc anoms is true
     if calc_anoms:
@@ -7713,61 +7758,92 @@ def plot_composite_obs_model(
         ), "Months must be integers"
 
         # subset the data to the region
-        ds_clim = ds.sel(
-            lat=slice(lat_bounds[0], lat_bounds[1]),
-            lon=slice(lon_bounds[0], lon_bounds[1]),
+        cube_clim = cube.intersection(
+            latitude=(lat_bounds[0], lat_bounds[1]),
+            longitude=(lon_bounds[0], lon_bounds[1]),
         )
+
+        # print the months
+        print(months)
+
+        # set up the months constraint
+        months_constraint = iris.Constraint(time=lambda cell: cell.point.month in months)
 
         # subset the data to the months
-        ds_clim = ds_clim.sel(time=ds_clim["time.month"].isin(months))
+        cube_clim = cube_clim.extract(months_constraint)
+
+        # set up the years constraint
+        years_constraint = iris.Constraint(time=lambda cell: cell.point.year in climatology_period)
 
         # Select the years
-        ds_clim = ds_clim.sel(
-            time=slice(
-                f"{climatology_period[0]}-{months[0]}-01",
-                f"{climatology_period[1]}-{months[-1]}-31",
-            )
-        )
+        cube_clim = cube_clim.extract(years_constraint)
+
+        # print cube clim
+        print(cube_clim)
+
+        # print the type of cub clime
+        print(type(cube_clim))
 
         # Calculate the climatology
-        ds_clim = ds_clim[obs_variable].mean(dim="time")
+        cube_clim = cube_clim.collapsed("time", iris.analysis.MEAN)
 
     ds_list = []
 
     # Set up an empty list
-    for time in obs_df_composite[obs_time_name]:
+    for i, time in enumerate(obs_df_composite[obs_time_name]):
         # Subset the data to the region
-        ds_subset = ds.sel(
-            lat=slice(lat_bounds[0], lat_bounds[1]),
-            lon=slice(lon_bounds[0], lon_bounds[1]),
+        cube_subset = cube.intersection(
+            latitude=(lat_bounds[0], lat_bounds[1]),
+            longitude=(lon_bounds[0], lon_bounds[1]),
         )
 
         # Subset the data to the time
-        ds_subset = ds_subset.sel(time=time)
+        cube_subset = cube_subset.extract(iris.Constraint(time=time))
 
-        # append this to the ds list
-        ds_list.append(ds_subset[obs_variable])
+        # # Add a new coordinate 'number' to the cube
+        # number_coord = iris.coords.AuxCoord(i, long_name="number", units="1")
+        
+        # # add this as a dimensioned coordinate
+        # cube_subset.add_dim_coord(number_coord, 0)
+
+        # # print the cube subset
+        # print(cube_subset)
+
+        # append the cube to the list
+        ds_list.append(cube_subset)
+
+    # print ds_list
+    print(ds_list)
+
+    # make sure ds_list is an iris cube list
+    ds_list = iris.cube.CubeList(ds_list)
+
+    # remove the attributes which don't match up
+    removed_attributes = equalise_attributes(ds_list)
 
     # Concatenate the list with a time dimension
-    ds_composite = xr.concat(ds_list, dim="time")
+    ds_composite = ds_list.merge_cube()
 
-    # extract this as an array
-    ds_composite_obs = ds_composite.values
+    # print ds copmosite
+    print(ds_composite)
 
-    # take the time mean of ds composite
-    ds_composite = ds_composite.mean(dim="time")
+    # print the type of ds_compopsite
+    print(type(ds_composite))
+
+    # take the mean over the time dimension
+    ds_composite = ds_composite.collapsed("time", iris.analysis.MEAN)
 
     # Etract the lat and lon points
-    lats = ds_composite["lat"].values
-    lons = ds_composite["lon"].values
+    lats = ds_composite.coord("latitude").points
+    lons = ds_composite.coord("longitude").points
 
     # if calc_anoms is True
     if calc_anoms:
         # Calculate the anomalies
-        field_obs = (ds_composite.values - ds_clim.values) / 100  # convert to hPa
+        field_obs = (ds_composite.data - cube_clim.data) / 100  # convert to hPa
     else:
         # Extract the data values
-        field_obs = ds_composite.values / 100  # convert to hPa
+        field_obs = ds_composite.data / 100  # convert to hPa
 
         # Work out the percentile threshold for the model data
     model_threshold = np.percentile(model_df[model_val_name], percentile)
