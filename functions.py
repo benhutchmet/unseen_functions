@@ -7620,6 +7620,7 @@ def plot_composite_obs_model(
     model_val_name: str,
     percentile: float,
     title: str,
+    variable: str,
     nboot: int = 1000,
     obs_variable: str = "msl",
     model: str = "HadGEM3-GC31-MM",
@@ -7862,6 +7863,8 @@ def plot_composite_obs_model(
     # Print the len of the model df composite
     print(f"The length of the model df composite is {len(model_df_composite)}")
 
+    num_model_events = len(model_df_composite)
+
     # print the head of the model df composite
     print(model_df_composite.head())
 
@@ -8038,6 +8041,7 @@ def plot_composite_obs_model(
     # regrid the obs data to the same as the model data
     print("Regridding the obs data to the model data")
     cube_obs = ds_composite.regrid(cube_psl, iris.analysis.Linear())
+    cube_clim = cube_clim.regrid(cube_psl, iris.analysis.Linear())
 
     # regrid ds_composite full (which has all the obs events in)
     print("Regridding the obs data to the model data")
@@ -8286,11 +8290,274 @@ def plot_composite_obs_model(
     else:
         field_model = cube_psl.data / 100
 
+    # Set up the lons
+    lons = cube_psl.coord("longitude").points
+    lats = cube_psl.coord("latitude").points
+
+
     # print the shape of field model
     print(f"The shape of field model is {field_model.shape}")
 
     # print the shape of field obs
     print(f"The shape of field obs is {field_obs.shape}")
 
+    # set up a figure as two subplots (one row, two columns)
+    fig, axs = plt.subplots(
+        1,
+        2,
+        figsize=(10, 5),
+        subplot_kw={"projection": ccrs.PlateCarree()},
+    )
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # clevs = np.linspace(-8, 8, 18)
+        clevs = np.array(
+            [
+                -8.0,
+                -7.0,
+                -6.0,
+                -5.0,
+                -4.0,
+                -3.0,
+                -2.0,
+                -1.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+            ]
+        )
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+    else:
+        # define the contour levels
+        clevs = np.array(np.arange(988, 1024 + 1, 2))
+        ticks = clevs
+
+        # ensure that these are ints
+        clevs = clevs.astype(int)
+        ticks = ticks.astype(int)
+
+    # # print the shape of the inputs
+    # print(f"lons shape: {lons.shape}")
+    # print(f"lats shape: {lats.shape}")
+    # print(f"field shape: {field.shape}")
+    # print(f"clevs shape: {clevs.shape}")
+
+    # # print the field values
+    # print(f"field values: {field}")
+
+    # Define the custom diverging colormap
+    # cs = ["purple", "blue", "lightblue", "lightgreen", "lightyellow", "orange", "red", "darkred"]
+    # cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+    # cs = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"]
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # plot the observed basemap on the first axis
+    mymap_obs = axs[0].contourf(
+        lons,
+        lats,
+        field_obs,
+        clevs,
+        transform=ccrs.PlateCarree(),
+        cmap=cmap,
+        extend="both",
+    )
+
+    # PLot the observed contours on the first axis
+    contours_obs =axs[0].contour(
+        lons,
+        lats,
+        field_obs,
+        clevs,
+        colors="black",
+        transform=ccrs.PlateCarree(),
+        linewidth=0.2,
+        alpha=0.5,
+    )
+
+    # plot the model basemap on the second axis
+    mymap_model = axs[1].contourf(
+        lons,
+        lats,
+        field_model,
+        clevs,
+        transform=ccrs.PlateCarree(),
+        cmap=cmap,
+        extend="both",
+    )
+
+    # Plot the model contours on the second axis
+    contours_model = axs[1].contour(
+        lons,
+        lats,
+        field_model,
+        clevs,
+        colors="black",
+        transform=ccrs.PlateCarree(),
+        linewidth=0.2,
+        alpha=0.5,
+    )
+
+    if calc_anoms:
+        # Set the labels for the contours
+        axs[0].clabel(
+            contours_obs, clevs, fmt="%.4g", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+        # Set the labels for the contours
+        axs[1].clabel(
+            contours_model, clevs, fmt="%.4g", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+    else:
+        # Set the labels for the contours
+        axs[0].clabel(
+            contours_obs, clevs, fmt="%d", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+        # Set the labels for the contours
+        axs[1].clabel(
+            contours_model, clevs, fmt="%d", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+    num_events = [
+        num_obs_events,
+        num_model_events,
+    ]
+
+    # Add coastlines
+    for ax, num_event in zip(axs, num_events):
+        ax.coastlines()
+
+        # format the gridlines and labels
+        gl = ax.gridlines(
+            draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+        )
+        gl.xlabels_top = False
+        gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.xlabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_right = False
+        gl.yformatter = LATITUDE_FORMATTER
+        gl.ylabel_style = {"size": 7, "color": "black"}
+
+        # include a textbox in the top left
+        ax.text(
+            0.02,
+            0.95,
+            f"N = {num_event}",
+            verticalalignment="top",
+            horizontalalignment="left",
+            transform=ax.transAxes,
+            color="black",
+            fontsize=10,
+            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+        )
+
+    # Print the range of the p-values
+    print(f"The range of the p-values is {np.min(p_values)} to {np.max(p_values)}")
+
+    # print the shape of the p-values
+    print(f"The shape of the p-values is {p_values.shape}")
+
+    # prnt the shape of mymap
+    print(f"The shape of mymap is {mymap_obs.shape}")
+
+    # mask the pfield to be NaN where the p-value is greater than 0.05
+    pfield_masked = np.ma.masked_where(p_values > 0.05, p_values)
+    
+    # plot this on the first axis
+    axs[1].contourf(
+        lons,
+        lats,
+        pfield_masked,
+        transform=ccrs.PlateCarree(),
+        hatched=["..."],
+        alpha=0.0,
+    )
+
+    if calc_anoms:
+        cbar = plt.colorbar(
+            mymap_obs,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+        # add colorbar label
+        cbar.set_label(
+            f"mean sea level pressure {climatology_period[0]}-{climatology_period[1]} anomaly (hPa)",
+            rotation=0,
+            fontsize=10,
+        )
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours_obs)
+    else:
+        # add colorbar
+        cbar = plt.colorbar(
+            mymap_obs,
+            orientation="horizontal",
+            shrink=0.7,
+            pad=0.1,
+            format=FuncFormatter(format_func),
+        )
+        cbar.set_label("mean sea level pressure (hPa)", rotation=0, fontsize=10)
+
+        # add contour lines to the colorbar
+        cbar.add_lines(contours_obs)
+
+    # set up the titles
+    axs[0].set_title(f"Observed {percentile}th percentile of {variable} events (ERA5)",
+                        fontsize=12,
+                        fontweight="bold",
+    )
+
+    # set up the titles
+    axs[1].set_title(f"Model {percentile}th percentile of {variable} events ({model})",
+                        fontsize=12,
+                        fontweight="bold",
+    )
+
+    # Set up the tickparams
+    cbar.ax.tick_params(labelsize=7, length=0)
+    cbar.set_ticks(ticks)
+
+    # Make the plot look nice
+    plt.tight_layout()
+
+    # Set up the current date time
+    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        dpi=300,
+        bbox_inches="tight",
+    )
 
     return
