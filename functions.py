@@ -7634,6 +7634,7 @@ def plot_composite_obs_model(
     files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
     save_prefix: str = "composite_obs_model",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+    regrid_file: str = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/psl/HadGEM3-GC31-MM/psl_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1_gn_196011-197103.nc",
 ) -> None:
     """
     Plots the composite SLP events for both the observations and the model data.
@@ -7679,6 +7680,9 @@ def plot_composite_obs_model(
     # this threshold
     obs_df_composite = obs_df[obs_df[obs_val_name] < obs_threshold]
 
+    # Set up the number of obs events
+    num_obs_events = len(obs_df_composite)
+
     # the percentile is print
     print(f"The {percentile}th percentile is {obs_threshold}")
 
@@ -7706,7 +7710,7 @@ def plot_composite_obs_model(
     # cube = ds.to_iris()
 
     # # load in the ERA5 data with iris
-    cube = iris.load_cube(regrid_era5_path, psl_variable)
+    cube = iris.load_cube(regrid_era5_path, obs_variable)
 
     # load the sample file
     model_cube_example = iris.load_cube(regrid_file)
@@ -7822,28 +7826,20 @@ def plot_composite_obs_model(
     removed_attributes = equalise_attributes(ds_list)
 
     # Concatenate the list with a time dimension
-    ds_composite = ds_list.merge_cube()
+    ds_composite_full = ds_list.merge_cube()
 
     # print ds copmosite
-    print(ds_composite)
+    print(ds_composite_full)
 
     # print the type of ds_compopsite
-    print(type(ds_composite))
+    print(type(ds_composite_full))
 
     # take the mean over the time dimension
-    ds_composite = ds_composite.collapsed("time", iris.analysis.MEAN)
+    ds_composite = ds_composite_full.collapsed("time", iris.analysis.MEAN)
 
-    # Etract the lat and lon points
-    lats = ds_composite.coord("latitude").points
-    lons = ds_composite.coord("longitude").points
-
-    # if calc_anoms is True
-    if calc_anoms:
-        # Calculate the anomalies
-        field_obs = (ds_composite.data - cube_clim.data) / 100  # convert to hPa
-    else:
-        # Extract the data values
-        field_obs = ds_composite.data / 100  # convert to hPa
+    # # Etract the lat and lon points
+    # lats = ds_composite.coord("latitude").points
+    # lons = ds_composite.coord("longitude").points
 
         # Work out the percentile threshold for the model data
     model_threshold = np.percentile(model_df[model_val_name], percentile)
@@ -7853,6 +7849,12 @@ def plot_composite_obs_model(
 
     # Apply a boolean to the df to where values are beneath
     model_df_composite = model_df[model_df[model_val_name] < model_threshold]
+
+    # print the model df composite
+    print(model_df_composite)
+
+    # # set up the numer of events
+    # num_obs_events = len(model_df_composite)
 
     # Print the percentile value
     print(f"The {percentile}th percentile is {model_threshold}")
@@ -7963,6 +7965,12 @@ def plot_composite_obs_model(
         f"The length of the unique year member pairs is {len(unique_year_member_pairs)}"
     )
 
+    # FIXME: limit to first 30 for testing purposes
+    print("WARNING: Limiting to first 30 for testing purposes")
+    files_list = files_list[:30]
+    unique_year_member_pairs = unique_year_member_pairs[:30]
+    print("WARNING: Limiting to first 30 for testing purposes")
+
     # create an empty list for the files
     dss = []
 
@@ -8016,22 +8024,38 @@ def plot_composite_obs_model(
         latitude=(lat_bounds[0], lat_bounds[1]),
     )
 
-    # print the lats and lons
-    print(cube_psl.coord("latitude").points)
-    print(cube_psl.coord("longitude").points)
+    # # print the lats and lons
+    # print(cube_psl.coord("latitude").points)
+    # print(cube_psl.coord("longitude").points)
 
-    # print obs lats and lons
-    print(lats)
-    print(lons)
+    # # print obs lats and lons
+    # print(lats)
+    # print(lons)
 
     # print the combined ds
     print("The cube_psl is", cube_psl)
 
+    # regrid the obs data to the same as the model data
+    print("Regridding the obs data to the model data")
+    cube_obs = ds_composite.regrid(cube_psl, iris.analysis.Linear())
+
+    # regrid ds_composite full (which has all the obs events in)
+    print("Regridding the obs data to the model data")
+    ds_composite_full_regrid = ds_composite_full.regrid(cube_psl, iris.analysis.Linear())
+
     # assert that combined_ds lats array == lats
-    assert np.allclose(cube_psl.coord("latitude").points, lats), "The lats do not match"
+    assert np.allclose(cube_psl.coord("latitude").points, cube_obs.coord("latitude").points), "The lats do not match"
 
     # assert that combined_ds lons array == lons
-    assert np.allclose(cube_psl.coord("longitude").points, lons), "The lons do not match"
+    assert np.allclose(cube_psl.coord("longitude").points, cube_obs.coord("longitude").points), "The lons do not match"
+
+    # if calc_anoms is True
+    if calc_anoms:
+        # Calculate the anomalies
+        field_obs = (cube_obs.data - cube_clim.data) / 100  # convert to hPa
+    else:
+        # Extract the data values
+        field_obs = cube_obs.data / 100  # convert to hPa
     
     # extract combined_ds as an array
     combined_ds_arr = cube_psl.data
@@ -8040,7 +8064,11 @@ def plot_composite_obs_model(
     nrows = combined_ds_arr.shape[0]
 
     # set up the shapes of the arrays to be filled
-    nlats = len(lats) ; nlons = len(lons)
+    nlats = len(cube_psl.coord("latitude").points)
+    nlons = len(cube_psl.coord("longitude").points)
+
+    # print the num obs events
+    print(f"The number of obs events is {num_obs_events}")
 
     # set up an empty array of zeros to be filled
     model_boot = np.zeros([nboot, num_obs_events, nlats, nlons])
@@ -8059,8 +8087,15 @@ def plot_composite_obs_model(
     # take the bootstrapped mean
     model_boot_mean = np.mean(model_boot, axis=0)
 
+    # print the shapes of the arrays
+    print(f"The shape of the model_boot is {model_boot.shape}")
+    print(f"The shape of the model_boot_mean is {model_boot_mean.shape}")
+
+    # print the shape of the ds_composite_full.data
+    print(f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}")
+
     # Calculate the p-values
-    _, p_values = stats.ttest_ind(ds_composite_obs, model_boot_mean, axis=0)
+    _, p_values = stats.ttest_ind(ds_composite_full_regrid.data, model_boot_mean, axis=0)
 
     # print the p-values
     print(f"The p-values are {p_values}")
