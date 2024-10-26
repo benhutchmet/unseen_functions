@@ -5720,7 +5720,7 @@ def plot_chance_of_event(
             gev.fit(
                 np.random.choice(
                     model_df[model_val_name],
-                    size=len(model_df[model_val_name]),
+                    size=len(obs_df[obs_val_name]),  # resample to obs length
                     replace=True,
                 )
             )
@@ -5822,7 +5822,7 @@ def plot_chance_of_event(
 
     # # aesthetics
     ax.set_ylim(0.1, 20)  # Adjust as needed
-    ax.set_xlim(1, -1)  # Adjust as needed
+    ax.set_xlim(2, -1)  # Adjust as needed
 
     # set the xpoints
     x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
@@ -6613,9 +6613,7 @@ def plot_composite_obs(
     """
 
     # Set up the regrid ERA5 path
-    regrid_era5_path = (
-        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
-    )
+    regrid_era5_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
 
     # Work out the percentile threshold for the obs data
     obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
@@ -6715,13 +6713,17 @@ def plot_composite_obs(
         print(months)
 
         # set up the months constraint
-        months_constraint = iris.Constraint(time=lambda cell: cell.point.month in months)
+        months_constraint = iris.Constraint(
+            time=lambda cell: cell.point.month in months
+        )
 
         # subset the data to the months
         cube_clim = cube_clim.extract(months_constraint)
 
         # set up the years constraint
-        years_constraint = iris.Constraint(time=lambda cell: cell.point.year in climatology_period)
+        years_constraint = iris.Constraint(
+            time=lambda cell: cell.point.year in climatology_period
+        )
 
         # Select the years
         cube_clim = cube_clim.extract(years_constraint)
@@ -6750,7 +6752,7 @@ def plot_composite_obs(
 
         # # Add a new coordinate 'number' to the cube
         # number_coord = iris.coords.AuxCoord(i, long_name="number", units="1")
-        
+
         # # add this as a dimensioned coordinate
         # cube_subset.add_dim_coord(number_coord, 0)
 
@@ -7264,14 +7266,14 @@ def plot_composite_model(
                 member_list = []
                 for member in unique_members:
                     start_time = time.time()
-                    
+
                     path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
 
                     # glob this path
                     glob_start = time.time()
                     files = glob.glob(path)
                     glob_end = time.time()
-                    
+
                     # assert
                     assert (
                         len(files) == 1
@@ -7322,9 +7324,9 @@ def plot_composite_model(
 
                     # append the member_ds to the member_list
                     member_list.append(member_ds)
-                    
+
                     # end_time = time.time()
-                    
+
                     # # Print timing information
                     # print(f"Year: {year}, Member: {member}")
                     # print(f"  Total time: {end_time - start_time:.2f} seconds")
@@ -7367,7 +7369,9 @@ def plot_composite_model(
             # cube_clim_regrid = cube_clim.regrid(cube_obs, iris.analysis.Linear())
 
             # subset to the correct grid
-            cube_clim = cube_clim.intersection(longitude=(-180, 180), latitude=(-90, 90))
+            cube_clim = cube_clim.intersection(
+                longitude=(-180, 180), latitude=(-90, 90)
+            )
 
             # subset to the region of interest
             cube_clim = cube_clim.intersection(
@@ -7558,7 +7562,8 @@ def plot_composite_model(
     plt.tight_layout()
 
     # Set up the current date time
-    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the plot
     plt.savefig(
@@ -7568,6 +7573,7 @@ def plot_composite_model(
     )
 
     return
+
 
 # define a function for preprocessing
 def preprocess(
@@ -7612,6 +7618,7 @@ def preprocess(
     ds = ds.sel(time=ds["time.month"].isin(months))
 
     return ds
+
 
 # define a function to plot both composites for the obs and the model
 def plot_composite_obs_model(
@@ -7668,9 +7675,7 @@ def plot_composite_obs_model(
     """
 
     # Set up the regrid ERA5 path
-    regrid_era5_path = (
-        "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
-    )
+    regrid_era5_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
 
     # Work out the percentile threshold for the obs data
     obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
@@ -7773,13 +7778,17 @@ def plot_composite_obs_model(
         print(months)
 
         # set up the months constraint
-        months_constraint = iris.Constraint(time=lambda cell: cell.point.month in months)
+        months_constraint = iris.Constraint(
+            time=lambda cell: cell.point.month in months
+        )
 
         # subset the data to the months
         cube_clim = cube_clim.extract(months_constraint)
 
         # set up the years constraint
-        years_constraint = iris.Constraint(time=lambda cell: cell.point.year in climatology_period)
+        years_constraint = iris.Constraint(
+            time=lambda cell: cell.point.year in climatology_period
+        )
 
         # Select the years
         cube_clim = cube_clim.extract(years_constraint)
@@ -7808,7 +7817,7 @@ def plot_composite_obs_model(
 
         # # Add a new coordinate 'number' to the cube
         # number_coord = iris.coords.AuxCoord(i, long_name="number", units="1")
-        
+
         # # add this as a dimensioned coordinate
         # cube_subset.add_dim_coord(number_coord, 0)
 
@@ -7843,7 +7852,7 @@ def plot_composite_obs_model(
     # lats = ds_composite.coord("latitude").points
     # lons = ds_composite.coord("longitude").points
 
-        # Work out the percentile threshold for the model data
+    # Work out the percentile threshold for the model data
     model_threshold = np.percentile(model_df[model_val_name], percentile)
 
     # Print the full len of the model df
@@ -8048,13 +8057,19 @@ def plot_composite_obs_model(
 
     # regrid ds_composite full (which has all the obs events in)
     print("Regridding the obs data to the model data")
-    ds_composite_full_regrid = ds_composite_full.regrid(cube_psl, iris.analysis.Linear())
+    ds_composite_full_regrid = ds_composite_full.regrid(
+        cube_psl, iris.analysis.Linear()
+    )
 
     # assert that combined_ds lats array == lats
-    assert np.allclose(cube_psl.coord("latitude").points, cube_obs.coord("latitude").points), "The lats do not match"
+    assert np.allclose(
+        cube_psl.coord("latitude").points, cube_obs.coord("latitude").points
+    ), "The lats do not match"
 
     # assert that combined_ds lons array == lons
-    assert np.allclose(cube_psl.coord("longitude").points, cube_obs.coord("longitude").points), "The lons do not match"
+    assert np.allclose(
+        cube_psl.coord("longitude").points, cube_obs.coord("longitude").points
+    ), "The lons do not match"
 
     # if calc_anoms is True
     if calc_anoms:
@@ -8063,7 +8078,7 @@ def plot_composite_obs_model(
     else:
         # Extract the data values
         field_obs = cube_obs.data / 100  # convert to hPa
-    
+
     # extract combined_ds as an array
     combined_ds_arr = cube_psl.data
 
@@ -8102,10 +8117,14 @@ def plot_composite_obs_model(
     print(f"The shape of the model_boot_mean is {model_boot_mean.shape}")
 
     # print the shape of the ds_composite_full.data
-    print(f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}")
+    print(
+        f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}"
+    )
 
     # Calculate the p-values
-    _, p_values = stats.ttest_ind(ds_composite_full_regrid.data, model_boot_mean, axis=0)
+    _, p_values = stats.ttest_ind(
+        ds_composite_full_regrid.data, model_boot_mean, axis=0
+    )
 
     # print the p-values
     print(f"The p-values are {p_values}")
@@ -8169,14 +8188,14 @@ def plot_composite_obs_model(
                 member_list = []
                 for member in unique_members:
                     start_time = time.time()
-                    
+
                     path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
 
                     # glob this path
                     glob_start = time.time()
                     files = glob.glob(path)
                     glob_end = time.time()
-                    
+
                     # assert
                     assert (
                         len(files) == 1
@@ -8227,9 +8246,9 @@ def plot_composite_obs_model(
 
                     # append the member_ds to the member_list
                     member_list.append(member_ds)
-                    
+
                     # end_time = time.time()
-                    
+
                     # # Print timing information
                     # print(f"Year: {year}, Member: {member}")
                     # print(f"  Total time: {end_time - start_time:.2f} seconds")
@@ -8272,7 +8291,9 @@ def plot_composite_obs_model(
             # cube_clim_regrid = cube_clim.regrid(cube_obs, iris.analysis.Linear())
 
             # subset to the correct grid
-            cube_clim = cube_clim.intersection(longitude=(-180, 180), latitude=(-90, 90))
+            cube_clim = cube_clim.intersection(
+                longitude=(-180, 180), latitude=(-90, 90)
+            )
 
             # subset to the region of interest
             cube_clim = cube_clim.intersection(
@@ -8299,7 +8320,6 @@ def plot_composite_obs_model(
     # Set up the lons
     lons = cube_psl.coord("longitude").points
     lats = cube_psl.coord("latitude").points
-
 
     # print the shape of field model
     print(f"The shape of field model is {field_model.shape}")
@@ -8394,7 +8414,7 @@ def plot_composite_obs_model(
     )
 
     # PLot the observed contours on the first axis
-    contours_obs =axs[0].contour(
+    contours_obs = axs[0].contour(
         lons,
         lats,
         field_obs,
@@ -8436,7 +8456,12 @@ def plot_composite_obs_model(
 
         # Set the labels for the contours
         axs[1].clabel(
-            contours_model, clevs, fmt="%.4g", fontsize=8, inline=True, inline_spacing=0.0
+            contours_model,
+            clevs,
+            fmt="%.4g",
+            fontsize=8,
+            inline=True,
+            inline_spacing=0.0,
         )
 
     else:
@@ -8455,9 +8480,7 @@ def plot_composite_obs_model(
         num_model_events,
     ]
 
-    iterations = [
-        0, 1
-    ]
+    iterations = [0, 1]
 
     # Add coastlines
     for ax, num_event, i in zip(axs, num_events, iterations):
@@ -8483,7 +8506,7 @@ def plot_composite_obs_model(
 
         # if the iteration is 1
         if i == 1:
-            gl.left_labels=False
+            gl.left_labels = False
 
         # include a textbox in the top left
         ax.text(
@@ -8513,7 +8536,7 @@ def plot_composite_obs_model(
 
     # mask the pfield to be NaN where the p-value is greater than 0.05
     pfield_masked = np.ma.masked_where(p_values > 0.05, p_values)
-    
+
     # print the pfield masked
     print(f"The pfield masked is {pfield_masked}")
 
@@ -8561,15 +8584,17 @@ def plot_composite_obs_model(
         cbar.add_lines(contours_obs)
 
     # set up the titles
-    axs[0].set_title(f"Observed {percentile}th percentile of {variable} events (ERA5)",
-                        fontsize=8,
-                        fontweight="bold",
+    axs[0].set_title(
+        f"Observed {percentile}th percentile of {variable} events (ERA5)",
+        fontsize=8,
+        fontweight="bold",
     )
 
     # set up the titles
-    axs[1].set_title(f"Model {percentile}th percentile of {variable} events ({model})",
-                        fontsize=8,
-                        fontweight="bold",
+    axs[1].set_title(
+        f"Model {percentile}th percentile of {variable} events ({model})",
+        fontsize=8,
+        fontweight="bold",
     )
 
     # Set up the tickparams
@@ -8580,7 +8605,8 @@ def plot_composite_obs_model(
     # plt.tight_layout()
 
     # Set up the current date time
-    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the plot
     plt.savefig(
