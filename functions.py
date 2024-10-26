@@ -7191,20 +7191,22 @@ def plot_composite_model(
             frequency=freq,
         )
 
-        # select the leads from the time variable
-        ds = ds.sel(time=leads_ym)
+        # loop over the leads
+        for lead in leads_ym:
+            # select the leads from the time variable
+            ds = ds.sel(time=leads_ym)
 
-        # take the mean over the time axis
-        ds = ds.mean(dim="time")
+            # Add a new coordinate 'number' with a unique value
+            ds = ds.expand_dims({"number": [idx]})
 
-        # Add a new coordinate 'number' with a unique value
-        ds = ds.expand_dims({"number": [idx]})
-
-        # Append the ds to the dss list
-        dss.append(ds[psl_variable])
+            # Append the ds to the dss list
+            dss.append(ds[psl_variable])
 
     # Concatenate all datasets along the 'number' dimension
     combined_ds = xr.concat(dss, dim="number")
+
+    # print the shape of the combined ds
+    print(f"The shape of the combined ds is {combined_ds.shape}")
 
     # Take the mean over the 'number' dimension
     mean_ds = combined_ds.mean(dim="number")
@@ -7619,7 +7621,6 @@ def plot_composite_obs_model(
     model_df: pd.DataFrame,
     model_val_name: str,
     percentile: float,
-    title: str,
     variable: str,
     nboot: int = 1000,
     obs_variable: str = "msl",
@@ -7634,7 +7635,7 @@ def plot_composite_obs_model(
     lon_bounds: list = [-90, 30],
     files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
     save_prefix: str = "composite_obs_model",
-    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/unseen",
     regrid_file: str = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/psl/HadGEM3-GC31-MM/psl_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1_gn_196011-197103.nc",
 ) -> None:
     """
@@ -7968,11 +7969,11 @@ def plot_composite_obs_model(
         f"The length of the unique year member pairs is {len(unique_year_member_pairs)}"
     )
 
-    # FIXME: limit to first 30 for testing purposes
-    print("WARNING: Limiting to first 30 for testing purposes")
-    files_list = files_list[:30]
-    unique_year_member_pairs = unique_year_member_pairs[:30]
-    print("WARNING: Limiting to first 30 for testing purposes")
+    # # FIXME: limit to first 30 for testing purposes
+    # print("WARNING: Limiting to first 30 for testing purposes")
+    # files_list = files_list[:30]
+    # unique_year_member_pairs = unique_year_member_pairs[:30]
+    # print("WARNING: Limiting to first 30 for testing purposes")
 
     # create an empty list for the files
     dss = []
@@ -7997,23 +7998,25 @@ def plot_composite_obs_model(
             frequency=freq,
         )
 
-        # select the leads from the time variable
-        ds = ds.sel(time=leads_ym)
+        # Loop over the leads
+        for i, lead in enumerate(leads_ym):
+            # select the leads from the time variable
+            ds_lead = ds.sel(time=lead)
 
-        # take the mean over the time axis
-        ds = ds.mean(dim="time")
+            # Add a new coordinate 'number' with a unique value
+            ds_lead = ds_lead.expand_dims({"number": [idx]})
 
-        # Add a new coordinate 'number' with a unique value
-        ds = ds.expand_dims({"number": [idx]})
-
-        # Append the ds to the dss list
-        dss.append(ds[psl_variable])
+            # Append the ds to the dss list
+            dss.append(ds_lead[psl_variable])
 
     # Concatenate all datasets along the 'number' dimension
     combined_ds = xr.concat(dss, dim="number")
 
-    # print combined_ds
-    print("The combined_ds is", combined_ds)
+    # # print combined_ds
+    # print("The combined_ds is", combined_ds)
+
+    # print the shape of the combined ds
+    print(f"The shape of the combined ds is {combined_ds.shape}")
 
     # convert to a cube
     cube_psl = combined_ds.to_iris()
@@ -8066,6 +8069,9 @@ def plot_composite_obs_model(
 
     # set up the nrows for the data
     nrows = combined_ds_arr.shape[0]
+
+    # print the nrows
+    print(f"The number of rows is {nrows}")
 
     # set up the shapes of the arrays to be filled
     nlats = len(cube_psl.coord("latitude").points)
@@ -8305,7 +8311,7 @@ def plot_composite_obs_model(
     fig, axs = plt.subplots(
         1,
         2,
-        figsize=(10, 5),
+        figsize=(12, 6),
         subplot_kw={"projection": ccrs.PlateCarree()},
     )
 
@@ -8449,8 +8455,12 @@ def plot_composite_obs_model(
         num_model_events,
     ]
 
+    iterations = [
+        0, 1
+    ]
+
     # Add coastlines
-    for ax, num_event in zip(axs, num_events):
+    for ax, num_event, i in zip(axs, num_events, iterations):
         ax.coastlines()
 
         # format the gridlines and labels
@@ -8465,6 +8475,16 @@ def plot_composite_obs_model(
         gl.yformatter = LATITUDE_FORMATTER
         gl.ylabel_style = {"size": 7, "color": "black"}
 
+        # get rid of te top labels
+        gl.top_labels = False
+
+        # get rid of the right labels
+        gl.right_labels = False
+
+        # if the iteration is 1
+        if i == 1:
+            gl.left_labels=False
+
         # include a textbox in the top left
         ax.text(
             0.02,
@@ -8474,8 +8494,9 @@ def plot_composite_obs_model(
             horizontalalignment="left",
             transform=ax.transAxes,
             color="black",
-            fontsize=10,
+            fontsize=8,
             bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+            alpha=0.8,
         )
 
     # Print the range of the p-values
@@ -8484,28 +8505,35 @@ def plot_composite_obs_model(
     # print the shape of the p-values
     print(f"The shape of the p-values is {p_values.shape}")
 
-    # prnt the shape of mymap
-    print(f"The shape of mymap is {mymap_obs.shape}")
+    # # prnt the shape of mymap
+    # print(f"The shape of mymap is {mymap_obs.shape}")
+
+    # print the shape of the obsfield
+    print(f"The shape of the obsfield is {field_obs.shape}")
 
     # mask the pfield to be NaN where the p-value is greater than 0.05
     pfield_masked = np.ma.masked_where(p_values > 0.05, p_values)
     
+    # print the pfield masked
+    print(f"The pfield masked is {pfield_masked}")
+
     # plot this on the first axis
     axs[1].contourf(
         lons,
         lats,
         pfield_masked,
         transform=ccrs.PlateCarree(),
-        hatched=["..."],
+        hatches=["..."],
         alpha=0.0,
     )
 
     if calc_anoms:
-        cbar = plt.colorbar(
+        cbar = fig.colorbar(
             mymap_obs,
+            ax=axs,
             orientation="horizontal",
-            shrink=0.7,
-            pad=0.1,
+            shrink=0.9,
+            pad=0.08,
             format=FuncFormatter(format_func_one_decimal),
         )
         # add colorbar label
@@ -8519,11 +8547,12 @@ def plot_composite_obs_model(
         cbar.add_lines(contours_obs)
     else:
         # add colorbar
-        cbar = plt.colorbar(
+        cbar = fig.colorbar(
             mymap_obs,
+            ax=axs,
             orientation="horizontal",
-            shrink=0.7,
-            pad=0.1,
+            shrink=0.9,
+            pad=0.08,
             format=FuncFormatter(format_func),
         )
         cbar.set_label("mean sea level pressure (hPa)", rotation=0, fontsize=10)
@@ -8533,13 +8562,13 @@ def plot_composite_obs_model(
 
     # set up the titles
     axs[0].set_title(f"Observed {percentile}th percentile of {variable} events (ERA5)",
-                        fontsize=12,
+                        fontsize=8,
                         fontweight="bold",
     )
 
     # set up the titles
     axs[1].set_title(f"Model {percentile}th percentile of {variable} events ({model})",
-                        fontsize=12,
+                        fontsize=8,
                         fontweight="bold",
     )
 
@@ -8547,15 +8576,15 @@ def plot_composite_obs_model(
     cbar.ax.tick_params(labelsize=7, length=0)
     cbar.set_ticks(ticks)
 
-    # Make the plot look nice
-    plt.tight_layout()
+    # # Make the plot look nice
+    # plt.tight_layout()
 
     # Set up the current date time
     now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the plot
     plt.savefig(
-        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        os.path.join(save_dir, f"{save_prefix}_{date}.png"),
         dpi=300,
         bbox_inches="tight",
     )
