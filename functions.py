@@ -8743,7 +8743,6 @@ def plot_composite_obs_model(
         # Extract the data values
         field_obs_full = cube_obs_full.data / 100  # convert to hPa
 
-
     # print the shape of field_obs_full
     print(f"The shape of field_obs_full is {field_obs_full.shape}")
 
@@ -9000,6 +8999,12 @@ def plot_composite_obs_model(
     #     f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}"
     # )
 
+    # print the shape of field obs full
+    print(f"The shape of field obs full is {field_obs_full.shape}")
+
+    # print the shape of model boot mean
+    print(f"The shape of model boot mean is {model_boot_mean.shape}")
+
     # Calculate the p-values
     _, p_values = stats.ttest_ind(
         field_obs_full, model_boot_mean, axis=0
@@ -9010,7 +9015,6 @@ def plot_composite_obs_model(
 
     # print the shape of the p-values
     print(f"The shape of the p-values is {p_values.shape}")
-
 
     # print the values of field model
     print(f"The values of field model are {field_model}")
@@ -9130,7 +9134,7 @@ def plot_composite_obs_model(
     mymap_model = axs[1].contourf(
         lons,
         lats,
-        field_model,
+        np.mean(field_model, axis=0),
         clevs,
         transform=ccrs.PlateCarree(),
         cmap=cmap,
@@ -9141,7 +9145,7 @@ def plot_composite_obs_model(
     contours_model = axs[1].contour(
         lons,
         lats,
-        field_model,
+        np.mean(field_model, axis=0),
         clevs,
         colors="black",
         transform=ccrs.PlateCarree(),
