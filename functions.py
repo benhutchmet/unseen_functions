@@ -5677,6 +5677,7 @@ def plot_chance_of_event(
 
     # Set up the params for the obs and the model
     params_obs = []
+    params_model_obs_len = []
     params_model = []
 
     # find the years of the lowest value event in the obs data
@@ -5716,7 +5717,7 @@ def plot_chance_of_event(
                 )
             )
         )
-        params_model.append(
+        params_model_obs_len.append(
             gev.fit(
                 np.random.choice(
                     model_df[model_val_name],
@@ -5726,8 +5727,17 @@ def plot_chance_of_event(
             )
         )
 
+        params_model.append(
+            gev.fit(
+                np.random.choice(
+                    model_df[model_val_name], size=len(model_df[model_val_name]), replace=True
+                )
+            )
+        )
+
     # initialize the list for return levels
     levels_obs = []
+    levels_model_obs_len = []
     levels_model = []
 
     # # print params obs
@@ -5748,10 +5758,12 @@ def plot_chance_of_event(
     # Calculate the return levels for each of the 1000 samples
     for i in range(num_samples):
         levels_obs.append(gev.ppf(1 / years, *params_obs[i]))
+        levels_model_obs_len.append(gev.ppf(1 / years, *params_model_obs_len[i]))
         levels_model.append(gev.ppf(1 / years, *params_model[i]))
 
     # turn this into arrays
     levels_obs = np.array(levels_obs)
+    levels_model_obs_len = np.array(levels_model_obs_len)
     levels_model = np.array(levels_model)
 
     # set up the figure
@@ -5806,18 +5818,28 @@ def plot_chance_of_event(
 
     # subtract the worst event from the obs data
     levels_obs_anomaly = levels_obs - obs_worst_event
+    levels_model_obs_len_anomaly = levels_model_obs_len - obs_worst_event
     levels_model_anomaly = levels_model - obs_worst_event
 
     # Plot the return mean levels
-    _ = plt.plot(np.mean(levels_obs_anomaly, axis=0), probs, "k-", label="ERA5")
-    _ = plt.plot(
-        np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM"
-    )
+    # _ = plt.plot(np.mean(levels_obs_anomaly, axis=0), probs, "k-", label="ERA5")
+    # _ = plt.plot(
+    #     np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM"
+    # )
 
     # Plot the confidence intervals
     _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
+    _ = ax.plot(np.quantile(levels_model_obs_len_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
     _ = ax.plot(
-        np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r--"
+        np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r"
+    )
+
+    _ = ax.fill_betweenx(
+        probs,
+        np.quantile(levels_model_anomaly, 0.025, axis=0),
+        np.quantile(levels_model_anomaly, 0.975, axis=0),
+        color="red",
+        alpha=0.2,
     )
 
     # # aesthetics
@@ -5825,7 +5847,7 @@ def plot_chance_of_event(
     ax.set_xlim(2, -1)  # Adjust as needed
 
     # set the xpoints
-    x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
+    x_points = np.array([30, 15, 10, 5, 2, 1, 0.5, 0.2, 0.1])
 
     # y_labels = [f"{x:.1f}%" for x in x_points]
 
