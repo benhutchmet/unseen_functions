@@ -5704,6 +5704,22 @@ def plot_chance_of_event(
     obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
 
     print(f"The obs time lowest is {obs_time_lowest}")
+    
+    # apply thresholds to the data
+    # calculte the 17.5%tile of the observations
+    obs_175_threshold = np.percentile(obs_df[obs_val_name], 17.5)
+
+    # print the 17.5% threshold
+    print(f"The 17.5% threshold is {obs_175_threshold}")
+
+    # Apply this threshold to the observations
+    obs_175 = obs_df[obs_df[obs_val_name] < obs_175_threshold]
+
+    # print the length of the obs_175
+    print(f"The length of the obs_175 is {len(obs_175)}")
+
+    # calculate the 82.5%tile of the observations
+    model_175 = model_df[model_df[model_val_name] < obs_175_threshold]
 
     # Set up the years
     years = np.arange(1.1, 1000, 0.1)
@@ -5713,15 +5729,15 @@ def plot_chance_of_event(
         params_obs.append(
             gev.fit(
                 np.random.choice(
-                    obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True
+                    obs_175[obs_val_name], size=len(obs_175[obs_val_name]), replace=True
                 )
             )
         )
         params_model_obs_len.append(
             gev.fit(
                 np.random.choice(
-                    model_df[model_val_name],
-                    size=len(obs_df[obs_val_name]),  # resample to obs length
+                    model_175[model_val_name],
+                    size=len(obs_175[obs_val_name]),  # resample to obs length
                     replace=True,
                 )
             )
@@ -5730,7 +5746,7 @@ def plot_chance_of_event(
         params_model.append(
             gev.fit(
                 np.random.choice(
-                    model_df[model_val_name], size=len(model_df[model_val_name]), replace=True
+                    model_175[model_val_name], size=len(model_175[model_val_name]), replace=True
                 )
             )
         )
@@ -5991,6 +6007,466 @@ def plot_chance_of_event(
         horizontalalignment="right",
         bbox=dict(facecolor="white", alpha=0.5),
     )
+
+    ax.set_yscale("log")
+    # set the yticks
+    ax.set_yticks(x_points)
+    ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_ylabel("Chance of event (%)")
+    ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
+
+    # Set the title
+    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest}")
+
+    # show the legend
+    ax.legend(loc="lower left")
+
+    # set the title
+    time_now = datetime.now()
+
+    # set the date
+    date = time_now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # save the figure
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        bbox_inches="tight",
+        dpi=600,
+    )
+
+    return
+
+# Define a function to plot the chance of an event
+# being worse (i.e. lower values)
+# than a specific year (in this case 2010)
+def plot_chance_of_event_rank(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    variable: str,
+    num_samples: int = 1000,
+    obs_year: int = 2010,
+    save_prefix: str = "chance_of_event_rank",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the chance of an event being worse than a specific year. Using rank estimation.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_year: int
+        The year to compare against. Default is 2010.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "chance_of_event".
+
+    save_dir: str
+        The directory to save the plots to. Default is the current directory.
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # Set up the params for the obs and the model
+    params_obs = []
+    params_model_obs_len = []
+    params_model = []
+
+    # find the years of the lowest value event in the obs data
+    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+        "time"
+    ].values[0]
+
+    # print the year and the value
+    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+
+    # print the value at this time
+    print(f"The value at this time is {obs_df[obs_val_name].min()}")
+
+    # Convert numpy.datetime64 to datetime
+    obs_time_lowest = obs_time_lowest.astype(datetime)
+
+    # Convert timestamp to datetime
+    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
+
+    # print obs time lowesty
+    print(f"The obs time lowest is {obs_time_lowest}")
+
+    # Format datetime to "YYYY-MM"
+    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+
+    print(f"The obs time lowest is {obs_time_lowest}")
+
+    # Set up the years
+    years = np.arange(1.1, 1000, 0.1)
+
+    # # Generate 1000 values by resamlping data with replacement
+    # for i in tqdm(range(num_samples)):
+    #     params_obs.append(
+    #         gev.fit(
+    #             np.random.choice(
+    #                 obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True
+    #             )
+    #         )
+    #     )
+    #     params_model_obs_len.append(
+    #         gev.fit(
+    #             np.random.choice(
+    #                 model_df[model_val_name],
+    #                 size=len(obs_df[obs_val_name]),  # resample to obs length
+    #                 replace=True,
+    #             )
+    #         )
+    #     )
+
+    #     params_model.append(
+    #         gev.fit(
+    #             np.random.choice(
+    #                 model_df[model_val_name], size=len(model_df[model_val_name]), replace=True
+    #             )
+    #         )
+    #     )
+
+    # initialize the list for return levels
+    levels_obs = []
+    levels_model_obs_len = []
+    levels_model = []
+
+    # # print params obs
+    # print(f"The params obs are {params_obs}")
+
+    # # print params model
+    # print(f"The params model are {params_model}")
+
+    # negate each of the params individually
+    # Negate each element in each tuple
+    # params_obs = [tuple(-x for x in param) for param in params_obs]
+    # params_model = [tuple(-x for x in param) for param in params_model]
+
+    # print(f"The params obs are {params_obs}")
+
+    # print(f"The params model are {params_model}")
+
+    # # Calculate the return levels for each of the 1000 samples
+    # for i in range(num_samples):
+    #     levels_obs.append(gev.ppf(1 / years, *params_obs[i]))
+    #     levels_model_obs_len.append(gev.ppf(1 / years, *params_model_obs_len[i]))
+    #     levels_model.append(gev.ppf(1 / years, *params_model[i]))
+
+    # # turn this into arrays
+    # levels_obs = np.array(levels_obs)
+    # levels_model_obs_len = np.array(levels_model_obs_len)
+    # levels_model = np.array(levels_model)
+
+    # set up the figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # # Find empirical return levels
+    # _ = empirical_return_level(obs_df[obs_val_name].values).plot(
+    #     ax=ax, color="black", linestyle="None", marker="."
+    # )
+    # _ = empirical_return_level(model_df[model_val_name].values).plot(
+    #     ax=ax, color="red", linestyle="None", marker="."
+    # )
+
+    # set up the probablities
+    probs = 1 / years * 100
+
+    # print the years
+    print(f"The years are {years}")
+
+    # print the probabilities
+    print(f"The probabilities are {probs}")
+
+    # worst obs event
+    obs_worst_event = obs_df[obs_val_name].min()
+
+    # Calculate the empirical return levels
+    obs_df_rl = empirical_return_level(obs_df[obs_val_name].values)
+    model_df_rl = empirical_return_level(model_df[model_val_name].values)
+
+    # add a new column for the anomalies from the worst observed event
+    obs_df_rl["anomalies"] = obs_df_rl["sorted"] - obs_worst_event
+    model_df_rl["anomalies"] = model_df_rl["sorted"] - obs_worst_event
+
+    # # print the sanomalies
+    # print(f"The anomalies are {obs_df_rl['anomalies']}")
+
+    # # print the shape of the model danaomlies
+    # print(f"The shape of the model anomalies is {model_df_rl['anomalies'].shape}")
+
+    # sys.exit()
+    
+    # # Plot the anomalies and the probabilities
+    # _ = plt.plot(
+    #     obs_df_rl["anomalies"],
+    #     obs_df_rl["probability"],
+    #     color="black",
+    # )
+    _ = plt.plot(
+        model_df_rl["anomalies"],
+        model_df_rl["probability"],
+        color="red",
+    )
+
+    # create an empty array
+    model_anomalies_full = np.zeros([num_samples, len(model_df_rl["anomalies"])])
+    model_anomalies_len_obs = np.zeros([num_samples, len(obs_df_rl["anomalies"])])
+
+    model_probs_full = np.zeros([num_samples, len(model_df_rl["probability"])])
+    model_probs_len_obs = np.zeros([num_samples, len(obs_df_rl["probability"])])
+
+    # loop over the num samples
+    for i in tqdm(range(num_samples)):
+        # randomly select the model data
+        model_data_this = np.random.choice(
+            model_df[model_val_name], size=len(model_df[model_val_name]), replace=True
+        )
+
+        # same for the obs len
+        model_data_this_obs_len = np.random.choice(
+            model_df[model_val_name], size=len(obs_df[obs_val_name]), replace=True
+        )
+
+        # calculate the empirical return levels
+        model_df_rl_this = empirical_return_level(model_data_this)
+        model_df_rl_this_obs_len = empirical_return_level(model_data_this_obs_len)
+
+        # add the anomalies to the array
+        model_anomalies_full[i, :] = model_df_rl_this["sorted"] - obs_worst_event
+        model_anomalies_len_obs[i, :] = model_df_rl_this_obs_len["sorted"] - obs_worst_event
+
+        # add the probabilities to the array
+        model_probs_full[i, :] = model_df_rl_this["probability"]
+        model_probs_len_obs[i, :] = model_df_rl_this_obs_len["probability"]
+
+    # calculate the 2.5 and 97.5 percentiles
+    model_anomalies_full_025 = np.percentile(model_anomalies_full, 2.5, axis=0)
+    model_anomalies_full_975 = np.percentile(model_anomalies_full, 97.5, axis=0)
+
+    # same but for those at obs len
+    model_anomalies_len_obs_025 = np.percentile(model_anomalies_len_obs, 2.5, axis=0)
+    model_anomalies_len_obs_975 = np.percentile(model_anomalies_len_obs, 97.5, axis=0)
+
+    # print the shape of the model anomalies
+    print(f"The shape of the model anomalies is {model_anomalies_full_025.shape}")
+    print(f"The shape of the model anomalies is {model_anomalies_full_975.shape}")
+
+    # plot the model data
+    plt.fill_betweenx(
+        model_probs_full[0, :],
+        model_anomalies_full_025,
+        model_anomalies_full_975,
+        color="red",
+        alpha=0.2,
+    )
+
+    # same for the subsamples
+    plt.fill_betweenx(
+        model_probs_len_obs[0, :],
+        model_anomalies_len_obs_025,
+        model_anomalies_len_obs_975,
+        color="blue",
+        alpha=0.2,
+    )
+
+    # _ = plt.plot(probs, obs_anomalies, color="black", linestyle="None", marker=".")
+    # _ = plt.plot(probs, model_anomalies, color="red", linestyle="None", marker=".")
+
+    # # subtract the worst event from the obs data
+    # levels_obs_anomaly = levels_obs - obs_worst_event
+    # levels_model_obs_len_anomaly = levels_model_obs_len - obs_worst_event
+    # levels_model_anomaly = levels_model - obs_worst_event
+
+    # # Plot the return mean levels
+    # # _ = plt.plot(np.mean(levels_obs_anomaly, axis=0), probs, "k-", label="ERA5")
+    # # _ = plt.plot(
+    # #     np.mean(levels_model_anomaly, axis=0), probs, "r-", label="HadGEM3-GC31-MM"
+    # # )
+
+    # # Plot the confidence intervals
+    # _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
+    # _ = ax.plot(np.quantile(levels_model_obs_len_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
+    # _ = ax.plot(
+    #     np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r"
+    # )
+
+    # _ = ax.fill_betweenx(
+    #     probs,
+    #     np.quantile(levels_model_anomaly, 0.025, axis=0),
+    #     np.quantile(levels_model_anomaly, 0.975, axis=0),
+    #     color="red",
+    #     alpha=0.2,
+    # )
+
+    # # aesthetics
+    ax.set_ylim(0.1, 20)  # Adjust as needed
+    ax.set_xlim(2, -1)  # Adjust as needed
+
+    # set the xpoints
+    x_points = np.array([30, 15, 10, 5, 2, 1, 0.5, 0.2, 0.1])
+
+    # y_labels = [f"{x:.1f}%" for x in x_points]
+
+    # depending on the variable set up the unnits
+    if variable == "sfcWind":
+        # set the units
+        units = "m/s"
+    elif variable == "tas":
+        # set the units
+        units = "°C"
+    else:
+        print(f"variable {variable} not recognized")
+
+    # inclduie a dotted line for the 1% threshold (i.e. 1 in 100 year event)
+    ax.axhline(1, color="black", linestyle="dotted")  # 1 in 100 year event
+
+    # # plot a vertical line at 0
+    # ax.axvline(0, color="black", linestyle="dotted")
+
+    # create a list of levels to quantify the values for
+    levels = [5, 10, 20, 100, 1000]
+
+    # # loop over the levels
+    # for level in levels:
+    #     return_level_obs = estimate_return_level_period(
+    #         period=level,
+    #         loc=np.mean(params_obs, axis=0)[1],
+    #         scale=np.mean(params_obs, axis=0)[2],
+    #         shape=np.mean(params_obs, axis=0)[0],
+    #     )
+
+    #     return_level_model = estimate_return_level_period(
+    #         period=level,
+    #         loc=np.mean(params_model, axis=0)[1],
+    #         scale=np.mean(params_model, axis=0)[2],
+    #         shape=np.mean(params_model, axis=0)[0],
+    #     )
+
+    #     # print the level and the return level
+    #     print(
+    #         f"The level is {level} and the return value for the obs fit is {return_level_obs} m/s"
+    #     )
+
+    #     # print the level and the return level
+    #     print(
+    #         f"The level is {level} and the return value for the model fit is {return_level_model} m/s"
+    #     )
+
+    # # create a lits of values to estimate for
+    # values = [4.5, 4.0, 3.75, 3.5, 3.25]
+
+    # # loop over the values
+    # for value in values:
+    #     period_obs = estimate_period(
+    #         return_level=value,
+    #         loc=np.mean(params_obs, axis=0)[1],
+    #         scale=np.mean(params_obs, axis=0)[2],
+    #         shape=np.mean(params_obs, axis=0)[0],
+    #     )
+
+    #     period_model = estimate_period(
+    #         return_level=value,
+    #         loc=np.mean(params_model, axis=0)[1],
+    #         scale=np.mean(params_model, axis=0)[2],
+    #         shape=np.mean(params_model, axis=0)[0],
+    #     )
+
+    #     # print the values for the obs
+    #     print(
+    #         f"The value is {value} and the period for the obs fit is {period_obs} years"
+    #     )
+
+    #     # print the values for the model
+    #     print(
+    #         f"The value is {value} and the period for the model fit is {period_model} years"
+    #     )
+
+    # # assign a variable to the obs lowest value
+    # lowest_obs = obs_df[obs_val_name].min()
+
+    # # Estimate the period for the obs mean data
+    # period_obs_mean = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.mean(params_obs, axis=0)[1],
+    #     scale=np.mean(params_obs, axis=0)[2],
+    #     shape=np.mean(params_obs, axis=0)[0],
+    # )
+
+    # # period model mean
+    # period_model_mean = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.mean(params_model, axis=0)[1],
+    #     scale=np.mean(params_model, axis=0)[2],
+    #     shape=np.mean(params_model, axis=0)[0],
+    # )
+
+    # # obs 05 percentile
+    # period_obs_05 = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.percentile(params_obs, 5, axis=0)[1],
+    #     scale=np.percentile(params_obs, 5, axis=0)[2],
+    #     shape=np.percentile(params_obs, 5, axis=0)[0],
+    # )
+
+    # # obs 95 percentile
+    # period_obs_95 = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.percentile(params_obs, 95, axis=0)[1],
+    #     scale=np.percentile(params_obs, 95, axis=0)[2],
+    #     shape=np.percentile(params_obs, 95, axis=0)[0],
+    # )
+
+    # # model 05 percentile
+    # period_model_05 = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.percentile(params_model, 5, axis=0)[1],
+    #     scale=np.percentile(params_model, 5, axis=0)[2],
+    #     shape=np.percentile(params_model, 5, axis=0)[0],
+    # )
+
+    # # model 95 percentile
+    # period_model_95 = estimate_period(
+    #     return_level=lowest_obs,
+    #     loc=np.percentile(params_model, 95, axis=0)[1],
+    #     scale=np.percentile(params_model, 95, axis=0)[2],
+    #     shape=np.percentile(params_model, 95, axis=0)[0],
+    # )
+
+    # # quantify the obs 90th percentile
+    # period_obs_90 = abs(period_obs_95 - period_obs_05)
+    # period_model_90 = abs(period_model_95 - period_model_05)
+
+    # # include a textbox with this information in the top right
+    # ax.text(
+    #     0.95,
+    #     0.95,
+    #     f"ERA5: {period_obs_mean:.2f}% (+- {period_obs_90:.2f}%), 1:{round(1/period_obs_mean * 100)}-yr  \nHadGEM3-GC31-MM: {period_model_mean:.2f}% (+- {period_model_90:.2f}%), 1:{round(1/period_model_mean * 100)}-yr",
+    #     transform=ax.transAxes,
+    #     fontsize=8,
+    #     verticalalignment="top",
+    #     horizontalalignment="right",
+    #     bbox=dict(facecolor="white", alpha=0.5),
+    # )
 
     ax.set_yscale("log")
     # set the yticks
