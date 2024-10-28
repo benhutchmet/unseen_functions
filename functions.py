@@ -6205,8 +6205,11 @@ def plot_chance_of_event_rank(
     model_df_rl = empirical_return_level(model_df[model_val_name].values)
 
     # add a new column for the anomalies from the worst observed event
-    obs_df_rl["anomalies"] = obs_df_rl["sorted"] - obs_worst_event
-    model_df_rl["anomalies"] = model_df_rl["sorted"] - obs_worst_event
+    # obs_df_rl["anomalies"] = obs_df_rl["sorted"] - obs_worst_event
+    # model_df_rl["anomalies"] = model_df_rl["sorted"] - obs_worst_event
+
+    obs_anoms = obs_df_rl["sorted"] - obs_worst_event
+    model_anoms = model_df_rl["sorted"] - obs_worst_event
 
     # # print the sanomalies
     # print(f"The anomalies are {obs_df_rl['anomalies']}")
@@ -6216,21 +6219,25 @@ def plot_chance_of_event_rank(
 
     # sys.exit()
     
-    # # Plot the anomalies and the probabilities
+    # # # Plot the anomalies and the probabilities
     # _ = plt.plot(
     #     obs_df_rl["anomalies"],
     #     obs_df_rl["probability"],
     #     color="black",
     # )
     _ = plt.plot(
-        model_df_rl["anomalies"],
+        model_anoms,
         model_df_rl["probability"],
         color="red",
     )
 
     # create an empty array
-    model_anomalies_full = np.zeros([num_samples, len(model_df_rl["anomalies"])])
-    model_anomalies_len_obs = np.zeros([num_samples, len(obs_df_rl["anomalies"])])
+    model_anomalies_full = np.zeros([num_samples, len(model_anoms)])
+    model_anomalies_len_obs = np.zeros([num_samples, len(obs_anoms)])
+
+    # Create empty arrays for the obs data
+    obs_anomalies = np.zeros([num_samples, len(obs_anoms)])
+    obs_probs = np.zeros([num_samples, len(obs_df_rl["probability"])])
 
     model_probs_full = np.zeros([num_samples, len(model_df_rl["probability"])])
     model_probs_len_obs = np.zeros([num_samples, len(obs_df_rl["probability"])])
@@ -6243,33 +6250,50 @@ def plot_chance_of_event_rank(
         )
 
         # same for the obs len
-        model_data_this_obs_len = np.random.choice(
-            model_df[model_val_name], size=len(obs_df[obs_val_name]), replace=True
+        # model_data_this_obs_len = np.random.choice(
+        #     model_df[model_val_name], size=len(obs_df[obs_val_name]), replace=True
+        # )
+
+        # same for the obs data
+        obs_data_this = np.random.choice(
+            obs_df[obs_val_name], size=len(obs_df[obs_val_name]), replace=True
         )
 
         # calculate the empirical return levels
         model_df_rl_this = empirical_return_level(model_data_this)
-        model_df_rl_this_obs_len = empirical_return_level(model_data_this_obs_len)
+        # model_df_rl_this_obs_len = empirical_return_level(model_data_this_obs_len)
+        obs_df_rl_this = empirical_return_level(obs_data_this)
 
         # add the anomalies to the array
         model_anomalies_full[i, :] = model_df_rl_this["sorted"] - obs_worst_event
-        model_anomalies_len_obs[i, :] = model_df_rl_this_obs_len["sorted"] - obs_worst_event
+        # model_anomalies_len_obs[i, :] = model_df_rl_this_obs_len["sorted"] - obs_worst_event
 
         # add the probabilities to the array
         model_probs_full[i, :] = model_df_rl_this["probability"]
-        model_probs_len_obs[i, :] = model_df_rl_this_obs_len["probability"]
+        # model_probs_len_obs[i, :] = model_df_rl_this_obs_len["probability"]
+
+        # add the obs anomalies to the array
+        obs_anomalies[i, :] = obs_df_rl_this["sorted"] - obs_worst_event
 
     # calculate the 2.5 and 97.5 percentiles
     model_anomalies_full_025 = np.percentile(model_anomalies_full, 2.5, axis=0)
     model_anomalies_full_975 = np.percentile(model_anomalies_full, 97.5, axis=0)
 
-    # same but for those at obs len
-    model_anomalies_len_obs_025 = np.percentile(model_anomalies_len_obs, 2.5, axis=0)
-    model_anomalies_len_obs_975 = np.percentile(model_anomalies_len_obs, 97.5, axis=0)
+    # # same but for those obs
+    obs_anoms_025 = np.percentile(obs_anomalies, 2.5, axis=0)
+    obs_anoms_975 = np.percentile(obs_anomalies, 97.5, axis=0)
+
+    # # same but for those at obs len
+    # model_anomalies_len_obs_025 = np.percentile(model_anomalies_len_obs, 2.5, axis=0)
+    # model_anomalies_len_obs_975 = np.percentile(model_anomalies_len_obs, 97.5, axis=0)
 
     # print the shape of the model anomalies
     print(f"The shape of the model anomalies is {model_anomalies_full_025.shape}")
     print(f"The shape of the model anomalies is {model_anomalies_full_975.shape}")
+
+    # print the shape of the obs anomalies
+    print(f"The shape of the obs anomalies is {obs_anoms_025.shape}")
+    print(f"The shape of the obs anomalies is {obs_anoms_975.shape}")
 
     # plot the model data
     plt.fill_betweenx(
@@ -6280,14 +6304,23 @@ def plot_chance_of_event_rank(
         alpha=0.2,
     )
 
-    # same for the subsamples
-    plt.fill_betweenx(
-        model_probs_len_obs[0, :],
-        model_anomalies_len_obs_025,
-        model_anomalies_len_obs_975,
-        color="blue",
-        alpha=0.2,
-    )
+    # # plot the obs data
+    # plt.fill_betweenx(
+    #     obs_df_rl["probability"],
+    #     obs_anoms_025,
+    #     obs_anoms_975,
+    #     color="black",
+    #     alpha=0.2,
+    # )
+
+    # # same for the subsamples
+    # plt.fill_betweenx(
+    #     model_probs_len_obs[0, :],
+    #     model_anomalies_len_obs_025,
+    #     model_anomalies_len_obs_975,
+    #     color="blue",
+    #     alpha=0.2,
+    # )
 
     # _ = plt.plot(probs, obs_anomalies, color="black", linestyle="None", marker=".")
     # _ = plt.plot(probs, model_anomalies, color="red", linestyle="None", marker=".")
@@ -6320,10 +6353,9 @@ def plot_chance_of_event_rank(
 
     # # aesthetics
     ax.set_ylim(0.1, 20)  # Adjust as needed
-    ax.set_xlim(2, -1)  # Adjust as needed
 
     # set the xpoints
-    x_points = np.array([30, 15, 10, 5, 2, 1, 0.5, 0.2, 0.1])
+    x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
 
     # y_labels = [f"{x:.1f}%" for x in x_points]
 
@@ -6331,9 +6363,13 @@ def plot_chance_of_event_rank(
     if variable == "sfcWind":
         # set the units
         units = "m/s"
+
+        # Set the xlim
+        ax.set_xlim(1, -1)  # Adjust as needed
     elif variable == "tas":
         # set the units
         units = "°C"
+        ax.set_xlim(2, -1)  # Adjust as needed
     else:
         print(f"variable {variable} not recognized")
 
@@ -6456,17 +6492,76 @@ def plot_chance_of_event_rank(
     # period_obs_90 = abs(period_obs_95 - period_obs_05)
     # period_model_90 = abs(period_model_95 - period_model_05)
 
-    # # include a textbox with this information in the top right
-    # ax.text(
-    #     0.95,
-    #     0.95,
-    #     f"ERA5: {period_obs_mean:.2f}% (+- {period_obs_90:.2f}%), 1:{round(1/period_obs_mean * 100)}-yr  \nHadGEM3-GC31-MM: {period_model_mean:.2f}% (+- {period_model_90:.2f}%), 1:{round(1/period_model_mean * 100)}-yr",
-    #     transform=ax.transAxes,
-    #     fontsize=8,
-    #     verticalalignment="top",
-    #     horizontalalignment="right",
-    #     bbox=dict(facecolor="white", alpha=0.5),
-    # )
+    # print the model anoms
+    print(f"The model anomalies are {model_anoms}")
+
+    # print the min value of model anoms
+    print(f"The min value of model anoms is {np.min(model_anoms)}")
+
+    # Convert model_anoms to a NumPy array
+    model_anoms_array = np.array(model_anoms)
+
+    # same for the 025
+    model_anoms_025_array = np.array(model_anomalies_full_025)
+    model_anoms_975_array = np.array(model_anomalies_full_975)
+
+    # Find the index of the value closest to zero
+    model_anoms_zero_idx = np.argmin(np.abs(model_anoms_array))
+
+    # same with the other ones
+    model_anoms_025_zero_idx = np.argmin(np.abs(model_anoms_025_array))
+    model_anoms_975_zero_idx = np.argmin(np.abs(model_anoms_975_array))
+    
+    # Apply this index to the model probabilities
+    model_probs_zero = model_df_rl["probability"].iloc[model_anoms_zero_idx]
+
+    # Print the model anomalies value at the zero index
+    model_probs_025_zero = model_df_rl["probability"].iloc[model_anoms_025_zero_idx]
+    model_probs_975_zero = model_df_rl["probability"].iloc[model_anoms_975_zero_idx]
+
+    # Print the model anomalies value at the zero index
+    print(f"The model anomalies value at the zero index is {model_anoms_array[model_anoms_zero_idx]}")
+
+    # the model anomalies value at the 025 index
+    print(f"The model anomalies value at the 025 index is {model_anoms_025_array[model_anoms_025_zero_idx]}")
+    print(f"The model anomalies value at the 975 index is {model_anoms_975_array[model_anoms_975_zero_idx]}")
+
+    # Print the model probabilities at the zero index
+    print(f"The model probabilities at the zero index is {model_probs_zero}")
+
+    # Print the model probabilities at the zero index
+    print(f"The model probabilities at the 025 index is {model_probs_025_zero}")
+    print(f"The model probabilities at the 975 index is {model_probs_975_zero}")
+
+    # calculate the period model 95
+    period_model_95 = abs(model_probs_025_zero - model_probs_975_zero) / 2
+
+    # print the period model 95
+    print(f"The period model 95 is {period_model_95}")
+    print(f"The model_probs_zero is {model_probs_zero}")
+
+    # Calculate the return period for the 025 and 975 percentiles
+    return_period_975 = 1 / model_probs_025_zero * 100
+    return_period_025 = 1 / model_probs_975_zero * 100
+
+    # print the return period
+    print(f"The return period for the 975 percentile is {return_period_975}")
+    print(f"The return period for the 025 percentile is {return_period_025}")
+
+    # calculate the return period range
+    return_period_range = abs(return_period_025 - return_period_975) / 2
+
+    # include a textbox with this information in the top right
+    ax.text(
+        0.95,
+        0.95,
+        f"HadGEM3-GC31-MM: 1:{round(1/model_probs_zero * 100)}-yr (+- {round(return_period_range)}-yr)",
+        transform=ax.transAxes,
+        fontsize=8,
+        verticalalignment="top",
+        horizontalalignment="right",
+        bbox=dict(facecolor="white", alpha=0.5),
+    )
 
     ax.set_yscale("log")
     # set the yticks
