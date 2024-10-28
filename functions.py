@@ -8270,11 +8270,25 @@ def plot_composite_obs_model(
     # Set up the regrid ERA5 path
     regrid_era5_path = "/gws/nopw/j04/canari/users/benhutch/ERA5/adaptor.mars.internal-1691509121.3261805-29348-4-3a487c76-fc7b-421f-b5be-7436e2eb78d7.nc"
 
+    # if the months list is not [10, 11, 12, 1, 2, 3]
+    # then subset the obs_df to these months
+    if months != [10, 11, 12, 1, 2, 3]:
+        print("Subsetting the obs_df to the months of interest: ", months)
+
+        # assert that time is a datetime
+        assert isinstance(obs_df[obs_time_name].iloc[0], pd.Timestamp)
+
+        # subset the obs_df to the months
+        obs_df = obs_df[obs_df[obs_time_name].dt.month.isin(months)]
+
     # Work out the percentile threshold for the obs data
     obs_threshold = np.percentile(obs_df[obs_val_name], percentile)
 
     # print the len of the full obs_df
     print(f"The length of the obs df is {len(obs_df)}")
+
+    # print the head of the obs_df for checking
+    print(obs_df.head())
 
     # Apply a boolean to the df to where values are beneath
     # this threshold
@@ -8444,6 +8458,56 @@ def plot_composite_obs_model(
     # # Etract the lat and lon points
     # lats = ds_composite.coord("latitude").points
     # lons = ds_composite.coord("longitude").points
+
+    # Set up the leads
+    leads = np.arange(1, 10 + 1)
+
+    # if the months list is not [10, 11, 12, 1, 2, 3]
+    # then subset the obs_df to these months
+    if months != [10, 11, 12, 1, 2, 3]:
+        print("Subsetting the model_df to the months of interest: ", months)
+
+        # intialize an empty list of leads
+        leads_sel = []
+
+        # loop over the leads
+        for l in leads:
+            # if months is [10, 11, 12]
+            if months == [10, 11, 12]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l, (12 * l) + 1, (12 * l) + 2))
+            elif months == [11, 12]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l) + 1, (12 * l) + 2)
+            elif months == [12]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l) + 2)
+            elif months == [1, 2, 3]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l) + 3, (12 * l) + 4, (12 * l) + 5)
+            elif months == [2, 3]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l) + 4, (12 * l) + 5)
+            elif months == [1, 2]:
+                # append the leads to the leads_sel
+                leads_sel.append((12 * l) + 3, (12 * l) + 4)
+            else:
+                raise ValueError(f"Unknown months {months}")
+
+        # flatten the leads_sel
+        leads_sel = [item for sublist in leads_sel for item in sublist]
+
+        # print the leds sel
+        print(leads_sel)
+
+        # subset the model_df to the leads_sel
+        model_df = model_df[model_df["lead"].isin(leads_sel)]
+
+    # print the head of the model df for checking
+    print(model_df.head())
+
+    # print the tail
+    print(model_df.tail())
 
     # Work out the percentile threshold for the model data
     model_threshold = np.percentile(model_df[model_val_name], percentile)
@@ -8646,6 +8710,7 @@ def plot_composite_obs_model(
     # regrid the obs data to the same as the model data
     print("Regridding the obs data to the model data")
     cube_obs = ds_composite.regrid(cube_psl, iris.analysis.Linear())
+    cube_obs_full = ds_composite_full.regrid(cube_psl, iris.analysis.Linear())
     cube_clim = cube_clim.regrid(cube_psl, iris.analysis.Linear())
 
     # regrid ds_composite full (which has all the obs events in)
@@ -8668,9 +8733,22 @@ def plot_composite_obs_model(
     if calc_anoms:
         # Calculate the anomalies
         field_obs = (cube_obs.data - cube_clim.data) / 100  # convert to hPa
+
+        # calculate the anomalies
+        field_obs_full = (cube_obs_full.data - cube_clim.data) / 100  # convert to hPa
     else:
         # Extract the data values
         field_obs = cube_obs.data / 100  # convert to hPa
+
+        # Extract the data values
+        field_obs_full = cube_obs_full.data / 100  # convert to hPa
+
+
+    # print the shape of field_obs_full
+    print(f"The shape of field_obs_full is {field_obs_full.shape}")
+
+    # print the values of the field_obs_full
+    print(f"The values of field_obs_full are {field_obs_full}")
 
     # extract combined_ds as an array
     combined_ds_arr = cube_psl.data
@@ -8693,37 +8771,6 @@ def plot_composite_obs_model(
 
     # Set up the array for the p-values
     p_values = np.zeros([nlats, nlons])
-
-    # Loop over the bootstraps
-    for iboot in tqdm(range(nboot)):
-        # Create an array of randomly selected rows with length num_obs_events
-        random_rows = np.random.choice(nrows, num_obs_events, replace=True)
-
-        # Extract the data for these rows
-        model_boot[iboot, :, :, :] = combined_ds_arr[random_rows, :, :]
-
-    # take the bootstrapped mean
-    model_boot_mean = np.mean(model_boot, axis=0)
-
-    # print the shapes of the arrays
-    print(f"The shape of the model_boot is {model_boot.shape}")
-    print(f"The shape of the model_boot_mean is {model_boot_mean.shape}")
-
-    # print the shape of the ds_composite_full.data
-    print(
-        f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}"
-    )
-
-    # Calculate the p-values
-    _, p_values = stats.ttest_ind(
-        ds_composite_full_regrid.data, model_boot_mean, axis=0
-    )
-
-    # print the p-values
-    print(f"The p-values are {p_values}")
-
-    # print the shape of the p-values
-    print(f"The shape of the p-values is {p_values.shape}")
 
     # Take the mean over the 'number' dimension
     mean_ds = combined_ds.mean(dim="number")
@@ -8776,6 +8823,7 @@ def plot_composite_obs_model(
 
             # Set up a list for the full ds's
             clim_dss = []
+
             # Loop over the years
             for year in tqdm(range(climatology_period[0], climatology_period[1] + 1)):
                 member_list = []
@@ -8906,9 +8954,69 @@ def plot_composite_obs_model(
 
     # if calc_anoms is True
     if calc_anoms:
-        field_model = (cube_psl.data - cube_clim.data) / 100  # convert to hPa
+        field_model = (combined_ds_arr - cube_clim.data) / 100  # convert to hPa
+
+        field_model_full = (combined_ds_arr - cube_clim.data) / 100  # convert to hPa
     else:
         field_model = cube_psl.data / 100
+
+        field_model_full = cube_psl.data / 100
+
+    # print the shape of field_model_full
+    print(f"The shape of field_model_full is {field_model_full.shape}")
+
+    # print the shape of the field obs full
+    print(f"The shape of the field obs full is {field_obs_full.shape}")
+
+    # print the values of the field model full
+    print(f"The values of the field model full are {field_model_full}")
+
+    # priont the values of the field obs full
+    print(f"The values of the field obs full are {field_obs_full}")
+
+    # Loop over the bootstraps
+    for iboot in tqdm(range(nboot)):
+        # Create an array of randomly selected rows with length num_obs_events
+        random_rows = np.random.choice(nrows, num_obs_events, replace=True)
+
+        # Extract the data for these rows
+        model_boot[iboot, :, :, :] = field_model_full[random_rows, :, :]
+
+    # take the bootstrapped mean
+    model_boot_mean = np.mean(model_boot, axis=0)
+
+    # # print the shapes of the arrays
+    # print(f"The shape of the model_boot is {model_boot.shape}")
+    # print(f"The shape of the model_boot_mean is {model_boot_mean.shape}")
+
+    # # print the values of model boot mean
+    # print(f"The values of model_boot_mean are {model_boot_mean}")
+
+    # # print the values of ds_compsoite_full_regrid.data
+    # print(f"The values of ds_composite_full_regrid.data are {ds_composite_full_regrid.data}")
+
+    # # print the shape of the ds_composite_full.data
+    # print(
+    #     f"The shape of the ds_composite_full.data is {ds_composite_full_regrid.data.shape}"
+    # )
+
+    # Calculate the p-values
+    _, p_values = stats.ttest_ind(
+        field_obs_full, model_boot_mean, axis=0
+    )
+
+    # print the p-values
+    print(f"The p-values are {p_values}")
+
+    # print the shape of the p-values
+    print(f"The shape of the p-values is {p_values.shape}")
+
+
+    # print the values of field model
+    print(f"The values of field model are {field_model}")
+
+    # print the values of field obs
+    print(f"The values of field obs are {field_obs}")
 
     # Set up the lons
     lons = cube_psl.coord("longitude").points
