@@ -7741,13 +7741,23 @@ def plot_composite_model(
 
             # extract the file
             file = files[0]
+
+            # append the file to the files list
+            files_list.append(file)
         elif model_path_root_psl == "badc":
-            raise NotImplementedError("home path not implemented yet")
+            # Form the path to the files
+            year_path = f"{model_path_psl}/s{year}-r*i?p?f?/{freq}/{psl_variable}/g?/files/d????????/*.nc"
+
+            # Glob the files in the directory containing the initialisation year
+            files = glob.glob(year_path)
+
+            # assert that files has len of more than zero
+            assert len(files) > 0, f"files has length {len(files)}"
+
+            # Extend the files to the aggregated files list
+            files_list.extend(files)         
         else:
             raise ValueError(f"Unknown model path root {model_path_root_psl}")
-
-        # append the file to the files list
-        files_list.append(file)
 
     # # print the files
     # print(f"The files are {files_list}")
@@ -7766,36 +7776,98 @@ def plot_composite_model(
     # create an empty list for the files
     dss = []
 
-    # loop over the files and year members
-    for idx, (file, (year, member)) in tqdm(
-        enumerate(zip(files_list, unique_year_member_pairs)), total=len(files_list)
-    ):
-        # Your existing code here
-        # find the leads to extract
-        leads_ym = model_df_composite.loc[
-            (model_df_composite["init_year"] == year)
-            & (model_df_composite["member"] == member)
-        ]["lead"].values
+    # if the variable is psl
+    if psl_variable == "psl":
+        # loop over the files and year members
+        for idx, (file, (year, member)) in tqdm(
+            enumerate(zip(files_list, unique_year_member_pairs)), total=len(files_list)
+        ):
+            # Your existing code here
+            # find the leads to extract
+            leads_ym = model_df_composite.loc[
+                (model_df_composite["init_year"] == year)
+                & (model_df_composite["member"] == member)
+            ]["lead"].values
 
-        # load the file
-        ds = xr.open_dataset(file)
+            # load the file
+            ds = xr.open_dataset(file)
 
-        # Format the lead as an int
-        ds = set_integer_time_axis(
-            xro=ds,
-            frequency=freq,
-        )
+            # Format the lead as an int
+            ds = set_integer_time_axis(
+                xro=ds,
+                frequency=freq,
+            )
 
-        # loop over the leads
-        for lead in leads_ym:
-            # select the leads from the time variable
-            ds = ds.sel(time=leads_ym)
+            # loop over the leads
+            for lead in leads_ym:
+                # select the leads from the time variable
+                ds = ds.sel(time=leads_ym)
 
-            # Add a new coordinate 'number' with a unique value
-            ds = ds.expand_dims({"number": [idx]})
+                # Add a new coordinate 'number' with a unique value
+                ds = ds.expand_dims({"number": [idx]})
 
-            # Append the ds to the dss list
-            dss.append(ds[psl_variable])
+                # Append the ds to the dss list
+                dss.append(ds[psl_variable])
+    elif psl_variable == "zg":
+
+        # make sure there are no duplicates in the files_list
+        files_list = list(set(files_list))
+
+        # loop over the year members
+        for idx, (year, member) in tqdm(
+            enumerate(unique_year_member_pairs), total=len(unique_year_member_pairs)
+        ):
+            # Find the leads to extract
+            leads_ym = model_df_composite.loc[
+                (model_df_composite["init_year"] == year)
+                & (model_df_composite["member"] == member)
+            ]["lead"].values
+
+            # Find the files containing the year and member
+            files = [
+                file for file in files_list if f"s{year}-r{member}i" in file
+            ]
+
+            # print the len of files
+            print(f"The length of files is {len(files)}")
+
+            # print the files
+            print(files)
+            
+            # FIXME: Fix this
+            # Open all leads for specified variant label
+            # and init_year
+            member_ds = xr.open_mfdataset(
+                files,
+                combine="nested",
+                concat_dim="time",
+                preprocess=lambda ds: preprocess(ds),
+                parallel=parallel,
+                engine=engine,
+                coords="minimal",  # expecting identical coords
+                data_vars="minimal",  # expecting identical vars
+                compat="override",  # speed up
+            ).squeeze()
+
+            # init_year = start_year and variant_label is unique_variant_labels[0]
+            if init_year == start_year and variant_label == unique_variant_labels[0]:
+                # Set new int time
+                member_ds = set_integer_time_axis(
+                    xro=member_ds, frequency=frequency, first_month_attr=True
+                )
+            else:
+                # Set new integer time
+                member_ds = set_integer_time_axis(member_ds, frequency=frequency)
+
+            # Append the member dataset to the member list
+            member_list.append(member_ds)
+        # Concatenate the member list along the ensemble_member dimension
+        member_ds = xr.concat(member_list, "member")
+        # Append the member dataset to the init_year list
+        init_year_list.append(member_ds)
+    # Concatenate the init_year list along the init dimension
+    # and rename as lead time
+    ds = xr.concat(init_year_list, "init").rename({"time": "lead"})
 
     # Concatenate all datasets along the 'number' dimension
     combined_ds = xr.concat(dss, dim="number")
@@ -8475,27 +8547,24 @@ def plot_composite_obs_model(
             # if months is [10, 11, 12]
             if months == [10, 11, 12]:
                 # append the leads to the leads_sel
-                leads_sel.append((12 * l, (12 * l) + 1, (12 * l) + 2))
+                leads_sel.extend([(12 * l), (12 * l) + 1, (12 * l) + 2])
             elif months == [11, 12]:
                 # append the leads to the leads_sel
-                leads_sel.append((12 * l) + 1, (12 * l) + 2)
+                leads_sel.extend([(12 * l) + 1, (12 * l) + 2])
             elif months == [12]:
                 # append the leads to the leads_sel
                 leads_sel.append((12 * l) + 2)
             elif months == [1, 2, 3]:
                 # append the leads to the leads_sel
-                leads_sel.append((12 * l) + 3, (12 * l) + 4, (12 * l) + 5)
+                leads_sel.extend([(12 * l) + 3, (12 * l) + 4, (12 * l) + 5])
             elif months == [2, 3]:
                 # append the leads to the leads_sel
-                leads_sel.append((12 * l) + 4, (12 * l) + 5)
+                leads_sel.extend([(12 * l) + 4, (12 * l) + 5])
             elif months == [1, 2]:
                 # append the leads to the leads_sel
-                leads_sel.append((12 * l) + 3, (12 * l) + 4)
+                leads_sel.extend([(12 * l) + 3, (12 * l) + 4])
             else:
                 raise ValueError(f"Unknown months {months}")
-
-        # flatten the leads_sel
-        leads_sel = [item for sublist in leads_sel for item in sublist]
 
         # print the leds sel
         print(leads_sel)
@@ -9321,3 +9390,5 @@ def plot_composite_obs_model(
     )
 
     return
+
+# Plot the global z500 composites for a specific threshold of model events
