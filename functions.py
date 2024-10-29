@@ -26,7 +26,7 @@ import shapely.geometry
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 from datetime import datetime, timedelta
-import xesmf as xe
+# import xesmf as xe
 import matplotlib.cm as cm
 import cftime
 
@@ -662,7 +662,7 @@ def load_model_data_xarray(
                 files,
                 combine="nested",
                 concat_dim="time",
-                preprocess=lambda ds: preprocess(ds),
+                preprocess=lambda ds: preprocess_boilerplate(ds),
                 parallel=parallel,
                 engine=engine,
                 coords="minimal",  # expecting identical coords
@@ -8239,6 +8239,22 @@ def plot_composite_model(
 
     return
 
+# Define a function for preprocessing the model data
+def preprocess_boilerplate(
+    ds: xr.Dataset,
+):
+    """
+    Preprocess the model data using xarray
+
+    Parameters
+
+    ds: xr.Dataset
+        The dataset to preprocess
+    """
+
+    # Return the dataset
+    return ds
+
 
 # define a function for preprocessing
 def preprocess(
@@ -8545,16 +8561,22 @@ def plot_composite_obs_model(
         # loop over the leads
         for l in leads:
             # if months is [10, 11, 12]
-            if months == [10, 11, 12]:
+            if months == [10, 11, 12]: # OND
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l), (12 * l) + 1, (12 * l) + 2])
             elif months == [11, 12]:
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 1, (12 * l) + 2])
+            elif months == [11, 12, 1]: # NDJ
+                # append the leads to the leads_sel
+                leads_sel.extend([(12 * l) + 1, (12 * l) + 2, (12 * l) + 3])
             elif months == [12]:
                 # append the leads to the leads_sel
                 leads_sel.append((12 * l) + 2)
-            elif months == [1, 2, 3]:
+            elif months == [12, 1, 2]: # DJF
+                # append the leads to the leads_sel
+                leads_sel.extend([(12 * l) + 2, (12 * l) + 3, (12 * l) + 4])
+            elif months == [1, 2, 3]: # JFM
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 3, (12 * l) + 4, (12 * l) + 5])
             elif months == [2, 3]:
