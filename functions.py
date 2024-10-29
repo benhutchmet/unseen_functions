@@ -9391,4 +9391,66 @@ def plot_composite_obs_model(
 
     return
 
-# Plot the global z500 composites for a specific threshold of model events
+# Function for calculating autocorrelation of the obs data
+# Octobers with Novembers etc.
+def calc_autocorr_obs(
+    obs_df: pd.DataFrame,
+    obs_val_name: str,
+    months: List[int],
+    obs_time_name: str = "time",
+) -> None:
+    """
+    
+    Calculates the autocorrelation in the observed time series by
+    splitting the dataframe into month subsets and calculating the
+    correlation between the subsets.
+
+    Parameters
+    ----------
+
+    obs_df : pd.DataFrame
+        The dataframe containing the observed data
+
+    obs_val_name : str
+        The name of the column containing the observed data
+
+    months : List[int]
+        The months to calculate the autocorrelation for
+
+    obs_time_name : str
+        The name of the column containing the observed time data
+
+    Returns
+    -------
+
+    None
+    
+    """
+
+    # Set up an empty list for the list of monthly subsets
+    monthly_subsets = []
+
+    # Loop over the months
+    for month in months:
+        # Subset the data to the month
+        obs_df_month = obs_df[obs_df[obs_time_name].dt.month == month]
+
+        # Extract the values as an array
+        obs_vals = obs_df_month[obs_val_name].values
+
+        # Append the values to the list
+        monthly_subsets.append(obs_vals)
+
+    # Set up a dataframe with len(months) columns each containing the monthly subset
+    df = pd.DataFrame(monthly_subsets).T
+
+    # name the columns
+    df.columns = months
+
+    # Compute the correlations
+    corrs = df.corr()
+
+    # print the correlations
+    print(corrs)
+
+    return
