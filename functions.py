@@ -9420,6 +9420,8 @@ def calc_autocorr_obs(
     obs_val_name: str,
     months: List[int],
     obs_time_name: str = "time",
+    fname_prefix: str = "autocorr_obs",
+    save_dir: str = "/home/users/benhutch/unseen_multi_year/dfs"
 ) -> None:
     """
     
@@ -9441,6 +9443,12 @@ def calc_autocorr_obs(
 
     obs_time_name : str
         The name of the column containing the observed time data
+
+    fname_prefix : str
+        The prefix to use for the filename
+
+    save_dir : str
+        The directory to save the output to
 
     Returns
     -------
@@ -9474,5 +9482,11 @@ def calc_autocorr_obs(
 
     # print the correlations
     print(corrs)
+
+    # Set up the current date time
+    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the correlations
+    corrs.to_csv(os.path.join(save_dir, f"{fname_prefix}_{date}.csv"))
 
     return
