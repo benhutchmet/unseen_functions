@@ -437,6 +437,9 @@ def load_model_data_xarray(
         "path",
     ].values[0]
 
+    # print the model path
+    print("Model path:", model_path)
+
     # Assert that the model path exists
     assert os.path.exists(model_path), "The model path does not exist"
 
@@ -451,12 +454,12 @@ def load_model_data_xarray(
         print("The model path root is gws")
 
         # List the files in the model path
-        model_files = os.listdir(model_path)
+        model_files = [file for file in os.listdir(model_path) if file.endswith('.nc')]
 
         # Loop over the years
         for year in range(start_year, end_year + 1):
-            # Find all of the files for the given year
-            year_files = [file for file in model_files if f"s{year}" in file]
+            # Find all of the files for the given year that are .nc files
+            year_files = [file for file in model_files if f"s{year}" in file and file.endswith('.nc')]
 
             # Split the year files by '/'
             year_files_split = [file.split("/")[-1] for file in year_files]
@@ -528,6 +531,9 @@ def load_model_data_xarray(
     # Create an empty list for forming the list of files for each ensemble member
     member_files = []
 
+    # print the first 10 model files
+    print("First 10 model files:", model_files[:10])
+
     # If the model path root is gws
     if model_path_root_psl == "gws":
         print("Forming the list of files for each ensemble member for gws")
@@ -538,6 +544,10 @@ def load_model_data_xarray(
             variant_label_files = []
 
             for year in range(start_year, end_year + 1):
+                # print the year and variant label
+                print(year, variant_label)
+                
+                
                 # Find the file for the given year and member
                 file = [
                     file
