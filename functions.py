@@ -528,6 +528,20 @@ def load_model_data_xarray(
     # print the first 5 unique variant labels
     print("First 10 unique variant labels:", unique_variant_labels[:10])
 
+    # if the model is CanESM5
+    # limit the variant labels to r1 - r20
+    if model == "CanESM5":
+        # Extract the variant labels
+        unique_variant_labels = [
+            label for label in unique_variant_labels if "r" in label and int(label[1:-6]) <= 20
+        ]
+
+    # Print the number of unique variant labels
+    print("Number of unique variant labels:", len(unique_variant_labels))
+
+    # print the unique variant lbles
+    print("Unique variant labels:", unique_variant_labels)
+
     # Create an empty list for forming the list of files for each ensemble member
     member_files = []
 
@@ -544,8 +558,8 @@ def load_model_data_xarray(
             variant_label_files = []
 
             for year in range(start_year, end_year + 1):
-                # print the year and variant label
-                print(year, variant_label)
+                # # print the year and variant label
+                # print(year, variant_label)
                 
                 
                 # Find the file for the given year and member
