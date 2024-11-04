@@ -26,6 +26,7 @@ import shapely.geometry
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 from datetime import datetime, timedelta
+
 # import xesmf as xe
 import matplotlib.cm as cm
 import cftime
@@ -454,12 +455,16 @@ def load_model_data_xarray(
         print("The model path root is gws")
 
         # List the files in the model path
-        model_files = [file for file in os.listdir(model_path) if file.endswith('.nc')]
+        model_files = [file for file in os.listdir(model_path) if file.endswith(".nc")]
 
         # Loop over the years
         for year in range(start_year, end_year + 1):
             # Find all of the files for the given year that are .nc files
-            year_files = [file for file in model_files if f"s{year}" in file and file.endswith('.nc')]
+            year_files = [
+                file
+                for file in model_files
+                if f"s{year}" in file and file.endswith(".nc")
+            ]
 
             # Split the year files by '/'
             year_files_split = [file.split("/")[-1] for file in year_files]
@@ -481,6 +486,9 @@ def load_model_data_xarray(
     elif model_path_root_psl == "badc":
         print("The model path root is badc")
 
+        # Set up the list
+        model_files = []
+
         # Loop over the years
         for year in range(start_year, end_year + 1):
             # Form the path to the files for this year
@@ -488,6 +496,9 @@ def load_model_data_xarray(
 
             # Find the files for the given year
             year_files = glob.glob(year_path)
+
+            # append the year files to the model files
+            model_files.extend(year_files)
 
             # Extract the number of members
             # as the number of unique combinations of r*i*p?f?
@@ -521,6 +532,9 @@ def load_model_data_xarray(
     # Set up unique variant labels
     unique_variant_labels = np.unique(unique_combinations)
 
+    # assert that model files has one dimension
+    assert len(np.shape(model_files)) == 1, "model_files is not one dimensional"
+
     # Print the number of unique variant labels
     print("Number of unique variant labels:", len(unique_variant_labels))
     print("For model:", model)
@@ -533,7 +547,9 @@ def load_model_data_xarray(
     if model == "CanESM5":
         # Extract the variant labels
         unique_variant_labels = [
-            label for label in unique_variant_labels if "r" in label and int(label[1:-6]) <= 20
+            label
+            for label in unique_variant_labels
+            if "r" in label and int(label[1:-6]) <= 20
         ]
 
     # Print the number of unique variant labels
@@ -560,8 +576,7 @@ def load_model_data_xarray(
             for year in range(start_year, end_year + 1):
                 # # print the year and variant label
                 # print(year, variant_label)
-                
-                
+
                 # Find the file for the given year and member
                 file = [
                     file
@@ -592,6 +607,20 @@ def load_model_data_xarray(
                 # Find the files which match the path
                 year_files = glob.glob(path)
 
+                # Debug print to check the number of files found
+                print(
+                    f"Year: {year}, Variant: {variant_label}, Files found: {len(year_files)}"
+                )
+
+                # Handle cases where no files are found
+                if not year_files:
+                    print(
+                        f"No files found for year {year} and variant label {variant_label}"
+                    )
+                    # Optionally, you can add a placeholder or skip this year
+                    # year_files = ["placeholder.nc"]  # Example placeholder
+                    # sys.exit()  # Uncomment to exit if no files are found
+
                 # # Assert that the number of files is 1
                 # if len(year_files) == 1:
                 #     # print that only one file was found
@@ -614,6 +643,9 @@ def load_model_data_xarray(
     else:
         print("The model path root is neither gws nor badc")
         ValueError("The model path root is neither gws nor badc")
+
+    # Print the member files list
+    print("Member files list:", member_files)
 
     # Assert that member files is a list withiin a list
     assert isinstance(member_files, list), "member_files is not a list"
@@ -642,8 +674,8 @@ def load_model_data_xarray(
         first_fcst_year_idx = (first_fcst_year - start_year) - 1
         last_fcst_year_idx = last_fcst_year - first_fcst_year
 
-    # print the shape of member files
-    print("Shape of member files:", np.shape(member_files))
+    # # print the shape of member files
+    # print("Shape of member files:", np.shape(member_files))
 
     # if member_files has shape (x, y)
     if len(np.shape(member_files)) == 2:
@@ -5728,7 +5760,7 @@ def plot_chance_of_event(
     obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
 
     print(f"The obs time lowest is {obs_time_lowest}")
-    
+
     # apply thresholds to the data
     # calculte the 17.5%tile of the observations
     obs_175_threshold = np.percentile(obs_df[obs_val_name], 17.5)
@@ -5770,7 +5802,9 @@ def plot_chance_of_event(
         params_model.append(
             gev.fit(
                 np.random.choice(
-                    model_175[model_val_name], size=len(model_175[model_val_name]), replace=True
+                    model_175[model_val_name],
+                    size=len(model_175[model_val_name]),
+                    replace=True,
                 )
             )
         )
@@ -5869,10 +5903,12 @@ def plot_chance_of_event(
 
     # Plot the confidence intervals
     _ = ax.plot(np.quantile(levels_obs_anomaly, [0.025, 0.975], axis=0).T, probs, "k--")
-    _ = ax.plot(np.quantile(levels_model_obs_len_anomaly, [0.025, 0.975], axis=0).T, probs, "r--")
     _ = ax.plot(
-        np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r"
+        np.quantile(levels_model_obs_len_anomaly, [0.025, 0.975], axis=0).T,
+        probs,
+        "r--",
     )
+    _ = ax.plot(np.quantile(levels_model_anomaly, [0.025, 0.975], axis=0).T, probs, "r")
 
     _ = ax.fill_betweenx(
         probs,
@@ -6060,6 +6096,7 @@ def plot_chance_of_event(
 
     return
 
+
 # Define a function to plot the chance of an event
 # being worse (i.e. lower values)
 # than a specific year (in this case 2010)
@@ -6242,7 +6279,7 @@ def plot_chance_of_event_rank(
     # print(f"The shape of the model anomalies is {model_df_rl['anomalies'].shape}")
 
     # sys.exit()
-    
+
     # # # Plot the anomalies and the probabilities
     # _ = plt.plot(
     #     obs_df_rl["anomalies"],
@@ -6535,7 +6572,7 @@ def plot_chance_of_event_rank(
     # same with the other ones
     model_anoms_025_zero_idx = np.argmin(np.abs(model_anoms_025_array))
     model_anoms_975_zero_idx = np.argmin(np.abs(model_anoms_975_array))
-    
+
     # Apply this index to the model probabilities
     model_probs_zero = model_df_rl["probability"].iloc[model_anoms_zero_idx]
 
@@ -6544,11 +6581,17 @@ def plot_chance_of_event_rank(
     model_probs_975_zero = model_df_rl["probability"].iloc[model_anoms_975_zero_idx]
 
     # Print the model anomalies value at the zero index
-    print(f"The model anomalies value at the zero index is {model_anoms_array[model_anoms_zero_idx]}")
+    print(
+        f"The model anomalies value at the zero index is {model_anoms_array[model_anoms_zero_idx]}"
+    )
 
     # the model anomalies value at the 025 index
-    print(f"The model anomalies value at the 025 index is {model_anoms_025_array[model_anoms_025_zero_idx]}")
-    print(f"The model anomalies value at the 975 index is {model_anoms_975_array[model_anoms_975_zero_idx]}")
+    print(
+        f"The model anomalies value at the 025 index is {model_anoms_025_array[model_anoms_025_zero_idx]}"
+    )
+    print(
+        f"The model anomalies value at the 975 index is {model_anoms_975_array[model_anoms_975_zero_idx]}"
+    )
 
     # Print the model probabilities at the zero index
     print(f"The model probabilities at the zero index is {model_probs_zero}")
@@ -7779,7 +7822,7 @@ def plot_composite_model(
             assert len(files) > 0, f"files has length {len(files)}"
 
             # Extend the files to the aggregated files list
-            files_list.extend(files)         
+            files_list.extend(files)
         else:
             raise ValueError(f"Unknown model path root {model_path_root_psl}")
 
@@ -7848,16 +7891,14 @@ def plot_composite_model(
             ]["lead"].values
 
             # Find the files containing the year and member
-            files = [
-                file for file in files_list if f"s{year}-r{member}i" in file
-            ]
+            files = [file for file in files_list if f"s{year}-r{member}i" in file]
 
             # print the len of files
             print(f"The length of files is {len(files)}")
 
             # print the files
             print(files)
-            
+
             # FIXME: Fix this
             # Open all leads for specified variant label
             # and init_year
@@ -8263,6 +8304,7 @@ def plot_composite_model(
 
     return
 
+
 # Define a function for preprocessing the model data
 def preprocess_boilerplate(
     ds: xr.Dataset,
@@ -8585,22 +8627,22 @@ def plot_composite_obs_model(
         # loop over the leads
         for l in leads:
             # if months is [10, 11, 12]
-            if months == [10, 11, 12]: # OND
+            if months == [10, 11, 12]:  # OND
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l), (12 * l) + 1, (12 * l) + 2])
             elif months == [11, 12]:
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 1, (12 * l) + 2])
-            elif months == [11, 12, 1]: # NDJ
+            elif months == [11, 12, 1]:  # NDJ
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 1, (12 * l) + 2, (12 * l) + 3])
             elif months == [12]:
                 # append the leads to the leads_sel
                 leads_sel.append((12 * l) + 2)
-            elif months == [12, 1, 2]: # DJF
+            elif months == [12, 1, 2]:  # DJF
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 2, (12 * l) + 3, (12 * l) + 4])
-            elif months == [1, 2, 3]: # JFM
+            elif months == [1, 2, 3]:  # JFM
                 # append the leads to the leads_sel
                 leads_sel.extend([(12 * l) + 3, (12 * l) + 4, (12 * l) + 5])
             elif months == [2, 3]:
@@ -9121,9 +9163,7 @@ def plot_composite_obs_model(
     print(f"The shape of model boot mean is {model_boot_mean.shape}")
 
     # Calculate the p-values
-    _, p_values = stats.ttest_ind(
-        field_obs_full, model_boot_mean, axis=0
-    )
+    _, p_values = stats.ttest_ind(field_obs_full, model_boot_mean, axis=0)
 
     # print the p-values
     print(f"The p-values are {p_values}")
@@ -9437,6 +9477,7 @@ def plot_composite_obs_model(
 
     return
 
+
 # Function for calculating autocorrelation of the obs data
 # Octobers with Novembers etc.
 def calc_autocorr_obs(
@@ -9445,10 +9486,10 @@ def calc_autocorr_obs(
     months: List[int],
     obs_time_name: str = "time",
     fname_prefix: str = "autocorr_obs",
-    save_dir: str = "/home/users/benhutch/unseen_multi_year/dfs"
+    save_dir: str = "/home/users/benhutch/unseen_multi_year/dfs",
 ) -> None:
     """
-    
+
     Calculates the autocorrelation in the observed time series by
     splitting the dataframe into month subsets and calculating the
     correlation between the subsets.
@@ -9478,7 +9519,7 @@ def calc_autocorr_obs(
     -------
 
     None
-    
+
     """
 
     # Set up an empty list for the list of monthly subsets
@@ -9508,9 +9549,152 @@ def calc_autocorr_obs(
     print(corrs)
 
     # Set up the current date time
-    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the correlations
     corrs.to_csv(os.path.join(save_dir, f"{fname_prefix}_{date}.csv"))
+
+    return
+
+
+# Define a function for plotting the chance of event
+# Where event is the chance of one month within a given winter
+# exceeding it's most extreme conditions
+
+
+def plot_chance_of_event_return_levels(
+    obs_df: pd.DataFrame,
+    model_df_ondjfm: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    months: List[int],
+    num_samples: int = 1000,
+    save_prefix: str = "chance_of_event_return_levels",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+
+    Plots the chance of an event being worse than a specific year using return levels. Based on Figure 4 from Thompson et al., 2017 (doi: 10.1038/s41467-017-00275-3).
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df_ondjfm: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    months: List[int]
+        The months to use for the event. For example, [10, 11, 12, 1, 2] for ONDJF.
+
+    num_samples: int
+        The number of samples to use for bootstrapping. Default is 1000.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "chance_of_event_return_levels".
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots".
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    probs = 1 / np.arange(1.1, 1000, 0.1) * 100
+    years = np.arange(1.1, 1000, 0.1)
+    lead_years = np.arange(1, 11)
+    months = [10, 11, 12, 1, 2, 3]
+    n_samples = num_samples
+
+    model_df_perc_change = pd.DataFrame()
+
+    for m, month in enumerate(months):
+        obs_month = obs_df[obs_df["time"].dt.month == month]
+        obs_month_min = np.min(obs_month[obs_val_name])
+        leads_this_month = [(ly * 12) + m for ly in lead_years]
+        model_month = model_df_ondjfm[model_df_ondjfm["lead"].isin(leads_this_month)]
+        model_month[f"{model_val_name}_perc_change"] = (
+            (model_month[model_val_name] - obs_month_min) / obs_month_min * 100
+        )
+        model_df_perc_change = pd.concat([model_df_perc_change, model_month])
+
+    print(model_df_perc_change[f"{model_val_name}_perc_change"].min())
+    print(model_df_perc_change[f"{model_val_name}_perc_change"].max())
+
+    model_df_rl = empirical_return_level(
+        model_df_perc_change[f"{model_val_name}_perc_change"].values
+    )
+    print(model_df_rl.shape)
+    print(model_df_rl.head())
+    print(model_df_perc_change.shape)
+    print(model_df_perc_change.head())
+
+    model_vals = np.zeros([n_samples, len(model_df_perc_change)])
+    params_model = [gev.fit(model_df_perc_change[f"{model_val_name}_perc_change"])]
+
+    for i in tqdm(range(n_samples)):
+        model_vals_this = np.random.choice(
+            model_df_perc_change[f"{model_val_name}_perc_change"],
+            size=len(model_df_rl["sorted"]),
+            replace=True,
+        )
+        model_df_rl_sample = empirical_return_level(model_vals_this)
+        model_vals[i, :] = model_df_rl_sample["sorted"]
+
+    levels_model = gev.ppf(1 / years, *params_model[0])
+    levels_model = np.array(levels_model)
+
+    plt.plot(levels_model, probs, "b-")
+    plt.plot(model_df_rl["sorted"], model_df_rl["probability"], color="red")
+
+    print(model_vals.shape)
+
+    model_vals_025 = np.percentile(model_vals, 2.5, axis=0)
+    model_vals_975 = np.percentile(model_vals, 97.5, axis=0)
+
+    plt.fill_betweenx(
+        model_df_rl["probability"],
+        model_vals_025,
+        model_vals_975,
+        color="red",
+        alpha=0.2,
+    )
+
+    # model_vals_mean = np.mean(model_vals, axis=0)
+
+    ax.set_ylim(0, 20)
+    plt.axhline(1, color="black", linestyle="--")
+    x_points = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1])
+    ax.set_xlim(1, -1)
+    ax.set_yscale("log")
+    ax.set_yticks(x_points)
+    ax.set_ylim(0.1, 10)
+    ax.set_ylabel("Chance of event (%)")
+    ax.set_xlabel(f"% change relative to lowest observed value")
+
+    # Set up the current datetime
+    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.png"),
+        dpi=600,
+        bbox_inches="tight",
+    )
 
     return
