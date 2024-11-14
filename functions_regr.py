@@ -567,6 +567,17 @@ def plot_3d_scatter(
     )
     ax.plot_surface(x_range, y_range, z_range, alpha=0.5)
 
+    # include the r2 and the rmse in the top left
+    ax.text2D(
+        0.05,
+        0.95,
+        f"r2 = {r2:.2f}\nRMSE = {rmse:.2f}",
+        horizontalalignment="left",
+        verticalalignment="top",
+        transform=ax.transAxes,
+        bbox=dict(facecolor="white", alpha=0.5),
+    )
+
     plt.show()
 
     return None
@@ -1282,6 +1293,21 @@ def plot_stochastic_fit(
         trials_95 = pd.DataFrame(
             Y_pred_first[:, None] + stoch_95, index=df.index, columns=range(num_trials)
         )
+
+        # Limit df to the first 100 rows
+        df = df.head(88)
+
+        # limit y_pred_first to the first 100 rows
+        Y_pred_first = Y_pred_first[:88]
+
+        # limit trials_mean to the first 100 rows
+        trials_mean = trials_mean.head(88)
+
+        # limit trials_05 to the first 100 rows
+        trials_05 = trials_05.head(88)
+
+        # limit trials_95 to the first 100 rows
+        trials_95 = trials_95.head(88)
 
         # Set up the figure
         fig, ax = plt.subplots(figsize=(10, 5))
