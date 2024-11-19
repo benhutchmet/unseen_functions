@@ -352,6 +352,7 @@ def load_model_data_xarray(
     first_fcst_year: int,
     last_fcst_year: int,
     months: list,
+    member: str = "None",
     frequency: str = "Amon",
     engine: str = "netcdf4",
     parallel: bool = True,
@@ -397,6 +398,9 @@ def load_model_data_xarray(
     months: list
         The months to take the time average over
         E.g. [10, 11, 12, 1, 2, 3] for October to March
+
+    member: str
+        The ensemble member to load the data for. Default is 'None'
 
     frequency: str
         The frequency of the data
@@ -692,6 +696,29 @@ def load_model_data_xarray(
 
     # print the shape of flattened member files
     print("Shape of flattened member files:", np.shape(member_files))
+
+    # print the unqiue variant labels
+    print("Unique variant labels:", unique_variant_labels)
+
+    # if member is not in "none", "None"
+    if member not in ["none", "None"]:
+        print(f"Extracting specific member: {member}")
+
+        member_files_subset = []
+        unique_variant_labels_subset = [member]
+
+        # loop over the member files
+        for member_file in member_files:
+            if member in member_file:
+                member_files_subset.append(member_file)
+
+        # print the len of member files subset
+        print("Length of member files subset:", len(member_files_subset))
+        print("Length of unique variant labels subset:", len(unique_variant_labels_subset))
+
+        # set member files as the subset
+        member_files = member_files_subset
+        unique_variant_labels = unique_variant_labels_subset
 
     init_year_list = []
     # Loop over init_years
