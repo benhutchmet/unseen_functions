@@ -21,6 +21,9 @@ from scipy.stats import linregress
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mplticker
+import matplotlib.gridspec as gridspec
+
+# from matplotlib.gridspec import GridSpecFromSubplotSpec
 import iris
 import shapely.geometry
 import cartopy.crs as ccrs
@@ -714,7 +717,9 @@ def load_model_data_xarray(
 
         # print the len of member files subset
         print("Length of member files subset:", len(member_files_subset))
-        print("Length of unique variant labels subset:", len(unique_variant_labels_subset))
+        print(
+            "Length of unique variant labels subset:", len(unique_variant_labels_subset)
+        )
 
         # set member files as the subset
         member_files = member_files_subset
@@ -1984,6 +1989,323 @@ def plot_distribution(
     )
 
     # Show the plot
+    plt.show()
+
+    return
+
+
+# Define a function to plot the distributions and also fidelity test
+def plot_distributions_fidelity(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str,
+    model_time_name: str,
+    model_member_name: str,
+    model_lead_name: str,
+    title: str,
+    nboot: int = 1000,
+    figsize=(10, 6),
+    nbins: int = 100,
+    fname_prefix: str = "distribution_fidelity",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+) -> None:
+    """
+    Plots the distribution and calculates the model fidelity
+    for the hindcast using the bootstrap statistics.
+
+    Parameters
+    ----------
+
+    obs_df: pd.DataFrame
+        The observations dataframe
+    model_df: pd.DataFrame
+        The model dataframe
+    obs_val_name: str
+        The name of the observations value
+    model_val_name: str
+        The name of the model value
+    obs_time_name: str
+        The name of the observations time
+    model_time_name: str
+        The name of the model time
+    model_member_name: str
+        The name of the model member
+    model_lead_name: str
+        The name of the model lead
+    title: str
+        The title of the plot
+    nboot: int
+        The number of bootstrap samples to take
+        Default is 1000
+    figsize: tuple
+        The figure size
+        Default is (10, 6)
+    nbins: int
+        The number of bins for the histogram
+        Default is 100
+    fname_prefix: str
+        The prefix for the filename
+        Default is "distribution_fidelity"
+    save_dir: str
+        The directory to save the plots to
+        Default is "/gws/nopw/j04/canari/users/benhutch/plots/"
+
+    Returns
+    -------
+
+    None
+
+    """
+
+    # Set up the figure
+    # two columns, one row
+    # fig, axs = plt.subplots(
+    #     ncols=3, nrows=2, figsize=figsize, gridspec_kw={"width_ratios": [2, 1, 1]}
+    # )
+
+    fig = plt.figure(figsize=figsize)
+    gs = gridspec.GridSpec(nrows=2, ncols=3, width_ratios=[2, 1, 1])
+
+    ax_main = ax_main = fig.add_subplot(gs[:, 0])  # Span all rows in the first column
+
+    # Plot the distributions on the first axis
+    ax_main.hist(
+        model_df[model_val_name], color="red", label="model", alpha=0.5, density=True
+    )
+
+    # Obs data
+    ax_main.hist(
+        obs_df[obs_val_name], color="black", label="obs", alpha=0.5, density=True
+    )
+
+    # Include a textbox with the sample size
+    ax_main.text(
+        0.95,
+        0.90,
+        f"model N = {len(model_df)}\nobs N = {len(obs_df)}",
+        transform=ax_main.transAxes,
+        bbox=dict(facecolor="white", alpha=0.5),
+        horizontalalignment="right",
+    )
+
+    # Add a legend
+    ax_main.legend()
+
+    # Remove the ticks for the y axis
+    ax_main.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
+
+    # Remove the numbers from the y axis
+    ax_main.set_yticks([])
+
+    # Add a title
+    ax_main.set_title(title)
+
+    # Set up the model stats dict
+    model_stats = {
+        "mean": [],
+        "sigma": [],
+        "skew": [],
+        "kurt": [],
+    }
+
+    # Set up the number of unique initialisation dates
+    n_years = len(model_df[model_time_name].unique())
+
+    # Set up the number of unique ensemble members
+    n_members = len(model_df[model_member_name].unique())
+
+    # if the model_lead_name is not None
+    if model_lead_name is not None:
+        n_leads = len(model_df[model_lead_name].unique())
+
+    # Set up zeros for the bootstrapped values
+    boot_mean = np.zeros(nboot)
+    boot_sigma = np.zeros(nboot)
+    boot_skew = np.zeros(nboot)
+    boot_kurt = np.zeros(nboot)
+
+    # Extract the unique model times
+    model_times = model_df[model_time_name].unique()
+
+    # Extract the unique model members
+    model_members = model_df[model_member_name].unique()
+
+    if model_lead_name is not None:
+        # Extract the unique model leads
+        model_leads = model_df[model_lead_name].unique()
+
+    # Create the indexes for the ensemble members
+    member_idx = np.arange(n_members)
+
+    # Loop over the number of bootstraps
+    for iboot in tqdm(range(nboot), desc="Calculating bootstrap statistics"):
+        # Set up random indices for the ensemble members
+        idx_time_this = range(0, n_years)
+
+        # Create an empty array to store the bootstrapped values
+        model_boot = np.zeros([n_years])
+
+        # Set the year index to 0
+        idx_year = 0
+
+        # Loop over the number of years
+        # Randomly select an ensemble member and lead time for
+        # each year
+        # But year range stays constant
+        for itime in idx_time_this:
+            # Set up random indices for the ensemble members
+            idx_ens_this = random.choices(member_idx)
+
+            # Find the time at the itime index
+            model_time_this = model_times[itime]
+
+            # Find the name for the member at this index
+            model_member_this = model_members[idx_ens_this]
+
+            # if model_lead_name is not None
+            if model_lead_name is not None:
+                # Set up a random choice for the lead time
+                idx_lead_this = random.choices(range(n_leads))
+
+                # Find the name for the lead at this index
+                model_lead_this = model_leads[idx_lead_this]
+
+                # Extract the model data for the year and ensemble members
+                model_data = model_df[
+                    (model_df[model_time_name] == model_time_this)
+                    & (model_df[model_member_name] == model_member_this[0])
+                    & (model_df[model_lead_name] == model_lead_this[0])
+                ][model_val_name].values
+            else:
+                # Extract the model data for the year and ensemble members
+                model_data = model_df[
+                    (model_df[model_time_name] == model_time_this)
+                    & (model_df[model_member_name] == model_member_this[0])
+                ][model_val_name].values
+
+            # Check if model_data is empty
+            if model_data.size == 0:
+                # print(f"No data available for time {model_time_this}, member {model_member_this}, lead {model_lead_this if model_lead_name else 'N/A'}")
+                continue  # Skip this iteration if no data is available
+
+            # Append the model data to the bootstrapped array
+            model_boot[idx_year] = model_data
+
+            # Increment the year index
+            idx_year += 1
+
+        # Calculate the statistics for the bootstrapped array
+        boot_mean[iboot] = np.mean(model_boot)
+
+        boot_sigma[iboot] = np.std(model_boot)
+
+        boot_skew[iboot] = stats.skew(model_boot)
+
+        boot_kurt[iboot] = stats.kurtosis(model_boot)
+
+    # Append the bootstrapped statistics to the model_stats dict
+    model_stats["mean"] = boot_mean
+    model_stats["sigma"] = boot_sigma
+    model_stats["skew"] = boot_skew
+    model_stats["kurt"] = boot_kurt
+
+    # Calculate the obs stats
+    # Define the mdi
+    # mdi = -9999.0
+
+    # Set up the dictionary to store the obs stats
+    obs_stats = {
+        "mean": obs_df[obs_val_name].mean(),
+        "sigma": obs_df[obs_val_name].std(),
+        "skew": stats.skew(obs_df[obs_val_name]),
+        "kurt": stats.kurtosis(obs_df[obs_val_name]),
+    }
+
+    # Form a list of the model stats
+    model_stats_list = [
+        model_stats["mean"],
+        model_stats["sigma"],
+        model_stats["skew"],
+        model_stats["kurt"],
+    ]
+
+    # For the same list of the obs stats
+    obs_stats_list = [
+        obs_stats["mean"],
+        obs_stats["sigma"],
+        obs_stats["skew"],
+        obs_stats["kurt"],
+    ]
+
+    # For the same list of the stat names
+    stat_names = ["mean", "sigma", "skew", "kurt"]
+
+    # Form the list of the axes labels
+    axes_labels = ["a", "b", "c", "d"]
+
+    # Additional subplots for metrics
+    ax_mean = fig.add_subplot(gs[0, 1])
+    ax_skew = fig.add_subplot(gs[0, 2])
+    ax_stddev = fig.add_subplot(gs[1, 1])
+    ax_kurtosis = fig.add_subplot(gs[1, 2])
+
+    axes=[ax_mean, ax_skew, ax_stddev, ax_kurtosis]
+
+    # Loop over the axes
+    for i, ax in enumerate(axes):
+        # Plot the histogram of the model stats
+        ax.hist(model_stats_list[i], bins=100, density=True, color="red", label="model")
+
+        # Plot the obs stats
+        ax.axvline(obs_stats_list[i], color="black", linestyle="-", label="ERA5")
+
+        # Calculate the position of the obs stat in the distribution
+        obs_pos = stats.percentileofscore(model_stats_list[i], obs_stats_list[i])
+
+        # Plot vertical black dashed lines for the 2.5% and 97.5% quantiles of the model stats
+        ax.axvline(
+            np.quantile(model_stats_list[i], 0.025), color="black", linestyle="--"
+        )
+
+        ax.axvline(
+            np.quantile(model_stats_list[i], 0.975), color="black", linestyle="--"
+        )
+
+        # rmeove the yticks
+        ax.set_yticks([])
+        
+        # Add a title in bold with obs_pos rounded to the closest integer
+        ax.set_title(f"{stat_names[i]}, {round(obs_pos)}%", fontweight="bold")
+
+        # Add the axes label
+        # in the top left
+        ax.text(
+            0.05,
+            0.95,
+            axes_labels[i],
+            transform=ax.transAxes,
+            fontsize=12,
+            fontweight="bold",
+            va="top",
+            ha="left",
+            bbox=dict(facecolor="white", alpha=0.5),
+            zorder=100,
+        )
+
+    # specify a tight layout
+    fig.tight_layout()
+
+    # # Set up teh current time in d m y h m s
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d")
+    time = now.strftime("%H-%M-%S")
+
+    # # Save the plot
+    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"), dpi=600, bbox_inches="tight")
+
+    # show the plot
     plt.show()
 
     return
@@ -5764,29 +6086,29 @@ def plot_chance_of_event(
     params_model = []
 
     # find the years of the lowest value event in the obs data
-    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+    obs_time_event = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
         "time"
     ].values[0]
 
     # print the year and the value
-    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+    print(f"The time with the lowest value in the obs data is {obs_time_event}")
 
     # print the value at this time
     print(f"The value at this time is {obs_df[obs_val_name].min()}")
 
     # Convert numpy.datetime64 to datetime
-    obs_time_lowest = obs_time_lowest.astype(datetime)
+    obs_time_event = obs_time_event.astype(datetime)
 
     # Convert timestamp to datetime
-    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
+    obs_time_event = pd.to_datetime(obs_time_event, unit="ns")
 
     # print obs time lowesty
-    print(f"The obs time lowest is {obs_time_lowest}")
+    print(f"The obs time lowest is {obs_time_event}")
 
     # Format datetime to "YYYY-MM"
-    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+    obs_time_event = obs_time_event.strftime("%Y-%m")
 
-    print(f"The obs time lowest is {obs_time_lowest}")
+    print(f"The obs time lowest is {obs_time_event}")
 
     # apply thresholds to the data
     # calculte the 17.5%tile of the observations
@@ -6100,10 +6422,10 @@ def plot_chance_of_event(
     ax.set_yticks(x_points)
     ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_ylabel("Chance of event (%)")
-    ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
+    ax.set_xlabel(f"Lower than {obs_time_event} ({units})")
 
     # Set the title
-    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest}")
+    ax.set_title(f"Chance of {variable} event being worse than {obs_time_event}")
 
     # show the legend
     ax.legend(loc="lower left")
@@ -6180,29 +6502,29 @@ def plot_chance_of_event_rank(
     params_model = []
 
     # find the years of the lowest value event in the obs data
-    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+    obs_time_event = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
         "time"
     ].values[0]
 
     # print the year and the value
-    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+    print(f"The time with the lowest value in the obs data is {obs_time_event}")
 
     # print the value at this time
     print(f"The value at this time is {obs_df[obs_val_name].min()}")
 
     # Convert numpy.datetime64 to datetime
-    obs_time_lowest = obs_time_lowest.astype(datetime)
+    obs_time_event = obs_time_event.astype(datetime)
 
     # Convert timestamp to datetime
-    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
+    obs_time_event = pd.to_datetime(obs_time_event, unit="ns")
 
     # print obs time lowesty
-    print(f"The obs time lowest is {obs_time_lowest}")
+    print(f"The obs time lowest is {obs_time_event}")
 
     # Format datetime to "YYYY-MM"
-    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+    obs_time_event = obs_time_event.strftime("%Y-%m")
 
-    print(f"The obs time lowest is {obs_time_lowest}")
+    print(f"The obs time lowest is {obs_time_event}")
 
     # Set up the years
     years = np.arange(1.1, 1000, 0.1)
@@ -6662,10 +6984,10 @@ def plot_chance_of_event_rank(
     ax.set_yticks(x_points)
     ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_ylabel("Chance of event (%)")
-    ax.set_xlabel(f"Lower than {obs_time_lowest} ({units})")
+    ax.set_xlabel(f"Lower than {obs_time_event} ({units})")
 
     # Set the title
-    ax.set_title(f"Chance of {variable} event being worse than {obs_time_lowest}")
+    ax.set_title(f"Chance of {variable} event being worse than {obs_time_event}")
 
     # show the legend
     ax.legend(loc="lower left")
@@ -6693,7 +7015,9 @@ def plot_chance_of_event_with_time(
     model_df: pd.DataFrame,
     obs_val_name: str,
     model_val_name: str,
+    obs_time_name: str,
     variable: str,
+    lowest: bool = True,
     num_samples: int = 1000,
     fname_prefix: str = "chance_of_event_with_time",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
@@ -6718,6 +7042,9 @@ def plot_chance_of_event_with_time(
 
     model_val_name: str
         The name of the model value column.
+
+    obs_time_name: str
+        The name of the observation time column.
 
     variable: str
         The name of the variable being analysed.
@@ -6744,26 +7071,32 @@ def plot_chance_of_event_with_time(
     # extrcat the unique years from th3e model df
     unique_years = np.unique(model_df["init_year"])
 
-    # Find the time with the lowest value in the obs data
-    obs_time_lowest = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
-        "time"
-    ].values[0]
+    if lowest:
+        # Find the time with the lowest value in the obs data
+        obs_time_event = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].min()][
+            obs_time_name
+        ].values[0]
+    else:
+        # Find the time with the highest value in the obs data
+        obs_time_event = obs_df[obs_df[obs_val_name] == obs_df[obs_val_name].max()][
+            obs_time_name
+        ].values[0]
 
     # Print the time and the value
-    print(f"The time with the lowest value in the obs data is {obs_time_lowest}")
+    print(f"The time with the lowest value in the obs data is {obs_time_event}")
     print(f"The value at this time is {obs_df[obs_val_name].min()}")
 
     # Convert numpy.datetime64 to datetime
-    obs_time_lowest = obs_time_lowest.astype(datetime)
+    obs_time_event = obs_time_event.astype(datetime)
 
     # convert back to datetime
-    obs_time_lowest = pd.to_datetime(obs_time_lowest, unit="ns")
+    obs_time_event = pd.to_datetime(obs_time_event, unit="ns")
 
     # Format datetime to "YYYY-MM"
-    obs_time_lowest = obs_time_lowest.strftime("%Y-%m")
+    obs_time_event = obs_time_event.strftime("%Y-%m")
 
     # print the obs time lowest
-    print(f"The obs time lowest is {obs_time_lowest}")
+    print(f"The obs time lowest is {obs_time_event}")
 
     # Set up the years
     years = np.arange(1.1, 1000, 0.1)
@@ -6800,8 +7133,12 @@ def plot_chance_of_event_with_time(
         # append the params to the model year
         params_model_year[year] = params_model
 
-    # Set up the worst obs event
-    obs_worst_event = obs_df[obs_val_name].min()
+    if lowest:
+        # Set up the worst obs event
+        obs_worst_event = obs_df[obs_val_name].min()
+    else:
+        # Set up the worst obs event
+        obs_worst_event = obs_df[obs_val_name].max()
 
     period_model_year = {}
 
@@ -6921,8 +7258,12 @@ def plot_chance_of_event_with_time(
     # set the y-axis label
     ax.set_ylabel(f"Chance of event (%)")
 
-    # Set the title
-    ax.set_title(f"Chance of {variable} event <{obs_time_lowest}")
+    if lowest:
+        # Set the title
+        ax.set_title(f"Chance of {variable} event <{obs_time_event}")
+    else:
+        # Set the title
+        ax.set_title(f"Chance of {variable} event >{obs_time_event}")
 
     # set the current date_time
     time_now = datetime.now()
@@ -6941,6 +7282,7 @@ def plot_chance_of_event_with_time(
 # define a function for calculating the empirical return period
 def empirical_return_level(
     data: np.ndarray,
+    high_values_rare: bool = False,
 ):
     """
     Function to calculate the empirical return level for a given dataset.
@@ -6959,8 +7301,12 @@ def empirical_return_level(
     # create a dataframe from the data
     df = pd.DataFrame(index=np.arange(data.size))
 
-    # Sort the data
-    df["sorted"] = np.sort(data)
+    if not high_values_rare:
+        # Sort the data
+        df["sorted"] = np.sort(data)
+    else:
+        # Sort the data in descending order
+        df["sorted"] = np.sort(data)[::-1]
 
     # rank via scipy
     df["rank_sp"] = np.sort(stats.rankdata(data))
@@ -6996,13 +7342,17 @@ def estimate_return_level_period(period, loc, scale, shape):
     return gev.ppf(1 / period, shape, loc=loc, scale=scale)
 
 
-def estimate_period(return_level, loc, scale, shape):
+def estimate_period(return_level, loc, scale, shape, high=False):
     # Use the cumulative distribution function (CDF) of the GEV distribution
     # to estimate the cumulative probability for a given return level
     prob = gev.cdf(return_level, c=shape, loc=loc, scale=scale)
 
-    # Take the reciprocal of the probability to get the period
-    period = 1 / prob
+    if not high:
+        # Take the reciprocal of the probability to get the period
+        period = 1 / prob
+    else:
+        # Take the reciprocal of the probability to get the period
+        period = 1 / (1 - prob)
 
     probs = 1 / period * 100
 
@@ -9715,7 +10065,8 @@ def plot_chance_of_event_return_levels(
     ax.set_xlabel(f"% change relative to lowest observed value")
 
     # Set up the current datetime
-    now = datetime.now() ; date = now.strftime("%Y-%m-%d-%H-%M-%S")
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     # Save the plot
     plt.savefig(

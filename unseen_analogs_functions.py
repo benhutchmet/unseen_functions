@@ -105,8 +105,13 @@ def regrid_obs_to_model(
         lat=slice(grid_bounds["lat1"], grid_bounds["lat2"]),
     )
 
-    # Select the variable and a member from the model ds
-    model_data_member = model_ds[model_var_name].sel(member=member_name)
+    # if member is a dimension coordinate
+    if "member" in model_ds.coords:
+        # Select the variable and a member from the model ds
+        model_data_member = model_ds[model_var_name].sel(member=member_name)
+    else:
+        # Select the variable from the model ds
+        model_data_member = model_ds[model_var_name]
 
     # Rename the variable to something acceptable for iris
     model_data_member = model_data_member.rename(rename_var)
@@ -114,9 +119,15 @@ def regrid_obs_to_model(
     # Convert the model data to an iris cube
     member_cube = model_data_member.squeeze().to_iris()
 
-    # Rename the latitude and longitude coordinates
-    member_cube.coord("lat").rename("latitude")
-    member_cube.coord("lon").rename("longitude")
+    # print the member cube
+    print("Member cube:", member_cube)
+
+    # if lat and lon are dimensions, then rename them
+    if "lat" in member_cube.coords():
+        if "lon" in member_cube.coords():
+            # Rename the latitude and longitude coordinates
+            member_cube.coord("lat").rename("latitude")
+            member_cube.coord("lon").rename("longitude")
 
     # Convert obs data to an iris cube
     obs_cube = cubes_from_xarray(obs_ds)
