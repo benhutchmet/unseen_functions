@@ -2094,7 +2094,9 @@ def plot_distributions_fidelity(
     ax_main.legend()
 
     # Remove the ticks for the y axis
-    ax_main.tick_params(axis="y", which="both", left=False, right=False, labelleft=False)
+    ax_main.tick_params(
+        axis="y", which="both", left=False, right=False, labelleft=False
+    )
 
     # Remove the numbers from the y axis
     ax_main.set_yticks([])
@@ -2251,7 +2253,7 @@ def plot_distributions_fidelity(
     ax_stddev = fig.add_subplot(gs[1, 1])
     ax_kurtosis = fig.add_subplot(gs[1, 2])
 
-    axes=[ax_mean, ax_skew, ax_stddev, ax_kurtosis]
+    axes = [ax_mean, ax_skew, ax_stddev, ax_kurtosis]
 
     # Loop over the axes
     for i, ax in enumerate(axes):
@@ -2275,7 +2277,7 @@ def plot_distributions_fidelity(
 
         # rmeove the yticks
         ax.set_yticks([])
-        
+
         # Add a title in bold with obs_pos rounded to the closest integer
         ax.set_title(f"{stat_names[i]}, {round(obs_pos)}%", fontweight="bold")
 
@@ -2303,7 +2305,11 @@ def plot_distributions_fidelity(
     time = now.strftime("%H-%M-%S")
 
     # # Save the plot
-    plt.savefig(os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"), dpi=600, bbox_inches="tight")
+    plt.savefig(
+        os.path.join(save_dir, f"{fname_prefix}_{date}_{time}.pdf"),
+        dpi=600,
+        bbox_inches="tight",
+    )
 
     # show the plot
     plt.show()
@@ -7342,17 +7348,12 @@ def estimate_return_level_period(period, loc, scale, shape):
     return gev.ppf(1 / period, shape, loc=loc, scale=scale)
 
 
-def estimate_period(return_level, loc, scale, shape, high=False):
+def estimate_period(return_level, loc, scale, shape):
     # Use the cumulative distribution function (CDF) of the GEV distribution
     # to estimate the cumulative probability for a given return level
     prob = gev.cdf(return_level, c=shape, loc=loc, scale=scale)
 
-    if not high:
-        # Take the reciprocal of the probability to get the period
-        period = 1 / prob
-    else:
-        # Take the reciprocal of the probability to get the period
-        period = 1 / (1 - prob)
+    period = 1 / prob
 
     probs = 1 / period * 100
 
@@ -10074,5 +10075,219 @@ def plot_chance_of_event_return_levels(
         dpi=600,
         bbox_inches="tight",
     )
+
+    return
+
+
+def plot_monthly_boxplots(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    variable: str,
+    months: list,
+    month_names: list,
+    lead_years: np.ndarray,
+    season: str,
+    first_year: int,
+    last_year: int,
+    country: str,
+    model: str = "HadGEM3-GC31-MM",
+    experiment: str = "dcppA-hindcast",
+    freq: str = "day",
+    figsize: tuple = (10, 5),
+    save_prefix: str = "monthly_boxplots",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """Plots boxplots for the different months. Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    variable: str
+        The variable name to be plotted.
+
+    months: list
+        List of months to be plotted.
+
+    month_names: list
+        List of month names for the x-axis.
+
+    lead_years: np.ndarray
+        Array of lead years.
+
+    season: str
+        The season to be plotted.
+
+    first_year: int
+        The first year of the data.
+
+    last_year: int
+        The last year of the data.
+
+    country: str
+        The country name for the title.
+
+    model: str
+        The model name for the title.
+
+    experiment: str
+        The experiment name for the title.
+
+    freq: str
+        The frequency of the data for the title.
+
+    figsize: tuple
+        The size of the figure.
+
+    Returns
+    =======
+
+    None
+    """
+
+    # Set up the figure size
+    plt.figure(figsize=figsize)
+
+    # Set up the ylabel
+    plt.ylabel(f"{variable}")
+
+    # Assert that months are recognized
+    assert months == [10, 11, 12, 1, 2, 3], "Months not recognized"
+
+    # Loop over the months
+    for i, month in enumerate(months):
+        # Subset to the month
+        obs_df_month = obs_df[obs_df["time"].dt.month == month]
+
+        leads_this_month = []
+
+        # Find the leads to extract
+        for j, ly in enumerate(lead_years):
+            # Set up the leads
+            leads_this_month = np.arange(331 + (j * 360) + (i * 30), 331 + 30 + (j * 360) + (i * 30))
+
+        # Subset to the leads
+        model_df_month = model_df[model_df["lead"].isin(leads_this_month)]
+
+        # Calculate the upper quartile (75th percentile)
+        obs_lower_quartile = np.percentile(obs_df_month[obs_val_name], 25)
+        obs_upper_quartile = np.percentile(obs_df_month[obs_val_name], 75)
+        model_lower_quartile = np.percentile(model_df_month[model_val_name], 25)
+
+        # Calculate the obs min value for the month
+        obs_min = np.min(obs_df_month[obs_val_name])
+        obs_max = np.max(obs_df_month[obs_val_name])
+
+        # Plot the observed data in black
+        obs_box = plt.boxplot(
+            obs_df_month[obs_val_name],
+            positions=[i + 1],
+            widths=0.3,
+            showfliers=False,
+            boxprops=dict(color='black'),
+            capprops=dict(color='black'),
+            whiskerprops=dict(color='black'),
+            flierprops=dict(markerfacecolor='black', marker='o'),
+            medianprops=dict(color='black'),
+            whis=[0, 100],  # the 0th and 100th percentiles (i.e. min and max)
+            patch_artist=True
+        )
+
+        # Set the face color for the observed data box
+        for box in obs_box['boxes']:
+            box.set(facecolor='grey')
+
+        # Plot the model data in red
+        model_box = plt.boxplot(
+            model_df_month[model_val_name],
+            positions=[i + 1.5],
+            widths=0.3,
+            showfliers=False,
+            boxprops=dict(color='black'),
+            capprops=dict(color='black'),
+            whiskerprops=dict(color='black'),
+            flierprops=dict(markerfacecolor='black', marker='o'),
+            medianprops=dict(color='black'),
+            whis=[0, 100],  # the 0th and 100th percentiles (i.e. min and max)
+            patch_artist=True
+        )
+
+        # Set the face color for the model data box
+        for box in model_box['boxes']:
+            box.set(facecolor='salmon')
+
+        # add scatter points for obs values beneath the lower quartile
+        obs_below_lower_quartile = obs_df_month[obs_val_name][obs_df_month[obs_val_name] < obs_lower_quartile]
+        obs_above_upper_quartile = obs_df_month[obs_val_name][obs_df_month[obs_val_name] > obs_upper_quartile]
+
+        plt.scatter(
+            [i + 1] * len(obs_above_upper_quartile),
+            obs_above_upper_quartile,
+            color="black",
+            marker="_",
+            s=15,
+            zorder=10,
+        )
+
+        # # add scatter points for model values beneath the lower quartile
+        # model_below_lower_quartile = model_df_month[model_val_name][model_df_month[model_val_name] < model_lower_quartile]
+        # plt.scatter(
+        #     [i + 1.5] * len(model_below_lower_quartile),
+        #     model_below_lower_quartile,
+        #     color="red",
+        #     marker="_",
+        #     s=20,
+        # )
+
+        # add red dots for the points which are lower than the obs min
+        model_below_obs_min = model_df_month[model_val_name][model_df_month[model_val_name] < obs_min]
+        model_above_obs_max = model_df_month[model_val_name][model_df_month[model_val_name] > obs_max]
+
+        # plot the model data
+        plt.scatter(
+            [i + 1.5] * len(model_above_obs_max),
+            model_above_obs_max,
+            color="red",
+            edgecolor="black",
+            marker="o",
+            s=15,
+            zorder=10,
+        )
+
+    # include gridlines
+    plt.grid(axis="y")
+
+    # set the xticks
+    plt.xticks(ticks=np.arange(1, 7), labels=month_names)
+
+    # set the title
+    plt.title(f"Boxplots of {variable} for {country} {season} {first_year}-{last_year} HadGEM3-GC31-MM {experiment} {freq}")
+
+    # Set up the current datetime
+    now = datetime.now()
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    try:
+        # Save the plot
+        plt.savefig(
+            os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+            dpi=600,
+            bbox_inches="tight",
+        )
+    except Exception as e:
+        print(f"Error saving plot: {e}")
 
     return
