@@ -10313,6 +10313,7 @@ def plot_rp_extremes(
     model_val_name: str,
     obs_time_name: str,
     model_time_name: str,
+    ylim: tuple = (0, 120),
     percentile: int = 99,
     months: list = [10, 11, 12, 1, 2, 3],
     lead_years: np.ndarray = np.arange(1, 11),
@@ -10345,6 +10346,9 @@ def plot_rp_extremes(
 
     model_time_name: str
         The name of the model time column.
+
+    ylim: tuple
+        The y-axis limits. Default is (0, 120).
 
     percentile: int
         The percentile to use for the return period calculation. Default is 99.
@@ -10548,7 +10552,7 @@ def plot_rp_extremes(
     )
 
     # Set the ylim
-    ax.set_ylim(0, 120)
+    ax.set_ylim(ylim)
 
     # Set the ylabel
     ax.set_ylabel("No. exceedance days", fontsize=12)
