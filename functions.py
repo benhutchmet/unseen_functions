@@ -10177,7 +10177,9 @@ def plot_monthly_boxplots(
         # Find the leads to extract
         for j, ly in enumerate(lead_years):
             # Set up the leads
-            leads_this_month = np.arange(331 + (j * 360) + (i * 30), 331 + 30 + (j * 360) + (i * 30))
+            leads_this_month = np.arange(
+                331 + (j * 360) + (i * 30), 331 + 30 + (j * 360) + (i * 30)
+            )
 
         # Subset to the leads
         model_df_month = model_df[model_df["lead"].isin(leads_this_month)]
@@ -10197,18 +10199,18 @@ def plot_monthly_boxplots(
             positions=[i + 1],
             widths=0.3,
             showfliers=False,
-            boxprops=dict(color='black'),
-            capprops=dict(color='black'),
-            whiskerprops=dict(color='black'),
-            flierprops=dict(markerfacecolor='black', marker='o'),
-            medianprops=dict(color='black'),
+            boxprops=dict(color="black"),
+            capprops=dict(color="black"),
+            whiskerprops=dict(color="black"),
+            flierprops=dict(markerfacecolor="black", marker="o"),
+            medianprops=dict(color="black"),
             whis=[0, 100],  # the 0th and 100th percentiles (i.e. min and max)
-            patch_artist=True
+            patch_artist=True,
         )
 
         # Set the face color for the observed data box
-        for box in obs_box['boxes']:
-            box.set(facecolor='grey')
+        for box in obs_box["boxes"]:
+            box.set(facecolor="grey")
 
         # Plot the model data in red
         model_box = plt.boxplot(
@@ -10216,22 +10218,26 @@ def plot_monthly_boxplots(
             positions=[i + 1.5],
             widths=0.3,
             showfliers=False,
-            boxprops=dict(color='black'),
-            capprops=dict(color='black'),
-            whiskerprops=dict(color='black'),
-            flierprops=dict(markerfacecolor='black', marker='o'),
-            medianprops=dict(color='black'),
+            boxprops=dict(color="black"),
+            capprops=dict(color="black"),
+            whiskerprops=dict(color="black"),
+            flierprops=dict(markerfacecolor="black", marker="o"),
+            medianprops=dict(color="black"),
             whis=[0, 100],  # the 0th and 100th percentiles (i.e. min and max)
-            patch_artist=True
+            patch_artist=True,
         )
 
         # Set the face color for the model data box
-        for box in model_box['boxes']:
-            box.set(facecolor='salmon')
+        for box in model_box["boxes"]:
+            box.set(facecolor="salmon")
 
         # add scatter points for obs values beneath the lower quartile
-        obs_below_lower_quartile = obs_df_month[obs_val_name][obs_df_month[obs_val_name] < obs_lower_quartile]
-        obs_above_upper_quartile = obs_df_month[obs_val_name][obs_df_month[obs_val_name] > obs_upper_quartile]
+        obs_below_lower_quartile = obs_df_month[obs_val_name][
+            obs_df_month[obs_val_name] < obs_lower_quartile
+        ]
+        obs_above_upper_quartile = obs_df_month[obs_val_name][
+            obs_df_month[obs_val_name] > obs_upper_quartile
+        ]
 
         plt.scatter(
             [i + 1] * len(obs_above_upper_quartile),
@@ -10253,8 +10259,12 @@ def plot_monthly_boxplots(
         # )
 
         # add red dots for the points which are lower than the obs min
-        model_below_obs_min = model_df_month[model_val_name][model_df_month[model_val_name] < obs_min]
-        model_above_obs_max = model_df_month[model_val_name][model_df_month[model_val_name] > obs_max]
+        model_below_obs_min = model_df_month[model_val_name][
+            model_df_month[model_val_name] < obs_min
+        ]
+        model_above_obs_max = model_df_month[model_val_name][
+            model_df_month[model_val_name] > obs_max
+        ]
 
         # plot the model data
         plt.scatter(
@@ -10274,7 +10284,9 @@ def plot_monthly_boxplots(
     plt.xticks(ticks=np.arange(1, 7), labels=month_names)
 
     # set the title
-    plt.title(f"Boxplots of {variable} for {country} {season} {first_year}-{last_year} HadGEM3-GC31-MM {experiment} {freq}")
+    plt.title(
+        f"Boxplots of {variable} for {country} {season} {first_year}-{last_year} HadGEM3-GC31-MM {experiment} {freq}"
+    )
 
     # Set up the current datetime
     now = datetime.now()
@@ -10289,5 +10301,381 @@ def plot_monthly_boxplots(
         )
     except Exception as e:
         print(f"Error saving plot: {e}")
+
+    return
+
+
+# Define a function to plot the return period of extremes
+def plot_rp_extremes(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str,
+    model_time_name: str,
+    percentile: int = 99,
+    months: list = [10, 11, 12, 1, 2, 3],
+    lead_years: np.ndarray = np.arange(1, 11),
+    n_samples: int = 1000,
+    years_period: tuple = (1960, 2028),
+    high_values_rare: bool = True,
+    save_prefix: str = "rp_extremes",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the return period of extremes.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_time_name: str
+        The name of the observation time column.
+
+    model_time_name: str
+        The name of the model time column.
+
+    percentile: int
+        The percentile to use for the return period calculation. Default is 99.
+
+    months: list
+        List of months to be plotted.
+
+    lead_years: np.ndarray
+        Array of lead years.
+
+    n_samples: int
+        The number of samples to use for bootstrapping. Default is 1000.
+
+    years_period: tuple
+        The period of years to use for the return period calculation. Default is (1960, 2028).
+
+    high_values_rare: bool
+        Whether high values are rare. Default is True.
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "rp_extremes".
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots".
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # if the time column is not datetime
+    if not isinstance(obs_df[obs_time_name].values[0], np.datetime64):
+        obs_df[obs_time_name] = pd.to_datetime(obs_df[obs_time_name])
+
+    # if the time column is not datetime
+    if not isinstance(model_df[model_time_name].values[0], np.datetime64):
+        model_df[model_time_name] = pd.to_datetime(model_df[model_time_name])
+
+    # Subset the data to the years period
+    obs_df_subset = obs_df[
+        (obs_df[obs_time_name].dt.year >= years_period[0])
+        & (obs_df[obs_time_name].dt.year <= years_period[1])
+    ]
+
+    # Subset the data to the years period
+    model_df_subset = model_df[
+        (model_df[model_time_name].dt.year >= years_period[0])
+        & (model_df[model_time_name].dt.year <= years_period[1])
+    ]
+
+    # Print the head of the obs_df
+    print(obs_df_subset.head())
+    print(obs_df_subset.tail())
+
+    # Print the head of the model_df
+    print(model_df_subset.head())
+    print(model_df_subset.tail())
+
+    # Set up the probabilities and years
+    probs = 1 / np.arange(1.1, 1000, 0.1) * 100
+    years = np.arange(1.1, 1000, 0.1)
+
+    # Quantify the empirical return levels
+    model_df_rl = empirical_return_level(
+        data=model_df_subset[model_val_name].values,
+        high_values_rare=high_values_rare,
+    )
+
+    # reverse the order of the rows
+    # FIXME: May not be correct for low values rare
+    model_df_rl_inverse = model_df_rl.iloc[::-1]
+
+    # Create an array to store the return levels
+    model_rl = np.zeros([n_samples, len(model_df_rl)])
+    obs_rl = np.zeros([n_samples, len(obs_df_subset)])
+
+    # Set up the model params
+    model_params = []
+    obs_params = []
+    model_params_first = []
+
+    model_params_first.append(
+        gev.fit(
+            model_df_subset[model_val_name].values,
+        )
+    )
+
+    # Loop over the no. samples
+    for i in tqdm(range(n_samples)):
+        # Sample the model data
+        model_vals_this = np.random.choice(
+            model_df_subset[model_val_name].values,
+            size=len(model_df_rl["sorted"]),
+            replace=True,
+        )
+
+        # set up the obs vals this
+        obs_vals_this = np.random.choice(
+            obs_df_subset[obs_val_name].values,
+            size=len(obs_df_subset),
+            replace=True,
+        )
+
+        # Quantify the empirical return levels
+        model_df_rl_this = empirical_return_level(
+            data=model_vals_this,
+            high_values_rare=True,
+        )
+
+        # Quantify the return levels using the gev
+        model_params.append(
+            gev.fit(
+                model_vals_this,
+            )
+        )
+
+        # Set up the obs return levels
+        obs_params.append(
+            gev.fit(
+                obs_vals_this,
+            )
+        )
+
+        # Store the model return levels
+        model_rl[i, :] = model_df_rl_this["sorted"]
+
+    levels_model = []
+    levels_obs = []
+
+    # loop over the num_samples
+    for i in range(n_samples):
+        # Generate the ppf fit
+        levels_model.append(
+            np.array(
+                gev.ppf(
+                    1 - 1 / years,
+                    *model_params[i],
+                )
+            )
+        )
+
+        # Generate the ppf fit
+        levels_obs.append(
+            np.array(
+                gev.ppf(
+                    1 - 1 / years,
+                    *obs_params[i],
+                )
+            )
+        )
+
+    # # Generate the ppf fit
+    levels_model_first = np.array(
+        gev.ppf(
+            1 - 1 / years,
+            *model_params_first[0],
+        )
+    )
+
+    # Convert probs to the return level in years
+    return_years = 1 / (probs / 100)
+
+    # Convert model params to an array
+    model_params = np.array(model_params)
+
+    # Set up the figure
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    # plot the observed return levels
+    _ = ax.fill_between(
+        return_years,
+        np.quantile(levels_obs, 0.025, axis=0).T,
+        np.quantile(levels_obs, 0.975, axis=0).T,
+        color="gray",
+        alpha=0.5,
+        label="ERA5",
+    )
+
+    # plot the model return levels
+    _ = ax.fill_between(
+        return_years,
+        np.quantile(levels_model, 0.025, axis=0).T,
+        np.quantile(levels_model, 0.975, axis=0).T,
+        color="red",
+        alpha=0.5,
+        label="HadGEM3-GC31-MM",
+    )
+
+    # Set up a logarithmic x-axis
+    ax.set_xscale("log")
+
+    # Limit to between 10 and 1000 years
+    ax.set_xlim(10, 1000)
+
+    # Set the xticks at 10, 20, 50, 100, 200, 500, 1000
+    plt.xticks(
+        [10, 20, 50, 100, 200, 500, 1000],
+        ["10", "20", "50", "100", "200", "500", "1000"],
+    )
+
+    # Set the ylim
+    ax.set_ylim(0, 120)
+
+    # Set the ylabel
+    ax.set_ylabel("No. exceedance days", fontsize=12)
+
+    # set the xlabel
+    ax.set_xlabel("Return period (years)", fontsize=12)
+
+    # include the value of the worst obs event with a horizontal line
+    # ax.axhline(
+    #     np.max(obs_df[obs_val_name]),
+    #     color="blue",
+    #     linestyle="-",
+    # )
+
+    # include the value of the 90th percentile of the obs
+    # with a horizontal line
+    ax.axhline(
+        np.percentile(obs_df[obs_val_name], percentile),
+        color="blue",
+        linestyle="-",
+    )
+
+    # Include text on this line for the value
+    # ax.text(
+    #     11,
+    #     np.max(obs_df[obs_val_name]) + 2,
+    #     f"{round(np.max(obs_df[obs_val_name]))} days",
+    #     color="blue",
+    #     fontsize=12,
+    # )
+
+    # Include text on this line for the value
+    ax.text(
+        11,
+        np.percentile(obs_df[obs_val_name],percentile) + 2,
+        f"{round(np.percentile(obs_df[obs_val_name], percentile))} days",
+        color="blue",
+        fontsize=12,
+    )
+
+    # Set up the obs event
+    bad_obs_event = np.percentile(obs_df[obs_val_name], percentile)
+    worst_obs_event = np.max(obs_df[obs_val_name])
+
+    # Quantify the return level for the worst obs event
+    model_est_worst_obs = estimate_period(
+        return_level=bad_obs_event,
+        loc=model_params_first[0][1],
+        scale=model_params_first[0][2],
+        shape=model_params_first[0][0],
+    )
+
+    # Same but for the 2.5th percentile
+    model_est_worst_obs_025 = estimate_period(
+        return_level=bad_obs_event,
+        loc=np.percentile(model_params[:, 1], 2.5),
+        scale=np.percentile(model_params[:, 2], 2.5),
+        shape=np.percentile(model_params[:, 0], 2.5),
+    )
+
+    # Same but for the 97.5th percentile
+    model_est_worst_obs_975 = estimate_period(
+        return_level=bad_obs_event,
+        loc=np.percentile(model_params[:, 1], 97.5),
+        scale=np.percentile(model_params[:, 2], 97.5),
+        shape=np.percentile(model_params[:, 0], 97.5),
+    )
+
+    # print these values
+    print(f"Model estimate for obs {percentile}th %tile event: {model_est_worst_obs}")
+    print(
+        f"Model estimate for obs {percentile}th %tile event 2.5th percentile: {model_est_worst_obs_025}"
+    )
+    print(
+        f"Model estimate for obs {percentile}th %tile event 97.5th percentile: {model_est_worst_obs_975}"
+    )
+
+    # process into estiates
+    worst_event = 1 - (model_est_worst_obs / 100)
+    worst_event_025 = 1 - (model_est_worst_obs_025 / 100)
+    worst_event_975 = 1 - (model_est_worst_obs_975 / 100)
+
+    # Calculate the return period
+    rp_worst_event = 1 / worst_event
+    rp_worst_event_025 = 1 / worst_event_025
+    rp_worst_event_975 = 1 / worst_event_975
+
+    # print these values
+    print(f"Return period for obs {percentile}th %tile event: {rp_worst_event}")
+    print(
+        f"Return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025}"
+    )
+    print(
+        f"Return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975}"
+    )
+
+    central_95 = abs(rp_worst_event_975 - rp_worst_event_025) / 2
+
+    # include a textbox in the top right with the return period of the worst observed event
+    ax.text(
+        0.95,
+        0.02,
+        f"Obs {percentile}th %tile RP: {round(rp_worst_event)} +/- {round(central_95)} years",
+        horizontalalignment="right",
+        verticalalignment="bottom",
+        transform=ax.transAxes,
+        fontsize=10,
+        # bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+    )
+
+    # include a legend in the top left
+    ax.legend(fontsize=10, loc="upper left")
+
+    # Set a title with the years
+    ax.set_title(
+        f"RP of extreme {obs_val_name} events {years_period[0]}-{years_period[1]}",
+        fontsize=10,
+    )
+
+    # Set up the current datetime
+    date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
+    # Save the plot
+    plt.savefig(
+        os.path.join(save_dir, f"{save_prefix}_{date}.pdf"),
+        dpi=600,
+        bbox_inches="tight",
+    )
 
     return
