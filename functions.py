@@ -10683,3 +10683,21 @@ def plot_rp_extremes(
     )
 
     return
+
+# Set up the sigmoid fit
+def sigmoid(x, L, x0, k, b):
+    """
+    Computes the sigmoid function.
+
+    Parameters:
+    x (float or array-like): The input value(s) for which to compute the sigmoid function.
+    L (float): The curve's maximum value.
+    x0 (float): The x-value of the sigmoid's midpoint.
+    k (float): The steepness of the curve.
+    b (float): The value to shift the curve vertically.
+
+    Returns:
+    float or array-like: The computed sigmoid value(s).
+    """
+    y = L / (1 + np.exp(-k * (x - x0))) + b
+    return y
