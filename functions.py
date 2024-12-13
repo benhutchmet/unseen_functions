@@ -10714,6 +10714,7 @@ def dot_plot(
     model_val_name: str,
     model_time_name: str,
     ylabel: str,
+    title: str,
     obs_label: str = "Observed",
     model_label: str = "Modelled",
     very_bad_label: str = "unseen events",
@@ -10749,6 +10750,9 @@ def dot_plot(
 
     ylabel: str
         The y-axis label for the figure
+
+    title: str
+        The title for the figure
 
     obs_label: str
         The label for the obs data. Default is "Observed".
@@ -10790,10 +10794,10 @@ def dot_plot(
 
     """
 
-    # Assert that the index of the obs df is a datetime in years
-    assert isinstance(
-        obs_df.index, pd.DatetimeIndex
-    ), "Index  of obs must be a datetime"
+    # # Assert that the index of the obs df is a datetime in years
+    # assert isinstance(
+    #     obs_df.index, pd.DatetimeIndex
+    # ), "Index  of obs must be a datetime"
 
     # Set up the figure
     fig, axs = plt.subplots(
@@ -10833,18 +10837,18 @@ def dot_plot(
         print("Bad events have high values")
 
         # Separate model data by threshold
-        very_bad_events = df_model_exceedance_dt[
+        very_bad_events = model_df[
             model_df[model_val_name] > solid_line(obs_df[obs_val_name])
         ]
 
         # Model data above 80th percentile
-        bad_events = df_model_exceedance_dt[
+        bad_events = model_df[
             (model_df[model_val_name] > np.quantile(obs_df[obs_val_name], dashed_quant))
             & (model_df[model_val_name] < solid_line(obs_df[obs_val_name]))
         ]
 
         # Model data below 80th percentile
-        events = df_model_exceedance_dt[
+        events = model_df[
             model_df[model_val_name] < np.quantile(obs_df[obs_val_name], dashed_quant)
         ]
 
@@ -10858,18 +10862,18 @@ def dot_plot(
         assert dashed_quant < 0.5, "Dashed quantile must be below 0.5"
 
         # Separate model data by threshold
-        very_bad_events = df_model_exceedance_dt[
+        very_bad_events = model_df[
             model_df[model_val_name] < solid_line(obs_df[obs_val_name])
         ]
 
         # Model data above 80th percentile
-        bad_events = df_model_exceedance_dt[
+        bad_events = model_df[
             (model_df[model_val_name] < np.quantile(obs_df[obs_val_name], dashed_quant))
             & (model_df[model_val_name] > solid_line(obs_df[obs_val_name]))
         ]
 
         # Model data below 80th percentile
-        events = df_model_exceedance_dt[
+        events = model_df[
             model_df[model_val_name] > np.quantile(obs_df[obs_val_name], dashed_quant)
         ]
 
@@ -10917,26 +10921,38 @@ def dot_plot(
     # set up the ylims
     axs[0].set_ylim(ylims)
 
+    # set the title
+    axs[0].set_title(title, fontsize=14)
+
+    # do the events plots for the no. exceedance days on the second plot
     # do the events plots for the no. exceedance days on the second plot
     axs[1].boxplot(
         obs_df[obs_val_name],
-        colors="black",
-        lineoffsets=0,
-        linelengths=0.5,
-        orientation="vertical",
-        linewidths=1,
-        label="obs",
+        positions=[0.5],
+        boxprops=dict(color="blue", facecolor="white"),
+        whiskerprops=dict(color="blue"),
+        capprops=dict(color="blue"),
+        flierprops=dict(markerfacecolor="blue", markeredgecolor="blue"),
+        medianprops=dict(color="blue"),
+        patch_artist=True,
+        vert=True,
+        widths=0.5,
+        labels=[obs_label],
     )
 
     # plot the model data
     axs[1].boxplot(
         model_df[model_val_name],
-        colors="red",
-        lineoffsets=1,
-        linelengths=0.5,
-        orientation="vertical",
-        linewidths=0.5,
-        label="model",
+        positions=[1.5],
+        boxprops=dict(color="red", facecolor="white"),
+        whiskerprops=dict(color="red"),
+        capprops=dict(color="red"),
+        flierprops=dict(markerfacecolor="red", markeredgecolor="red"),
+        medianprops=dict(color="red"),
+        patch_artist=True,
+        vert=True,
+        widths=0.5,
+        labels=[model_label],
     )
 
     # # set up the xlabels for the second plot
