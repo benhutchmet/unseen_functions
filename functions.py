@@ -10099,7 +10099,9 @@ def plot_monthly_boxplots(
     save_prefix: str = "monthly_boxplots",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ) -> None:
-    """Plots boxplots for the different months. Parameters
+    """Plots boxplots for the different months.
+
+    Parameters
     ==========
 
     obs_df: pd.DataFrame
@@ -10587,7 +10589,7 @@ def plot_rp_extremes(
     # Include text on this line for the value
     ax.text(
         11,
-        np.percentile(obs_df[obs_val_name],percentile) + 2,
+        np.percentile(obs_df[obs_val_name], percentile) + 2,
         f"{round(np.percentile(obs_df[obs_val_name], percentile))} days",
         color="blue",
         fontsize=12,
@@ -10684,6 +10686,7 @@ def plot_rp_extremes(
 
     return
 
+
 # Set up the sigmoid fit
 def sigmoid(x, L, x0, k, b):
     """
@@ -10701,3 +10704,269 @@ def sigmoid(x, L, x0, k, b):
     """
     y = L / (1 + np.exp(-k * (x - x0))) + b
     return y
+
+
+# Set up a function for the dot plot
+def dot_plot(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    model_time_name: str,
+    ylabel: str,
+    obs_label: str = "Observed",
+    model_label: str = "Modelled",
+    very_bad_label: str = "unseen events",
+    bad_label: str = "extreme events",
+    normal_label: str = "events",
+    ylims: tuple = (0, 120),
+    dashed_quant: float = 0.8,
+    solid_line: Callable[[np.ndarray], float] = np.max,
+    figsize: tuple = (10, 5),
+    save_prefix: str = "dot_plot",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+) -> None:
+    """
+    Plots the dotplot for e.g. no. exceedance days.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame for the obs
+
+    model_df: pd.DataFrame
+        The DataFrame for the model
+
+    obs_val_name: str
+        The name of the obs value column
+
+    model_val_name: str
+        The name of the model value column
+
+    model_time_name: str
+        The name of the model time column
+
+    ylabel: str
+        The y-axis label for the figure
+
+    obs_label: str
+        The label for the obs data. Default is "Observed".
+
+    model_label: str
+        The label for the model data. Default is "Modelled".
+
+    very_bad_label: str
+        The label for the very bad events. Default is "unseen events".
+
+    bad_label: str
+        The label for the bad events. Default is "extreme events".
+
+    normal_label: str
+        The label for the normal events. Default is "events".
+
+    ylims: tuple
+        The y-axis limits. Default is (0, 120).
+
+    dashed_quant: float
+        The quantile to use for the dashed line. Default is 0.8.
+
+    solid_line: Callable[[np.ndarray], float]
+        The function to use for the solid line. Default is np.max.
+
+    figsize: tuple
+        The figure size. Default is (10, 5).
+
+    save_prefix: str
+        The prefix to use when saving the plots. Default is "dot_plot".
+
+    save_dir: str
+        The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots".
+
+    Returns
+    =======
+
+    None
+
+    """
+
+    # Assert that the index of the obs df is a datetime in years
+    assert isinstance(obs_df.index, pd.DatetimeIndex), "Index  of obs must be a datetime"
+
+    # Set up the figure
+    fig, axs = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=figsize,
+        sharey=True,
+        gridspec_kw={"width_ratios": [8, 1]},
+    )
+
+    # add a horizontal line for the 0.8 quantile of the observations
+    axs[0].axhline(
+        np.quantile(obs_df[obs_val_name], dashed_quant),
+        color="blue",
+        linestyle="--",
+    )
+
+    # for the max value of the obs
+    axs[0].axhline(
+        solid_line(obs_df[obs_val_name]),
+        color="blue",
+        linestyle="-.",
+    )
+
+    # plot the scatter points for the obs
+    axs[0].scatter(
+        obs_df.index,
+        obs_df[obs_val_name],
+        color="blue",
+        marker="x",
+        label=obs_label,
+        zorder=2,
+    )
+
+    # if solid line is np.max and dahsed line is above 0.5
+    if solid_line == np.max and dashed_quant > 0.5:
+        print("Bad events have high values")
+
+        # Separate model data by threshold
+        very_bad_events = df_model_exceedance_dt[
+            model_df[model_val_name] > solid_line(obs_df[obs_val_name])
+        ]
+
+        # Model data above 80th percentile
+        bad_events = df_model_exceedance_dt[
+            (model_df[model_val_name] > np.quantile(obs_df[obs_val_name], dashed_quant))
+            & (model_df[model_val_name] < solid_line(obs_df[obs_val_name]))
+        ]
+
+        # Model data below 80th percentile
+        events = df_model_exceedance_dt[
+            model_df[model_val_name] < np.quantile(obs_df[obs_val_name], dashed_quant)
+        ]
+
+    else:
+        print("Bad events have low values")
+
+        # assert that solid_line is np.min
+        assert solid_line == np.min, "Solid line must be np.min"
+
+        # assert that dashed_quant is below 0.5
+        assert dashed_quant < 0.5, "Dashed quantile must be below 0.5"
+
+        # Separate model data by threshold
+        very_bad_events = df_model_exceedance_dt[
+            model_df[model_val_name] < solid_line(obs_df[obs_val_name])
+        ]
+
+        # Model data above 80th percentile
+        bad_events = df_model_exceedance_dt[
+            (model_df[model_val_name] < np.quantile(obs_df[obs_val_name], dashed_quant))
+            & (model_df[model_val_name] > solid_line(obs_df[obs_val_name]))
+        ]
+
+        # Model data below 80th percentile
+        events = df_model_exceedance_dt[
+            model_df[model_val_name] > np.quantile(obs_df[obs_val_name], dashed_quant)
+        ]
+
+    # Plot the points below the minimum of the obs
+    axs[0].scatter(
+        very_bad_events[model_time_name]
+        very_bad_events[model_val_name]
+        color="red",
+        alpha=0.8,
+        label=very_bad_label,
+    )
+
+    # Plot the points below the 20th percentile
+    axs[0].scatter(
+        bad_events[model_time_name],
+        bad_events[model_val_name],
+        color="orange",
+        alpha=0.8,
+        label=bad_label,
+    )
+
+    # Plot the points above the 20th percentile
+    axs[0].scatter(
+        events[model_time_name],
+        events[model_val_name],
+        color="grey",
+        alpha=0.8,
+        label=normal_label,
+    )
+
+    # include the legend
+    axs[0].legend(fontsize=12)
+
+    # label the y-axis
+    axs[0].set_ylabel(ylabel, fontsize=14)
+
+    # set up the x-axis
+
+    # increase the size of the value labels
+    axs[0].tick_params(axis="x", labelsize=12)
+
+    # same for the y-axis
+    axs[0].tick_params(axis="y", labelsize=12)
+
+    # set up the ylims
+    axs[0].set_ylim(ylims)
+
+    # do the events plots for the no. exceedance days on the second plot
+    axs[1].boxplot(
+        obs_df[obs_val_name],
+        colors="black",
+        lineoffsets=0,
+        linelengths=0.5,
+        orientation="vertical",
+        linewidths=1,
+        label="obs",
+    )
+
+    # plot the model data
+    axs[1].boxplot(
+        model_df[model_val_name],
+        colors="red",
+        lineoffsets=1,
+        linelengths=0.5,
+        orientation="vertical",
+        linewidths=0.5,
+        label="model",
+    )
+
+    # # set up the xlabels for the second plot
+    # xlabels = ["Observed", "Model"]
+
+    # # add the xlabels to the second subplot
+    # axs[1].set_xticks(xlabels)
+
+    # # remove the xlabel
+    # axs[1].set_xlabel("")
+
+    # # remove the yticks and axis lin
+    # axs[1].set_yticks([])
+
+    # remove the xticks from the second plot
+    axs[1].set_xticks([])
+
+    # specify a tight layout
+    plt.tight_layout()
+
+    # set up a fname for the plot
+    fname = f"obs-{obs_val_name}_model-{model_val_name}_quantile-{dashed_quant}_solid-{solid_line.__name__}_{save_prefix}_{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.pdf"
+
+    # form the savepath
+    savepath = os.path.join(save_dir, fname)
+
+    if not os.path.exists(savepath):
+        print(f"Saving plot to {savepath}")
+        # save the plot
+        plt.savefig(savepath, bbox_inches="tight", dpi=800)
+
+        # print that we have saved the plot
+        print(f"Saved plot to {savepath}")
+
+    return
