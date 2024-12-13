@@ -10791,7 +10791,9 @@ def dot_plot(
     """
 
     # Assert that the index of the obs df is a datetime in years
-    assert isinstance(obs_df.index, pd.DatetimeIndex), "Index  of obs must be a datetime"
+    assert isinstance(
+        obs_df.index, pd.DatetimeIndex
+    ), "Index  of obs must be a datetime"
 
     # Set up the figure
     fig, axs = plt.subplots(
@@ -10873,8 +10875,8 @@ def dot_plot(
 
     # Plot the points below the minimum of the obs
     axs[0].scatter(
-        very_bad_events[model_time_name]
-        very_bad_events[model_val_name]
+        very_bad_events[model_time_name],
+        very_bad_events[model_val_name],
         color="red",
         alpha=0.8,
         label=very_bad_label,
