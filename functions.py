@@ -11090,10 +11090,10 @@ def plot_rp_extremes_decades(
 
     # Set up the decade years
     for i, decade in enumerate(decades):
-    if i == 0:
-        decade_years.append(np.arange(decade, decade + 11))
-    else:
-        decade_years.append(np.arange(decade + 1, decade + 11))
+        if i == 0:
+            decade_years.append(np.arange(decade, decade + 11))
+        else:
+            decade_years.append(np.arange(decade + 1, decade + 11))
 
     # Flatten the list of arrays into a single list
     flattened_years = np.concatenate(decade_years)
@@ -11115,8 +11115,8 @@ def plot_rp_extremes_decades(
     # print the index of the obs
     print(f"Index of obs: {obs_df.index}")
 
-    # assert that the obs has an index
-    assert isinstance(obs_df.index, pd.DatetimeIndex), "Index of obs must be a datetime"
+    # # assert that the obs has an index
+    # assert isinstance(obs_df.index, pd.DatetimeIndex), "Index of obs must be a datetime"
 
     # Find the year of the highest value in the obs data
     max_year = obs_df.loc[
@@ -11125,10 +11125,13 @@ def plot_rp_extremes_decades(
 
     # Print the max year
     print("The year with the greatest no. exceedance days is: ", max_year)
-    print("The value is: ", df_exceedance_days_obs_dt["no_exceedance_days"].max())
+    print("The value is: ", obs_df[obs_val_name].max())
 
     # start a timer
     start = time.time()
+
+    # set up params year
+    decade_params = np.zeros([len(filtered_decade_years), n_samples, 3])
 
     # Loop over the unique winter years
     for i, decade in tqdm(enumerate(filtered_decade_years)):
@@ -11138,10 +11141,10 @@ def plot_rp_extremes_decades(
         ]
 
         # initialise the list of params
-        params_decade = np.zeros([num_samples, 3])
+        params_decade = np.zeros([n_samples, 3])
 
         # Loop over the samples
-        for j in range(num_samples):
+        for j in range(n_samples):
             params_decade[j, :] = gev.fit(
                 np.random.choice(
                     df_model_exceedance_this[model_val_name].values,
@@ -11159,154 +11162,228 @@ def plot_rp_extremes_decades(
     # print the time taken for fitting gevs
     print(f"Time taken for fitting GEVs: {end - start}")
 
-    # Set up the array for mean, 2.5th and 97.5th percentiles
-    period_decade_mean = np.zeros([len(filtered_decade_years)])
-    period_decade_025 = np.zeros([len(filtered_decade_years)])
-    period_decade_975 = np.zeros([len(filtered_decade_years)])
+    return decade_params, filtered_decade_years
 
-    if worst_or_perc_rp == "worst":
-        print("Calculating return period for worst (max) event")
-        obs_bad_event = obs_df[obs_val_name].max()
-    elif worst_or_perc_rp == "perc":
-        print(f"Calculating return period for {percentile}th percentile event")
-        obs_bad_event = np.percentile(obs_df[obs_val_name], percentile)
-    else:
-        raise ValueError("worst_or_perc_rp must be either 'worst' or 'perc'")
+    # # Set up the array for mean, 2.5th and 97.5th percentiles
+    # period_decade_mean = np.zeros([len(filtered_decade_years)])
+    # period_decade_025 = np.zeros([len(filtered_decade_years)])
+    # period_decade_975 = np.zeros([len(filtered_decade_years)])
 
-    # loop over the unique years to fit the ppfs
-    for i, decade in tqdm(enumerate(filtered_decade_years)):
-        # Subset the params for the decade
-        params_decade = decade_params[i, :, :]
+    # if worst_or_perc_rp == "worst":
+    #     print("Calculating return period for worst (max) event")
+    #     obs_bad_event = obs_df[obs_val_name].max()
+    # elif worst_or_perc_rp == "perc":
+    #     print(f"Calculating return period for {percentile}th percentile event")
+    #     obs_bad_event = np.percentile(obs_df[obs_val_name], percentile)
+    # else:
+    #     raise ValueError("worst_or_perc_rp must be either 'worst' or 'perc'")
 
-        # Estimate the period for the model mean data
-        period_decade_mean[i] = estimate_period(
-            return_level=obs_bad_event,
-            loc=np.mean(params_decade[:, 1]),
-            scale=np.mean(params_decade[:, 2]),
-            shape=np.mean(params_decade[:, 0]),
-        )
+    # # loop over the unique years to fit the ppfs
+    # for i, decade in tqdm(enumerate(filtered_decade_years)):
+    #     # Subset the params for the decade
+    #     params_decade = decade_params[i, :, :]
 
-        # model 025 percentile
-        period_decade_025[i] = estimate_period(
-            return_level=obs_bad_event,
-            loc=np.percentile(params_decade[:, 1], 2.5),
-            scale=np.percentile(params_decade[:, 2], 2.5),
-            shape=np.percentile(params_decade[:, 0], 2.5),
-        )
+    #     # Estimate the period for the model mean data
+    #     period_decade_mean[i] = estimate_period(
+    #         return_level=obs_bad_event,
+    #         loc=np.mean(params_decade[:, 1]),
+    #         scale=np.mean(params_decade[:, 2]),
+    #         shape=np.mean(params_decade[:, 0]),
+    #     )
 
-        # model 95 percentile
-        period_decade_975[i] = estimate_period(
-            return_level=obs_bad_event,
-            loc=np.percentile(params_decade[:, 1], 97.5),
-            scale=np.percentile(params_decade[:, 2], 97.5),
-            shape=np.percentile(params_decade[:, 0], 97.5),
-        )
+    #     # model 025 percentile
+    #     period_decade_025[i] = estimate_period(
+    #         return_level=obs_bad_event,
+    #         loc=np.percentile(params_decade[:, 1], 2.5),
+    #         scale=np.percentile(params_decade[:, 2], 2.5),
+    #         shape=np.percentile(params_decade[:, 0], 2.5),
+    #     )
 
-    # put these into a dataframe with the years
-    model_df_rl = pd.DataFrame(
-        {
-            "decade": decades,
-            "mean": period_decade_mean,
-            "025": period_decade_025,
-            "975": period_decade_975,
-        }
-    )
+    #     # model 95 percentile
+    #     period_decade_975[i] = estimate_period(
+    #         return_level=obs_bad_event,
+    #         loc=np.percentile(params_decade[:, 1], 97.5),
+    #         scale=np.percentile(params_decade[:, 2], 97.5),
+    #         shape=np.percentile(params_decade[:, 0], 97.5),
+    #     )
 
-    # for each row of "mean", "025", "975" calculate the return period
-    # 1 / (1 - (100 - value))
-    model_df_rl["mean_rp (%)"] = 1 - (model_df_rl["mean"] / 100)
-    model_df_rl["025_rp (%)"] = 1 - (model_df_rl["025"] / 100)
-    model_df_rl["975_rp (%)"] = 1 - (model_df_rl["975"] / 100)
+    # # put these into a dataframe with the years
+    # model_df_rl = pd.DataFrame(
+    #     {
+    #         "decade": decades,
+    #         "mean": period_decade_mean,
+    #         "025": period_decade_025,
+    #         "975": period_decade_975,
+    #     }
+    # )
 
-    # calculate the return period in years of the observed worst event
-    model_df_rl["mean_rp (years)"] = 1 / model_df_rl["mean_rp (%)"]
-    model_df_rl["025_rp (years)"] = 1 / model_df_rl["025_rp (%)"]
-    model_df_rl["975_rp (years)"] = 1 / model_df_rl["975_rp (%)"]
+    # # for each row of "mean", "025", "975" calculate the return period
+    # # 1 / (1 - (100 - value))
+    # model_df_rl["mean_rp (%)"] = 1 - (model_df_rl["mean"] / 100)
+    # model_df_rl["025_rp (%)"] = 1 - (model_df_rl["025"] / 100)
+    # model_df_rl["975_rp (%)"] = 1 - (model_df_rl["975"] / 100)
 
-    # plot the mean rp values with error bars for the 025 and 975 percentiles
-    plt.figure(figsize=(10, 5))
+    # # calculate the return period in years of the observed worst event
+    # model_df_rl["mean_rp (years)"] = 1 / model_df_rl["mean_rp (%)"]
+    # model_df_rl["025_rp (years)"] = 1 / model_df_rl["025_rp (%)"]
+    # model_df_rl["975_rp (years)"] = 1 / model_df_rl["975_rp (%)"]
 
-    # if we are plotting the return period as a percentage
-    if plot_rp_percentage:
-        y_val_mean = model_df_rl["mean_rp (%)"]
-        y_val_025 = model_df_rl["025_rp (%)"]
-        y_val_975 = model_df_rl["975_rp (%)"]
-        y_label = "Return period (%)"
+    # # plot the mean rp values with error bars for the 025 and 975 percentiles
+    # plt.figure(figsize=(10, 5))
 
-        # Set up the error bars
-        upper_errs = model_df_rl["025_rp (%)"] - model_df_rl["mean_rp (%)"]
-        lower_errs = model_df_rl["mean_rp (%)"] - model_df_rl["925_rp (%)"]
+    # # if we are plotting the return period as a percentage
+    # if plot_rp_percentage:
+    #     y_val_mean = model_df_rl["mean_rp (%)"]
+    #     y_val_025 = model_df_rl["025_rp (%)"]
+    #     y_val_975 = model_df_rl["975_rp (%)"]
+    #     y_label = "Return period (%)"
 
-        # set up the yticks
-        yticks_ints = [0.0001, 0.001, 0.01, 0.1]
-        yticks_strs = ["0.01%", "0.1%", "1%", "10%"]
+    #     # Set up the error bars
+    #     upper_errs = model_df_rl["025_rp (%)"] - model_df_rl["mean_rp (%)"]
+    #     lower_errs = model_df_rl["mean_rp (%)"] - model_df_rl["975_rp (%)"]
 
-    else:
-        y_val_mean = model_df_rl["mean_rp (years)"]
-        y_val_025 = model_df_rl["025_rp (years)"]
-        y_val_975 = model_df_rl["975_rp (years)"]
-        y_label = "Return period (years)"
+    #     # set up the yticks
+    #     yticks_ints = [0.0001, 0.001, 0.01, 0.1]
+    #     yticks_strs = ["0.01%", "0.1%", "1%", "10%"]
 
-        # Set up the error bars
-        upper_errs = model_df_rl["975_rp (years)"] - model_df_rl["mean_rp (years)"]
-        lower_errs = model_df_rl["mean_rp (years)"] - model_df_rl["025_rp (years)"]
+    # else:
+    #     y_val_mean = model_df_rl["mean_rp (years)"]
+    #     y_val_025 = model_df_rl["025_rp (years)"]
+    #     y_val_975 = model_df_rl["975_rp (years)"]
+    #     y_label = "Return period (years)"
 
-        # set up the yticks
-        yticks_ints = [1, 10, 100, 1000]
-        yticks_strs = ["1", "10", "100", "1000"]
+    #     # Set up the error bars
+    #     upper_errs = model_df_rl["975_rp (years)"] - model_df_rl["mean_rp (years)"]
+    #     lower_errs = model_df_rl["mean_rp (years)"] - model_df_rl["025_rp (years)"]
 
-    # assert that upper errs and lower errors are positive
-    assert np.all(upper_errs > 0), "Upper errors must be positive"
-    assert np.all(lower_errs > 0), "Lower errors must be positive"
+    #     # set up the yticks
+    #     yticks_ints = [1, 10, 100, 1000]
+    #     yticks_strs = ["1", "10", "100", "1000"]
 
-    # Plot the mean
-    plt.scatter(
-        model_df_rl["decade"],
-        y_val_mean,
-        color="red",
-        y_label=y_label,
-    )
+    # # assert that upper errs and lower errors are positive
+    # assert np.all(upper_errs > 0), "Upper errors must be positive"
+    # assert np.all(lower_errs > 0), "Lower errors must be positive"
 
-    # Plot the 025 and 975 percentiles
-    plt.errorbar(
-        model_df_rl["decade"],
-        y_val_mean,
-        yerr=[lower_errs, upper_errs],
-        fmt="none",
-        color="red",
-        capsize=5,
-    )
+    # # Plot the mean
+    # plt.scatter(
+    #     model_df_rl["decade"],
+    #     y_val_mean,
+    #     color="red",
+    #     y_label=y_label,
+    # )
 
-    # Set up the yscale
-    plt.yscale("log")
+    # # Plot the 025 and 975 percentiles
+    # plt.errorbar(
+    #     model_df_rl["decade"],
+    #     y_val_mean,
+    #     yerr=[lower_errs, upper_errs],
+    #     fmt="none",
+    #     color="red",
+    #     capsize=5,
+    # )
 
-    # Set up the yticks
-    plt.yticks(yticks_ints, yticks_strs)
+    # # Set up the yscale
+    # plt.yscale("log")
 
-    # Set up the ylabel
-    plt.ylabel(y_label, fontsize=12)
+    # # Set up the yticks
+    # plt.yticks(yticks_ints, yticks_strs)
 
-    # Set up the title
-    if worst_or_perc_rp == "worst":
-        plt.title(f"RP of worst {obs_val_name} event {years_period[0]}-{years_period[1]}", fontsize=12)
-    elif worst_or_perc_rp == "perc":
-        plt.title(f"RP of {percentile}th %tile {obs_val_name} event {years_period[0]}-{years_period[1]}", fontsize=12)
-    else:
-        raise ValueError("worst_or_perc_rp must be either 'worst' or 'perc'")
+    # # Set up the ylabel
+    # plt.ylabel(y_label, fontsize=12)
 
-    # Set up the fname
-    fname = f"{save_prefix}_{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.pdf"
+    # # Set up the title
+    # if worst_or_perc_rp == "worst":
+    #     plt.title(f"RP of worst {obs_val_name} event {years_period[0]}-{years_period[1]}", fontsize=12)
+    # elif worst_or_perc_rp == "perc":
+    #     plt.title(f"RP of {percentile}th %tile {obs_val_name} event {years_period[0]}-{years_period[1]}", fontsize=12)
+    # else:
+    #     raise ValueError("worst_or_perc_rp must be either 'worst' or 'perc'")
 
-    # Set up the savepath
-    savepath = os.path.join(save_dir, fname)
+    # # Set up the fname
+    # fname = f"{save_prefix}_{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.pdf"
 
-    # if the savepath does not exist
-    if not os.path.exists(savepath):
-        print(f"Saving plot to {savepath}")
+    # # Set up the savepath
+    # savepath = os.path.join(save_dir, fname)
 
-        # Save the plot
-        plt.savefig(savepath, bbox_inches="tight", dpi=800)
-    else:
-        print(f"Savepath {savepath} already exists")
+    # # if the savepath does not exist
+    # if not os.path.exists(savepath):
+    #     print(f"Saving plot to {savepath}")
 
-    return
+    #     # Save the plot
+    #     plt.savefig(savepath, bbox_inches="tight", dpi=800)
+    # else:
+    #     print(f"Savepath {savepath} already exists")
+
+    # return
+
+# Write a function for setting up the composites
+def plot_composite_obs_model_exceed(
+    obs_df: pd.DataFrame,
+    obs_val_name: str,
+    obs_time_name: str,
+    model_df: pd.DataFrame,
+    model_val_name: str,
+    percentile: float,
+    variable: str,
+    exceedance_days: list[int] = [20, 30, 40 ],
+    nboot: int = 1000,
+    obs_variable: str = "msl",
+    model: str = "HadGEM3-GC31-MM",
+    psl_variable: str = "psl",
+    freq: str = "Amon",
+    experiment: str = "dcppA-hindcast",
+    calc_anoms: bool = False,
+    months: list[int] = [10, 11, 12, 1, 2, 3],
+    climatology_period: list[int] = [1990, 2018],
+    lat_bounds: list = [30, 80],
+    lon_bounds: list = [-90, 30],
+    files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
+    save_prefix: str = "composite_obs_model",
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/unseen",
+    regrid_file: str = "/gws/nopw/j04/canari/users/benhutch/dcppA-hindcast/data/psl/HadGEM3-GC31-MM/psl_Amon_HadGEM3-GC31-MM_dcppA-hindcast_s1960-r1i1_gn_196011-197103.nc",
+) -> None:
+    """
+    Plots the composite SLP events for both the observations and the model data.
+
+    Args:
+        obs_df (pd.DataFrame): The DataFrame containing the observation data with columns for the observation value and the observation time.
+        obs_val_name (str): The name of the observation value column.
+        obs_time_name (str): The name of the observation time column.
+        model_df (pd.DataFrame): The DataFrame containing the model data with columns for the model value.
+        model_val_name (str): The name of the model value column.
+        percentile (float): The percentile to use for the composite.
+        variable (str): The variable to use for the composite.
+        exceedance_days (list[int], optional): The number of exceedance days to use for the composite. Defaults to [20, 30, 40].
+        title (str): The title of the plot.
+        obs_variable (str, optional): The name of the observation variable. Defaults to "msl".
+        model (str, optional): The name of the model. Defaults to "HadGEM3-GC31-MM".
+        psl_variable (str, optional): The name of the sea level pressure variable. Defaults to "psl".
+        freq (str, optional): The frequency of the data. Defaults to "Amon".
+        experiment (str, optional): The name of the experiment. Defaults to "dcppA-hindcast".
+        calc_anoms (bool, optional): Whether to calculate anomalies. Defaults to False.
+        months (list[int], optional): The months to include in the composite. Defaults to [10, 11, 12, 1, 2, 3].
+        climatology_period (list[int], optional): The period to use for climatology. Defaults to [1990, 2018].
+        lat_bounds (list, optional): The latitude bounds for the composite. Defaults to [30, 80].
+        lon_bounds (list, optional): The longitude bounds for the composite. Defaults to [-90, 30].
+        files_loc_path (str, optional): The path to the file location. Defaults to "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv".
+        save_prefix (str, optional): The prefix to use for the saved plot. Defaults to "composite_obs_model".
+        save_dir (str, optional): The directory to save the plot in. Defaults to "/gws/nopw/j04/canari/users/benhutch/plots".
+
+    Returns:
+        None
+    """
+
+    # Set up a dictionary for the exceedance
+    exceed_dict = {}
+
+    # Loop over the exceedance days
+    for exceed_day in exceedance_days:
+        # print the threshold
+        print(f"Threshold: {exceed_day}")
+
+        # Filter the model df to be only the 
+        # days greater than the threshold
+        model_df_exceedance = model_df[model_df[model_val_name] > exceed_day]
+
+        # Append the threshold to the dictionary
+        exceed_dict[exceed_day] = exceed_day
