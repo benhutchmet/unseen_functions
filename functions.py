@@ -11325,7 +11325,7 @@ def plot_composite_obs_model_exceed(
     model_val_name: str,
     percentile: float,
     variable: str,
-    exceedance_days: list[int] = [20, 30, 40 ],
+    exceedance_days: list[int] = [38, 39, 40],
     nboot: int = 1000,
     obs_variable: str = "msl",
     model: str = "HadGEM3-GC31-MM",
@@ -11385,5 +11385,366 @@ def plot_composite_obs_model_exceed(
         # days greater than the threshold
         model_df_exceedance = model_df[model_df[model_val_name] > exceed_day]
 
+        # extract a list of len three tuples
+        # containing the init year, member and winter year
+        exceedance_list = list(zip(model_df_exceedance["init_year"], model_df_exceedance["winter_year"], model_df_exceedance["member"]))
+
         # Append the threshold to the dictionary
-        exceed_dict[exceed_day] = exceed_day
+        exceed_dict[exceed_day] = exceedance_list
+
+    # Load the files location
+    files_loc = pd.read_csv(files_loc_path)
+
+    # print the data we seek
+    print(f"model: {model}")
+    print(f"experiment: {experiment}")
+    print(f"freq: {freq}")
+    print(f"psl_variable: {psl_variable}")
+
+    # Extract the path for the given model, experiment, freq, and variable
+    model_path_psl = files_loc.loc[
+        (files_loc["model"] == model)
+        & (files_loc["experiment"] == experiment)
+        & (files_loc["frequency"] == freq)
+        & (files_loc["variable"] == psl_variable)
+    ]["path"].values[0]
+
+    # asser that the model path psl exists
+    assert os.path.exists(model_path_psl), "The model path psl does not exist"
+
+    # extract the model path root
+    model_path_root_psl = model_path_psl.split("/")[1]
+
+    # Set up an empty list of files
+    files_list = []
+
+    files_list_exceed = {}
+
+    # Loop over the exceedance days
+    for thresh in exceed_dict:
+        # Set up an empty list for the files for this threshold
+        files_list = []
+
+        # Loop over the exceedance list
+        for i, (init_year, winter_year, member) in enumerate(exceed_dict[thresh]):
+            if model_path_root_psl == "work":
+                raise NotImplementedError("work path not implemented yet")
+            elif model_path_root_psl == "gws":
+                # Create the path
+                path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{init_year}-r{member}i*_*_{init_year}??-*.nc"
+
+                # glob this path
+                files = glob.glob(path)
+
+                # assert that files has length 1
+                assert len(files) == 1, f"files has length {len(files)}"
+
+                # extract the file
+                file = files[0]
+
+                # assert that this file exists
+                assert os.path.exists(file), f"{file} does not exist"
+            elif model_path_root_psl == "badc":
+                raise NotImplementedError("home path not implemented yet")
+            else:
+                raise ValueError(f"Unknown model path root {model_path_root_psl}")
+            
+            # append the file to the files list
+            files_list.append(file)
+
+        # assign the files list to the files_list_exceed dictionary for this threshold
+        files_list_exceed[thresh] = files_list
+
+    # Set up a dictionary for the concatenated datasets
+    ds_dict = {}
+
+    # Form the concatenated dataset for the exceedance days
+    # loop over the thresholds
+    for thresh in exceed_dict:
+        # extract the files list
+        files_list = files_list_exceed[thresh]
+
+        # extract the exceedance list
+        exceed_list = exceed_dict[thresh]
+
+        ds_list = []
+
+        # Loop over the files
+        for idx, (file, (init_year, winter_year, member)) in tqdm(enumerate(zip(files_list, exceed_list))):
+
+            # Load the data
+            ds = xr.open_mfdataset(
+                file,
+                preprocess=lambda ds: preprocess_leads(
+                    ds=ds,
+                    winter_year=winter_year,
+                    freq=freq,
+                    idx=idx,
+                ),
+            )
+
+            # append the ds_extract to the list
+            ds_list.append(ds[psl_variable])
+
+        # Concatenate the list of datasets
+        combined_ds = xr.concat(ds_list, dim="number")
+
+        # Add the combined dataset to the dictionary
+        ds_dict[thresh] = combined_ds
+
+    # Set up a dictionary for the regridded datasets
+    cubes_dict = {}
+
+    for thresh in exceed_dict:
+        # Extract the combined dataset
+        combined_ds_this = ds_dict[thresh]
+
+        # convert to a cube
+        cube_psl = combined_ds_this.to_iris()
+
+        # subset to teh correct grid
+        cube_psl = cube_psl.intersection(longitude=(-180, 180), latitude=(-90, 90))
+
+        # subset to the region of interest
+        cube_psl = cube_psl.intersection(
+            longitude=(lon_bounds[0], lon_bounds[1]),
+            latitude=(lat_bounds[0], lat_bounds[1]),
+        )
+
+        # add to the cubes dict
+        cubes_dict[thresh] = cube_psl
+
+    # if calc anoms is true
+    if calc_anoms:
+
+        # set up a save directory for the climatologies
+        save_dir_clim = "/gws/nopw/j04/canari/users/benhutch/unseen/saved_clim"
+
+        # assert that this directory exists
+        assert os.path.exists(save_dir_clim), "The save directory does not exist"
+
+        # set up the fname
+        fname = f"climatology_{model}_{experiment}_{freq}_{psl_variable}_{climatology_period[0]}-{climatology_period[1]}_{lat_bounds[0]}-{lat_bounds[1]}_{lon_bounds[0]}-{lon_bounds[1]}_{months[0]}-{months[-1]}.nc"
+
+        # set up the full climatology path
+        climatology_path = os.path.join(save_dir_clim, fname)
+
+        # if the climatology path exists
+        if os.path.exists(climatology_path):
+            print("The climatology file exists")
+            print("Loading the climatology file")
+
+            # load the file using iris
+            cube_clim = iris.load_cube(climatology_path)
+
+        else:
+            print("The climatology file does not exist")
+            print("Calculating the climatology")
+
+            # Start a timer
+            start = time.time()
+
+            # Set up a list for the full ds's
+            clim_dss = []
+            # Loop over the years
+            for year in tqdm(range(climatology_period[0], climatology_period[1] + 1)):
+                member_list = []
+                for member in unique_members:
+                    start_time = time.time()
+
+                    path = f"{model_path_psl}/{psl_variable}_{freq}_{model}_{experiment}_s{year}-r{member}i*_*_{year}??-*.nc"
+
+                    # glob this path
+                    glob_start = time.time()
+                    files = glob.glob(path)
+                    glob_end = time.time()
+
+                    # assert
+                    assert (
+                        len(files) == 1
+                    ), f"files has length {len(files)} for year {year} and member {member} and path {path}"
+
+                    # open all of the files
+                    # open_start = time.time()
+                    member_ds = xr.open_mfdataset(
+                        files[0],
+                        combine="nested",
+                        concat_dim="time",
+                        preprocess=lambda ds: preprocess(
+                            ds=ds,
+                            year=year,
+                            variable=psl_variable,
+                            months=months,
+                        ),
+                        parallel=True,
+                        engine="netcdf4",
+                        coords="minimal",  # expecting identical coords
+                        data_vars="minimal",  # expecting identical vars
+                        compat="override",  # speed up
+                    ).squeeze()
+                    # open_end = time.time()
+
+                    # id init year == climatology_period[0]
+                    # and member == unique_members[0]
+                    # set_time_start = time.time()
+                    if year == climatology_period[0] and member == unique_members[0]:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                            first_month_attr=True,
+                        )
+                    else:
+                        # set the new integer time
+                        member_ds = set_integer_time_axis(
+                            xro=member_ds,
+                            frequency=freq,
+                        )
+                    # set_time_end = time.time()
+
+                    # take the mean over the time axis
+                    # mean_start = time.time()
+                    member_ds = member_ds.mean(dim="time")
+                    # mean_end = time.time()
+
+                    # append the member_ds to the member_list
+                    member_list.append(member_ds)
+
+                    # end_time = time.time()
+
+                    # # Print timing information
+                    # print(f"Year: {year}, Member: {member}")
+                    # print(f"  Total time: {end_time - start_time:.2f} seconds")
+                    # print(f"  glob time: {glob_end - glob_start:.2f} seconds")
+                    # print(f"  open_mfdataset time: {open_end - open_start:.2f} seconds")
+                    # print(f"  set_integer_time_axis time: {set_time_end - set_time_start:.2f} seconds")
+                    # print(f"  mean time: {mean_end - mean_start:.2f} seconds")
+
+                # Concatenate with a new member dimension using xarray
+                member_ds = xr.concat(member_list, dim="member")
+                # append the member_ds to the init_year_list
+                clim_dss.append(member_ds)
+            # Concatenate the init_year list along the init dimension
+            # and rename as lead time
+            ds = xr.concat(clim_dss, "init")
+
+            # print ds
+            print(ds)
+
+            # set up the members
+            ds["member"] = unique_members
+            ds["init"] = np.arange(climatology_period[0], climatology_period[1] + 1)
+
+            # extract the variable
+            ds_var = ds[psl_variable]
+
+            # # take the mean over lead dimension
+            # ds_clim = ds_var.mean(dim="lead")
+
+            # take the mean over member dimension
+            ds_clim = ds_var.mean(dim="member")
+
+            # take the mean over init dimension
+            ds_clim = ds_clim.mean(dim="init")
+
+            # convert to a cube
+            cube_clim = ds_clim.to_iris()
+
+            # # regrid the model data to the obs grid
+            # cube_clim_regrid = cube_clim.regrid(cube_obs, iris.analysis.Linear())
+
+            # subset to the correct grid
+            cube_clim = cube_clim.intersection(
+                longitude=(-180, 180), latitude=(-90, 90)
+            )
+
+            # subset to the region of interest
+            cube_clim = cube_clim.intersection(
+                latitude=(lat_bounds[0], lat_bounds[1]),
+                longitude=(lon_bounds[0], lon_bounds[1]),
+            )
+
+            # if the climatology file does not exist
+            print("Saving the climatology file")
+
+            # save the cube_clim
+            iris.save(cube_clim, climatology_path)
+
+            # end the timer
+            end = time.time()
+
+            # print the time taken
+            print(f"Time taken for calculating the climatology: {end - start}")
+
+    # Set up a dictionary
+    psl_fields = {}
+
+    # Loop over the thresholds
+    for thresh in exceed_dict:
+        # Extract the cube
+        cube_psl = cubes_dict[thresh]
+
+        # take the mean over the number dimension
+        cube_psl = cube_psl.collapsed("number", iris.analysis.MEAN)
+
+        # if calc anoms is true
+        if calc_anoms:
+            # subtract the climatology
+            field_this = (cube_psl.data - cube_clim.data) / 100
+        else:
+            field_this = cube_psl.data / 100
+
+        # add to the psl_fields dictionary
+        psl_fields[thresh] = field_this
+
+    return psl_fields
+
+def preprocess_leads(
+    ds: xr.Dataset,
+    winter_year: int,
+    freq: str,
+    idx: int,
+):
+    """
+    Preprocess the leads of the model data
+
+    Parameters
+    ==========
+
+    ds: xr.Dataset
+        The dataset to preprocess
+
+    winter_year: int
+        The winter year to extract the leads for
+
+    freq: str
+        The frequency of the data
+
+    idx: int
+        The index of the dataset
+
+    Returns
+    =======
+
+    xr.Dataset
+        The preprocessed dataset
+
+    """
+
+    # format the lead as an int
+    ds = set_integer_time_axis(
+        xro=ds,
+        frequency=freq,
+    )
+
+    # Use the winter year to find the leads to extract
+    # for ONDJFM
+    leads_extract = np.arange(winter_year * 12, winter_year * 12 + 6, 1)
+
+    # Extract the leads
+    ds = ds.sel(time=leads_extract).mean("time")
+
+    # Add a new coordinate 'number' with a unique value
+    ds = ds.expand_dims({"number": [idx]})
+
+    return ds
