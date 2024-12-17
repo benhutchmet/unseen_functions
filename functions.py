@@ -11705,7 +11705,13 @@ def plot_composite_obs_model_exceed(
     lats = cube_psl.coord("latitude").points
     lons = cube_psl.coord("longitude").points
 
-    return psl_fields, lats, lons
+    if calc_anoms:
+        # climatology
+        clim_field = cube_clim.data / 100
+
+        return psl_fields, lats, lons, clim_field
+    else:
+        return psl_fields, lats, lons
 
 def preprocess_leads(
     ds: xr.Dataset,
