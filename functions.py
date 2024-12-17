@@ -54,6 +54,11 @@ sys.path.append("/home/users/benhutch/unseen_multi_year/")
 import dictionaries as dicts
 
 
+# Define a function to extract the numeric part from the label
+def extract_numeric(label):
+    match = re.search(r'\d+', label)
+    return int(match.group()) if match else None
+
 # Function for loading each of the ensemble members for a given model
 def load_model_data(
     model_variable: str,
@@ -429,7 +434,7 @@ def load_model_data_xarray(
     """
 
     # Set up the path to the csv file
-    csv_path = "paths/*.csv"
+    csv_path = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv"
 
     # Find the csv file
     csv_file = glob.glob(csv_path)[0]
@@ -779,8 +784,12 @@ def load_model_data_xarray(
     # and rename as lead time
     ds = xr.concat(init_year_list, "init").rename({"time": "lead"})
 
+    # filter the items in unique variaant labels to extract just the ints
+    # Apply the function to extract the numeric parts
+    numeric_labels = [extract_numeric(label) for label in unique_variant_labels]
+
     # Set up the members
-    ds["member"] = unique_variant_labels
+    ds["member"] = numeric_labels
     ds["init"] = np.arange(start_year, end_year + 1)
 
     # Return ds
@@ -11318,13 +11327,8 @@ def plot_rp_extremes_decades(
 
 # Write a function for setting up the composites
 def plot_composite_obs_model_exceed(
-    obs_df: pd.DataFrame,
-    obs_val_name: str,
-    obs_time_name: str,
     model_df: pd.DataFrame,
     model_val_name: str,
-    percentile: float,
-    variable: str,
     exceedance_days: list[int] = [38, 39, 40],
     nboot: int = 1000,
     obs_variable: str = "msl",
@@ -11697,7 +11701,11 @@ def plot_composite_obs_model_exceed(
         # add to the psl_fields dictionary
         psl_fields[thresh] = field_this
 
-    return psl_fields
+    # extract the lats and lons
+    lats = cube_psl.coord("latitude").points
+    lons = cube_psl.coord("longitude").points
+
+    return psl_fields, lats, lons
 
 def preprocess_leads(
     ds: xr.Dataset,
