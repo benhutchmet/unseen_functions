@@ -11460,38 +11460,37 @@ def plot_composite_obs_model_exceed(
 
     # Print some of the values
     print(f"values of the composite: {composite[0, 0, 0, :, :]}")
-
-    print("Exiting")
-    print("-------")
-    sys.exit()
     
-    # Load the files location
-    files_loc = pd.read_csv(files_loc_path)
+    # return the composite
+    return composite, years, members, leads, lats, lons, exceed_dict
 
-    # print the data we seek
-    print(f"model: {model}")
-    print(f"experiment: {experiment}")
-    print(f"freq: {freq}")
-    print(f"psl_variable: {psl_variable}")
+    # # Load the files location
+    # files_loc = pd.read_csv(files_loc_path)
 
-    # Extract the path for the given model, experiment, freq, and variable
-    model_path_psl = files_loc.loc[
-        (files_loc["model"] == model)
-        & (files_loc["experiment"] == experiment)
-        & (files_loc["frequency"] == freq)
-        & (files_loc["variable"] == psl_variable)
-    ]["path"].values[0]
+    # # print the data we seek
+    # print(f"model: {model}")
+    # print(f"experiment: {experiment}")
+    # print(f"freq: {freq}")
+    # print(f"psl_variable: {psl_variable}")
 
-    # asser that the model path psl exists
-    assert os.path.exists(model_path_psl), "The model path psl does not exist"
+    # # Extract the path for the given model, experiment, freq, and variable
+    # model_path_psl = files_loc.loc[
+    #     (files_loc["model"] == model)
+    #     & (files_loc["experiment"] == experiment)
+    #     & (files_loc["frequency"] == freq)
+    #     & (files_loc["variable"] == psl_variable)
+    # ]["path"].values[0]
 
-    # extract the model path root
-    model_path_root_psl = model_path_psl.split("/")[1]
+    # # asser that the model path psl exists
+    # assert os.path.exists(model_path_psl), "The model path psl does not exist"
 
-    # Set up an empty list of files
-    files_list = []
+    # # extract the model path root
+    # model_path_root_psl = model_path_psl.split("/")[1]
 
-    files_list_exceed = {}
+    # # Set up an empty list of files
+    # files_list = []
+
+    # files_list_exceed = {}
 
     # Loop over the exceedance days
     for thresh in exceed_dict:
