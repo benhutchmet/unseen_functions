@@ -11396,6 +11396,75 @@ def plot_composite_obs_model_exceed(
         # Append the threshold to the dictionary
         exceed_dict[exceed_day] = exceedance_list
 
+    # Set up the base path for loading the numpy array
+    base_path = "/gws/nopw/j04/canari/users/benhutch/saved_DePre/"
+
+    # if months = 10, 11, 12, 1, 2, 3
+    # then season is ONDJFM
+    if months == [10, 11, 12, 1, 2, 3]:
+        season = "ONDJFM"
+    else:
+        raise notyetimplementederror("Only ONDJFM implemented")
+
+    # Form the path to the file dir
+    path = os.path.join(
+        base_path,
+        model,
+        psl_variable,
+        freq,
+        season,
+        "1960-2018", # hardcoded for now
+    )
+
+    # Form the fname
+    fname = f"{model}_{psl_variable}_{season}_{freq}_1960-2018.npy"
+
+    # # extract the other np array
+    years_file = glob.glob(os.path.join(path, "*_years.npy"))
+    members_file = glob.glob(os.path.join(path, "*_members.npy"))
+    leads_file = glob.glob(os.path.join(path, "*_leads.npy"))
+    lats_file = glob.glob(os.path.join(path, "*_lats.npy"))
+    lons_file = glob.glob(os.path.join(path, "*_lons.npy"))
+
+    # import the other np arrays
+    years = np.load(years_file[0])
+    members = np.load(members_file[0])
+    leads = np.load(leads_file[0])
+    lats = np.load(lats_file[0])
+    lons = np.load(lons_file[0])
+
+    # Form the output file shape
+    full_file_shape = (len(years), len(members), len(leads), len(lats), len(lons))
+
+    # Set up an intermediate time
+    start_time = time.time()
+
+    # If the file exists, import the file
+    if os.path.exists(os.path.join(path, fname)):
+        print(f"Loading the file from {os.path.join(path, fname)}")
+
+        # Load the numpy file
+        composite = np.load(os.path.join(path, fname))
+    else:
+        raise FileNotFoundError(f"File {os.path.join(path, fname)} does not exist")
+
+    # End the time
+    end_time = time.time()
+
+    # Calculate and print how long this has taken
+    duration = end_time - start_time
+    print(f"Time taken to load the file: {duration:.2f} seconds")
+
+    # print the shape of the composite
+    print(f"Shape of the composite: {composite.shape}")
+
+    # Print some of the values
+    print(f"values of the composite: {composite[0, 0, 0, :, :]}")
+
+    print("Exiting")
+    print("-------")
+    sys.exit()
+    
     # Load the files location
     files_loc = pd.read_csv(files_loc_path)
 
@@ -11762,3 +11831,38 @@ def preprocess_leads(
     ds = ds.expand_dims({"number": [idx]})
 
     return ds
+
+# Function to load np data with a progress bar
+def load_numpy_with_progress(path, fname, original_shape):
+    file_path = os.path.join(path, fname)
+    
+    # Check if the file exists
+    if os.path.exists(file_path):
+        print(f"Loading the file from {file_path}")
+
+        # Get the file size
+        file_size = os.path.getsize(file_path)
+
+        # Create a memory-mapped array
+        composite = np.memmap(file_path, dtype='float32', mode='r')
+
+        # Create an empty array to hold the data
+        data = np.empty(composite.shape, dtype='float32')
+
+        # Read the data in chunks and update the progress bar
+        chunk_size = 1024 * 1024  # 1 MB chunks
+        with tqdm(total=file_size, desc="Loading data", unit='B', unit_scale=True) as pbar:
+            for i in range(0, file_size, chunk_size):
+                end = i + chunk_size
+                if end > file_size:
+                    end = file_size
+                data[i:end] = composite[i:end]
+                pbar.update(end - i)
+
+        # Reshape the data to its original shape
+        data = data.reshape(original_shape)
+
+        return data
+    else:
+        raise FileNotFoundError(f"File {file_path} does not exist")
+
