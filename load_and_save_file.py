@@ -95,7 +95,6 @@ def main():
     # # set up the hard coded args
     # model = "HadGEM3-GC31-MM"
     experiment = "dcppA-hindcast"
-    freq = "Amon" # go back to using monthly data
 
     # set up the save directory
     save_dir = "/gws/nopw/j04/canari/users/benhutch/saved_DePre"
@@ -114,6 +113,11 @@ def main():
     print(f"Model: {args.model}")
     print(f"Variable: {args.variable}")
     print(f"Season: {args.season}")
+
+    if args.variable == "tos":
+        freq = "Omon"
+    else:
+        freq = "Amon" # go back to using monthly data
 
     if args.model in ["CanESM5", "BCC-CSM2-MR"]:
         # assert that if model is CanESM5, lead year is "1-9"
@@ -172,17 +176,42 @@ def main():
     # print the model cube
     print(model_ds)
 
-    # # Modify member coordiante before conbersion to iris
-    # model_ds["member"] = model_ds["member"].str[1:-6].astype(int)
-
-    # # Apply the function to the member array and filter out NaN values
-    # model_ds["member"] = model_ds["member"].apply(extract_numeric).dropna().astype(int)
-
     # convert to an iris cube
     model_cube = model_ds[args.variable].squeeze().to_iris()
 
+    # Set up the save directory
+    save_dir = os.path.join(save_dir, args.model, args.variable, freq, args.season, f"{args.first_year}-{args.last_year}")
+
+    # print the save directory
+    print(f"Save directory: {save_dir}")
+
+    # if the save directory does not exist
+    if not os.path.exists(save_dir):
+        # make the directory
+        os.makedirs(save_dir)
+
+
+    if args.variable != "tos":
+        # convert lons to -180 to 180
+        model_cube = model_cube.intersection(longitude=(-180, 180))
+    elif args.variable == "tos":
+        # with tos, we want to save the data as a cube
+        # set sup the fname for the cube
+        fname_model_data = f"{args.model}_{args.variable}_{args.season}_{freq}_{args.first_year}-{args.last_year}.nc"
+
+        # if the pas does not exist
+        if not os.path.exists(os.path.join(save_dir, fname_model_data)):
+            # save the cube
+            iris.save(model_cube, os.path.join(save_dir, fname_model_data))
+        else:
+            print("Model data already saved")
+
+
     # Set an intermediate timer
     intermediate = time.time()
+
+    # print the model cube coords
+    print(f"Model cube coords: {model_cube.coords()}")
 
     # Extract the data from the model
     model_data = model_cube.data
@@ -206,17 +235,6 @@ def main():
 
     # esnure that model data is an array not a masked array
     model_data = np.ma.filled(model_data, np.nan)
-
-    # Set up the save directory
-    save_dir = os.path.join(save_dir, args.model, args.variable, freq, args.season, f"{args.first_year}-{args.last_year}")
-
-    # print the save directory
-    print(f"Save directory: {save_dir}")
-
-    # if the save directory does not exist
-    if not os.path.exists(save_dir):
-        # make the directory
-        os.makedirs(save_dir)
 
     # Set up the fnames
     fname_model_data = f"{args.model}_{args.variable}_{args.season}_{freq}_{args.first_year}-{args.last_year}.npy"
@@ -260,6 +278,19 @@ def main():
     print("Saved the model data")
 
     return
+
+def save_model_data(model_cube, save_dir, fname_model_data):
+    # Create the full path for the output file
+    output_path = os.path.join(save_dir, fname_model_data)
+    
+    # Initialize the progress bar
+    with tqdm(total=model_cube.data.size, desc="Saving model data") as pbar:
+        # Define a callback function to update the progress bar
+        def update_progress(cube, filename, mode, **kwargs):
+            pbar.update(cube.data.size)
+        
+        # Save the model data with the callback
+        iris.save(model_cube, output_path, callback=update_progress)
 
 if __name__ == "__main__":
     main()

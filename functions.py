@@ -11458,11 +11458,372 @@ def plot_composite_obs_model_exceed(
     # print the shape of the composite
     print(f"Shape of the composite: {composite.shape}")
 
-    # Print some of the values
-    print(f"values of the composite: {composite[0, 0, 0, :, :]}")
+    # # Print some of the values
+    # print(f"values of the composite: {composite[0, 0, 0, :, :]}")
+
+    # if the model is HadGEM3-GC31-MM
+    if model == "HadGEM3-GC31-MM":
+        winter_years = np.arange(1, 10 + 1, 1)
+
+    # Set up the composite array
+    composite_array = np.zeros([
+        len(years),
+        len(members),
+        len(winter_years),
+        len(lats),
+        len(lons),
+    ])
     
+    # Loop over the winter years in hadgem
+    for i, wyear in enumerate(winter_years):
+        # Set up the lead values to extract
+        leads_values_this = np.arange((wyear * 12), (wyear * 12) + 6, 1)
+
+        # Find the index of the lead values in leads
+        idx = np.where(np.isin(leads, leads_values_this))[0]
+
+        # Extract the values and take the mean along axis 2
+        composite_mean = np.mean(composite[:, :, idx, :, :], axis=2)
+
+        # Assign the mean values to the composite array
+        composite_array[:, :, i, :, :] = composite_mean
+
+    # Set up a dictionary to store the arrsy
+    composite_dict = {}
+
+    # Loop over the thresholds in exceedance dict
+    for thresh in exceed_dict:
+        # print the len of the exceed dict
+        print(len(exceed_dict[thresh]))
+
+        # Set up the composite array
+        composite_array_thresh_this = np.zeros(
+            [len(exceed_dict[thresh]), len(lats), len(lons)]
+        )
+
+        # Loop over the init_years, winter_year, members
+        for i, (init_year, winter_year, member) in tqdm(enumerate(exceed_dict[thresh])):
+            # Print the init year, winter year and member
+            # print(f"init_year: {init_year}, winter_year: {winter_year}, member: {member}")
+
+            # Find the index of the init year in years
+            idx_year_this = np.where(years == init_year)[0][0]
+
+            # Find the index of the member in members
+            idx_member_this = np.where(members == member)[0][0]
+
+            # Find the index of the winter year in winter years
+            idx_winter_this = np.where(winter_years == winter_year)[0][0]
+
+            # print the idx year, member and winter
+            # print(f"idx_year: {idx_year_this}, idx_member: {idx_member_this}, idx_winter: {idx_winter_this}")
+
+            # Assign the values to the composite array
+            composite_array_thresh_this[i, :, :] = composite_array[
+                idx_year_this, idx_member_this, idx_winter_this, :, :
+            ]
+
+        # Assign the composite array to the dictionary
+        composite_dict[thresh] = composite_array_thresh_this
+
+    # Set up the years for the climatology
+    years_clim = np.arange(climatology_period[0], climatology_period[1] + 1, 1)
+
+    # Find the index of the years in the years array
+    idx_years_clim = np.where(np.isin(years, years_clim))[0]
+
+    # Extract the values from the composite array
+    composite_clim = np.mean(composite_array[idx_years_clim, :, :, :, :], axis=(0, 1, 2))
+
+    # Reshape data to be 3d
+    # Multiply init years * members * winter years
+    reshaped_composite_arr = composite_array.reshape(
+        composite_array.shape[0] * composite_array.shape[1] * composite_array.shape[2],
+        composite_array.shape[3],
+        composite_array.shape[4],
+    )
+
+    # Set up a dictionary for compoosite anomalies
+    composite_anoms_dict = {}
+
+    if calc_anoms:
+        # Qunatify both as anomalies
+        for thresh in composite_dict:
+            composite_array_this = composite_dict[thresh]
+
+            # Take the mean over the first dimension
+            composite_anoms_this = np.mean(composite_array_this, axis=0) - composite_clim
+
+            # Assign to the dictionary
+            composite_anoms_dict[thresh] = composite_anoms_this
+
+        # Quantify the composite anomalies
+        reshaped_composite_arr_anoms = reshaped_composite_arr - composite_clim
+    else:
+        raise NotImplementedError("calc_anoms not implemented yet")
+
+    # if the psl var is psl
+    if psl_variable == "psl":
+        # Divide both by 100 to get in hPa
+        for thresh in composite_anoms_dict:
+            composite_anoms_dict[thresh] = composite_anoms_dict[thresh] / 100
+
+        # Divide reshaped composite array by 100
+        reshaped_composite_arr_anoms = reshaped_composite_arr_anoms / 100
+    else:
+        raise NotImplementedError("psl_variable not implemented yet")
+
+    # Set up the index for the model data to be bootstrapped
+    index_ens = range(reshaped_composite_arr_anoms.shape[0])
+
+    # Set up an empty dict for the composite means
+    composite_means_dict = {}
+
+    for thresh in composite_dict:
+        print(f"Processing threshold {thresh}")
+        
+        # Find the n events
+        n_events_this = composite_dict[thresh].shape[0]
+
+        # Set up an empty array for the bootstrapped means
+        composite_means_this = np.zeros([nboot, composite_dict[thresh].shape[1], composite_dict[thresh].shape[2]])
+
+        # Loop over the nboot
+        for iboot in tqdm(range(nboot)):
+            # Set up the random indices
+            ind_ens_this = np.array([random.choice(index_ens) for i in range(n_events_this)])
+
+            # Take the mean over the random indices
+            composite_means_this[iboot, :, :] = np.mean(reshaped_composite_arr_anoms[ind_ens_this, :, :], axis=0)
+
+        # Assign to the dictionary
+        composite_means_dict[thresh] = composite_means_this
+
+    # Set up a p value dict
+    p_value_dict = {}
+
+    # Loop over the thresholds
+    for thresh in composite_means_dict:
+        print(f"Processing threshold {thresh}")
+
+        # Set up the composite means
+        composite_means_this = composite_means_dict[thresh]
+
+        # Set up the composite anomalies
+        composite_anoms_this = composite_anoms_dict[thresh]
+
+        # Set up the p values
+        p_values_this = np.zeros([composite_means_this.shape[1], composite_means_this.shape[2]])
+
+        # Loop over the lats
+        for ilat in tqdm(range(composite_means_this.shape[1])):
+            # Loop over the lons
+            for ilon in range(composite_means_this.shape[2]):
+                # Calculate the 2.5th and 97.5th percentiles
+                lower_025 = np.percentile(composite_means_this[:, ilat, ilon], 2.5)
+                higher_975 = np.percentile(composite_means_this[:, ilat, ilon], 97.5)
+
+                # E.g. value of 1 if the event mean lies outside of the 2.5th or 97.5th percentile.
+                # value of 0 is the event means lies between the 2.5th and 97.5th percentile.
+                if composite_anoms_this[ilat, ilon] < lower_025 or composite_anoms_this[ilat, ilon] > higher_975:
+                    p_values_this[ilat, ilon] += 1
+                else:
+                    p_values_this[ilat, ilon] += 0
+
+        # Assign to the p value dict
+        p_value_dict[thresh] = p_values_this
+
+    # # N events from tqdm above
+    n_events_list = [composite_dict[thresh].shape[0] for thresh in composite_dict]
+
+    # Set up the figure as 3 rows and 1 column
+    fig, axs = plt.subplots(
+        3, 1, figsize=(12, 18), subplot_kw={"projection": ccrs.PlateCarree()}
+    )
+
+    # Assuming we are plotting anoms
+    clevs = np.array(
+        [
+            -8.0,
+            -7.0,
+            -6.0,
+            -5.0,
+            -4.0,
+            -3.0,
+            -2.0,
+            -1.0,
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+        ]
+    )
+    ticks = clevs
+
+    # ensure that these are floats
+    clevs = clevs.astype(float)
+    ticks = ticks.astype(float)
+
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # loop over the fields
+    for i, thresh in enumerate(composite_anoms_dict.keys()):
+        
+        # Extract the field for this
+        field_this = composite_anoms_dict[thresh]
+
+        # print the field this
+        print(field_this)
+
+        mymap = axs[i].contourf(
+            lons,
+            lats,
+            field_this,
+            clevs,
+            transform=ccrs.PlateCarree(),
+            cmap=cmap,
+            extend="both",
+        )
+
+        # # contour lines
+        # contours = axs[i].contour(
+        #     lons,
+        #     lats,
+        #     field_this,
+        #     clevs,
+        #     colors="black",
+        #     transform=ccrs.PlateCarree(),
+        #     linewidth=0.2,
+        #     alpha=0.5,
+        # )
+
+        # # Set the labels for the contours
+        # axs[i].clabel(
+        #     contours,
+        #     clevs,
+        #     fmt="%.4g",
+        #     fontsize=8,
+        #     inline=True,
+        #     inline_spacing=0.0,
+        # )
+
+    for i, ax in enumerate(axs):
+        # Set up the number of events
+        num_event = n_events_list[i]
+
+        # Set up the threshold
+        thresh = list(composite_anoms_dict.keys())[i]
+
+        # add coastlines
+        ax.coastlines()
+
+        # format the gridlines and labels
+        gl = ax.gridlines(
+            draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+        )
+        gl.xlabels_top = False
+        gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.xlabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_right = False
+        gl.yformatter = LATITUDE_FORMATTER
+        gl.ylabel_style = {"size": 7, "color": "black"}
+
+        # get rid of the top labels
+        gl.top_labels = False
+
+        # get rid of the right labels
+        gl.right_labels = False
+
+        # if the iteration is 1
+        if i == 1:
+            gl.left_labels = False
+
+        # include a textbox in the top left
+        ax.text(
+            0.02,
+            0.95,
+            f"""Thresh. = {thresh}\nN = {num_event}""",
+            verticalalignment="top",
+            horizontalalignment="left",
+            transform=ax.transAxes,
+            color="black",
+            fontsize=8,
+            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+            alpha=0.8,
+        )
+
+        # ===================================
+        # TODO: add significance p-field here
+        # ===================================
+
+        # Extract the pfield for this
+        pfield_this = p_value_dict[thresh]
+
+        # Where pfield_this is zero, set to nan
+        pfield_this = np.where(pfield_this == 0, np.nan, pfield_this)
+
+        # # plot the pfield
+        axs[i].contourf(
+            lons,
+            lats,
+            pfield_this,
+            transform=ccrs.PlateCarree(),
+            hatches=["..."],
+            alpha=0.0,
+        )
+
+
+    # Set up the colorbar
+    cbar = fig.colorbar(
+        mymap,
+        ax=axs,
+        orientation="horizontal",
+        shrink=0.9,
+        pad=0.08,
+        format=FuncFormatter(format_func_one_decimal),
+    )
+    # add colorbar label
+    cbar.set_label(
+        f"mean sea level pressure {climatology_period[0]}-{climatology_period[1]} anomaly (hPa)",
+        rotation=0,
+        fontsize=10,
+    )
+
+    # add contour lines to the colorbar
+    cbar.add_lines(contours)
+
+    # Set up the title
+    axs[0].set_title(
+        "Composite of exceedance days ONDJFM UK demand (detrended) net wind",
+        fontsize=8,
+        fontweight="bold",
+    )
+
+    cbar.ax.tick_params(labelsize=7, length=0)
+    cbar.set_ticks(ticks)
+
     # return the composite
-    return composite, years, members, leads, lats, lons, exceed_dict
+    return composite_anoms_dict, p_value_dict
 
     # # Load the files location
     # files_loc = pd.read_csv(files_loc_path)
