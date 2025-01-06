@@ -11327,6 +11327,12 @@ def plot_rp_extremes_decades(
 
 # Write a function for setting up the composites
 def plot_composite_obs_model_exceed(
+    composite: np.ndarray,
+    years: np.ndarray,
+    members: np.ndarray,
+    leads: np.ndarray,
+    lats: np.ndarray,
+    lons: np.ndarray,
     model_df: pd.DataFrame,
     model_val_name: str,
     exceedance_days: list[int] = [38, 39, 40],
@@ -11341,6 +11347,7 @@ def plot_composite_obs_model_exceed(
     climatology_period: list[int] = [1990, 2018],
     lat_bounds: list = [30, 80],
     lon_bounds: list = [-90, 30],
+    detrend: bool = False,
     files_loc_path: str = "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv",
     save_prefix: str = "composite_obs_model",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/unseen",
@@ -11369,6 +11376,7 @@ def plot_composite_obs_model_exceed(
         climatology_period (list[int], optional): The period to use for climatology. Defaults to [1990, 2018].
         lat_bounds (list, optional): The latitude bounds for the composite. Defaults to [30, 80].
         lon_bounds (list, optional): The longitude bounds for the composite. Defaults to [-90, 30].
+        detrend (bool, optional): Whether to detrend the data. Defaults to False.
         files_loc_path (str, optional): The path to the file location. Defaults to "/home/users/benhutch/unseen_multi_year/paths/paths_20240117T122513.csv".
         save_prefix (str, optional): The prefix to use for the saved plot. Defaults to "composite_obs_model".
         save_dir (str, optional): The directory to save the plot in. Defaults to "/gws/nopw/j04/canari/users/benhutch/plots".
@@ -11406,57 +11414,57 @@ def plot_composite_obs_model_exceed(
     else:
         raise notyetimplementederror("Only ONDJFM implemented")
 
-    # Form the path to the file dir
-    path = os.path.join(
-        base_path,
-        model,
-        psl_variable,
-        freq,
-        season,
-        "1960-2018", # hardcoded for now
-    )
+    # # Form the path to the file dir
+    # path = os.path.join(
+    #     base_path,
+    #     model,
+    #     psl_variable,
+    #     freq,
+    #     season,
+    #     "1960-2018", # hardcoded for now
+    # )
 
-    # Form the fname
-    fname = f"{model}_{psl_variable}_{season}_{freq}_1960-2018.npy"
+    # # Form the fname
+    # fname = f"{model}_{psl_variable}_{season}_{freq}_1960-2018.npy"
 
-    # # extract the other np array
-    years_file = glob.glob(os.path.join(path, "*_years.npy"))
-    members_file = glob.glob(os.path.join(path, "*_members.npy"))
-    leads_file = glob.glob(os.path.join(path, "*_leads.npy"))
-    lats_file = glob.glob(os.path.join(path, "*_lats.npy"))
-    lons_file = glob.glob(os.path.join(path, "*_lons.npy"))
+    # # # extract the other np array
+    # years_file = glob.glob(os.path.join(path, "*_years.npy"))
+    # members_file = glob.glob(os.path.join(path, "*_members.npy"))
+    # leads_file = glob.glob(os.path.join(path, "*_leads.npy"))
+    # lats_file = glob.glob(os.path.join(path, "*_lats.npy"))
+    # lons_file = glob.glob(os.path.join(path, "*_lons.npy"))
 
-    # import the other np arrays
-    years = np.load(years_file[0])
-    members = np.load(members_file[0])
-    leads = np.load(leads_file[0])
-    lats = np.load(lats_file[0])
-    lons = np.load(lons_file[0])
+    # # import the other np arrays
+    # years = np.load(years_file[0])
+    # members = np.load(members_file[0])
+    # leads = np.load(leads_file[0])
+    # lats = np.load(lats_file[0])
+    # lons = np.load(lons_file[0])
 
-    # Form the output file shape
-    full_file_shape = (len(years), len(members), len(leads), len(lats), len(lons))
+    # # Form the output file shape
+    # full_file_shape = (len(years), len(members), len(leads), len(lats), len(lons))
 
-    # Set up an intermediate time
-    start_time = time.time()
+    # # Set up an intermediate time
+    # start_time = time.time()
 
-    # If the file exists, import the file
-    if os.path.exists(os.path.join(path, fname)):
-        print(f"Loading the file from {os.path.join(path, fname)}")
+    # # If the file exists, import the file
+    # if os.path.exists(os.path.join(path, fname)):
+    #     print(f"Loading the file from {os.path.join(path, fname)}")
 
-        # Load the numpy file
-        composite = np.load(os.path.join(path, fname))
-    else:
-        raise FileNotFoundError(f"File {os.path.join(path, fname)} does not exist")
+    #     # Load the numpy file
+    #     composite = np.load(os.path.join(path, fname))
+    # else:
+    #     raise FileNotFoundError(f"File {os.path.join(path, fname)} does not exist")
 
-    # End the time
-    end_time = time.time()
+    # # End the time
+    # end_time = time.time()
 
-    # Calculate and print how long this has taken
-    duration = end_time - start_time
-    print(f"Time taken to load the file: {duration:.2f} seconds")
+    # # Calculate and print how long this has taken
+    # duration = end_time - start_time
+    # print(f"Time taken to load the file: {duration:.2f} seconds")
 
-    # print the shape of the composite
-    print(f"Shape of the composite: {composite.shape}")
+    # # print the shape of the composite
+    # print(f"Shape of the composite: {composite.shape}")
 
     # # Print some of the values
     # print(f"values of the composite: {composite[0, 0, 0, :, :]}")
@@ -11490,6 +11498,39 @@ def plot_composite_obs_model_exceed(
 
     # Set up a dictionary to store the arrsy
     composite_dict = {}
+
+    # if detrend is true
+    if detrend:
+
+        # set up an empty array for detrended
+        detrend_composite_array = np.zeros_like(composite_array)
+
+        print("Detrending the composite means")
+        # Loop over the lats
+        for ilat in tqdm(range(len(lats))):
+            # Loop over the lons
+            for ilon in range(len(lons)):
+                # Detrend the composite means
+                slope, intercept, _, _, _ = linregress(
+                    years,
+                    np.mean(composite_array[:, :, :, ilat, ilon], axis=(1, 2))
+                )
+
+                # Calculate the trend line
+                trend_line = slope * years + intercept
+
+                # Calculate the trend line to pivot around the final point
+                trend_final = slope * years[-1] + intercept
+
+
+                # loop over the unique members
+                for m, member in enumerate(members):
+                    for wy, winter_year in enumerate(winter_years):
+                        # set up the composite array
+                        detrend_composite_array[:, m, wy, ilat, ilon] = composite_array[:, m, wy, ilat, ilon] - (trend_line - trend_final)
+
+        # Assign the detrended composite array to the composite array
+        composite_array = detrend_composite_array
 
     # Loop over the thresholds in exceedance dict
     for thresh in exceed_dict:
@@ -11570,8 +11611,6 @@ def plot_composite_obs_model_exceed(
 
         # Divide reshaped composite array by 100
         reshaped_composite_arr_anoms = reshaped_composite_arr_anoms / 100
-    else:
-        raise NotImplementedError("psl_variable not implemented yet")
 
     # Set up the index for the model data to be bootstrapped
     index_ens = range(reshaped_composite_arr_anoms.shape[0])
@@ -11641,27 +11680,69 @@ def plot_composite_obs_model_exceed(
         3, 1, figsize=(12, 18), subplot_kw={"projection": ccrs.PlateCarree()}
     )
 
-    # Assuming we are plotting anoms
-    clevs = np.array(
-        [
-            -8.0,
-            -7.0,
-            -6.0,
-            -5.0,
-            -4.0,
-            -3.0,
-            -2.0,
-            -1.0,
-            1.0,
-            2.0,
-            3.0,
-            4.0,
-            5.0,
-            6.0,
-            7.0,
-            8.0,
-        ]
-    )
+    if psl_variable == "psl":
+        # Assuming we are plotting anoms
+        clevs = np.array(
+            [
+                -8.0,
+                -7.0,
+                -6.0,
+                -5.0,
+                -4.0,
+                -3.0,
+                -2.0,
+                -1.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+            ]
+        )
+    elif psl_variable == "tas":
+        # clevs = np.array(
+        #     [
+        #         -3.0,
+        #         -2.5,
+        #         -2.0,
+        #         -1.5,
+        #         -1.0,
+        #         -0.5,
+        #         0.5,
+        #         1.0,
+        #         1.5,
+        #         2.0,
+        #         2.5,
+        #         3.0,
+        #     ]
+        # )
+
+        clevs = np.array(
+            [
+                -2.0,
+                -1.75,
+                -1.5,
+                -1.25,
+                -1.0,
+                -0.75,
+                -0.5,
+                -0.25,
+                0.25,
+                0.5,
+                0.75,
+                1.0,
+                1.25,
+                1.5,
+                1.75,
+                2.0,
+            ]
+        )
+    else:
+        raise NotImplementedError("The variable '{}' is not implemented.".format(psl_variable))
+
     ticks = clevs
 
     # ensure that these are floats
@@ -11683,7 +11764,12 @@ def plot_composite_obs_model_exceed(
         "#B51948",
     ]
 
-    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+    if psl_variable == "psl":
+        cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+    elif psl_variable == "tas":
+        cmap = "RdBu_r"
+    else:
+        raise NotImplementedError("The variable '{}' is not implemented.".format(psl_variable))
 
     # loop over the fields
     for i, thresh in enumerate(composite_anoms_dict.keys()):
@@ -11809,8 +11895,8 @@ def plot_composite_obs_model_exceed(
         fontsize=10,
     )
 
-    # add contour lines to the colorbar
-    cbar.add_lines(contours)
+    # # add contour lines to the colorbar
+    # cbar.add_lines(contours)
 
     # Set up the title
     axs[0].set_title(
@@ -12226,3 +12312,88 @@ def load_numpy_with_progress(path, fname, original_shape):
     else:
         raise FileNotFoundError(f"File {file_path} does not exist")
 
+
+# define a function for loading the file
+# Write a function for setting up the composites
+def load_file_composites(
+    model: str = "HadGEM3-GC31-MM",
+    psl_variable: str = "psl",
+    freq: str = "Amon",
+    months: List[int] = [10, 11, 12, 1, 2, 3],
+) -> None:
+    """
+    Plots the composite SLP events for both the observations and the model data.
+
+    Args:
+        model (str, optional): The name of the model. Defaults to "HadGEM3-GC31-MM".
+        psl_variable (str, optional): The name of the sea level pressure variable. Defaults to "psl".
+        freq (str, optional): The frequency of the data. Defaults to "Amon".
+
+    Returns:
+        None
+    """
+
+    # Set up the base path for loading the numpy array
+    base_path = "/gws/nopw/j04/canari/users/benhutch/saved_DePre/"
+
+    # if months = 10, 11, 12, 1, 2, 3
+    # then season is ONDJFM
+    if months == [10, 11, 12, 1, 2, 3]:
+        season = "ONDJFM"
+    else:
+        raise notyetimplementederror("Only ONDJFM implemented")
+
+    # Form the path to the file dir
+    path = os.path.join(
+        base_path,
+        model,
+        psl_variable,
+        freq,
+        season,
+        "1960-2018", # hardcoded for now
+    )
+
+    # Form the fname
+    fname = f"{model}_{psl_variable}_{season}_{freq}_1960-2018.npy"
+
+    # # extract the other np array
+    years_file = glob.glob(os.path.join(path, "*_years.npy"))
+    members_file = glob.glob(os.path.join(path, "*_members.npy"))
+    leads_file = glob.glob(os.path.join(path, "*_leads.npy"))
+    lats_file = glob.glob(os.path.join(path, "*_lats.npy"))
+    lons_file = glob.glob(os.path.join(path, "*_lons.npy"))
+
+    # import the other np arrays
+    years = np.load(years_file[0])
+    members = np.load(members_file[0])
+    leads = np.load(leads_file[0])
+    lats = np.load(lats_file[0])
+    lons = np.load(lons_file[0])
+
+    # Form the output file shape
+    full_file_shape = (len(years), len(members), len(leads), len(lats), len(lons))
+
+    # Set up an intermediate time
+    start_time = time.time()
+
+    # If the file exists, import the file
+    if os.path.exists(os.path.join(path, fname)):
+        print(f"Loading the file from {os.path.join(path, fname)}")
+
+        # Load the numpy file
+        composite = np.load(os.path.join(path, fname))
+    else:
+        raise FileNotFoundError(f"File {os.path.join(path, fname)} does not exist")
+
+    # End the time
+    end_time = time.time()
+
+    # Calculate and print how long this has taken
+    duration = end_time - start_time
+    print(f"Time taken to load the file: {duration:.2f} seconds")
+
+    # print the shape of the composite
+    print(f"Shape of the composite: {composite.shape}")
+
+    # return the files
+    return composite, years, members, leads, lats, lons
