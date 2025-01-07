@@ -10413,13 +10413,13 @@ def plot_rp_extremes(
         & (model_df[model_time_name].dt.year <= years_period[1])
     ]
 
-    # Print the head of the obs_df
-    print(obs_df_subset.head())
-    print(obs_df_subset.tail())
+    # # Print the head of the obs_df
+    # print(obs_df_subset.head())
+    # print(obs_df_subset.tail())
 
-    # Print the head of the model_df
-    print(model_df_subset.head())
-    print(model_df_subset.tail())
+    # # Print the head of the model_df
+    # print(model_df_subset.head())
+    # print(model_df_subset.tail())
 
     # Set up the probabilities and years
     probs = 1 / np.arange(1.1, 1000, 0.1) * 100
@@ -10443,10 +10443,17 @@ def plot_rp_extremes(
     model_params = []
     obs_params = []
     model_params_first = []
+    obs_params_first = []
 
     model_params_first.append(
         gev.fit(
             model_df_subset[model_val_name].values,
+        )
+    )
+
+    obs_params_first.append(
+        gev.fit(
+            obs_df_subset[obs_val_name].values
         )
     )
 
@@ -10617,12 +10624,26 @@ def plot_rp_extremes(
         shape=model_params_first[0][0],
     )
 
+    obs_est_worst_obs = estimate_period(
+        return_level=bad_obs_event,
+        loc=obs_params_first[0][1],
+        scale=obs_params_first[0][2],
+        shape=obs_params_first[0][0],
+    )
+
     # Same but for the 2.5th percentile
     model_est_worst_obs_025 = estimate_period(
         return_level=bad_obs_event,
         loc=np.percentile(model_params[:, 1], 2.5),
         scale=np.percentile(model_params[:, 2], 2.5),
         shape=np.percentile(model_params[:, 0], 2.5),
+    )
+
+    obs_est_worst_obs_025 = estimate_period(
+        return_level=bad_obs_event,
+        loc=np.percentile(obs_params[:, 1], 2.5),
+        scale=np.percentile(obs_params[:, 2], 2.5),
+        shape=np.percentile(obs_params[:, 0], 2.5),
     )
 
     # Same but for the 97.5th percentile
@@ -10632,6 +10653,13 @@ def plot_rp_extremes(
         scale=np.percentile(model_params[:, 2], 97.5),
         shape=np.percentile(model_params[:, 0], 97.5),
     )
+    
+    obs_est_worst_obs_975 = estimate_period(
+        return_level=bad_obs_event,
+        loc=np.percentile(obs_params[:, 1], 97.5),
+        scale=np.percentile(obs_params[:, 2], 97.5),
+        shape=np.percentile(obs_params[:, 0], 97.5),
+    )
 
     # print these values
     print(f"Model estimate for obs {percentile}th %tile event: {model_est_worst_obs}")
@@ -10640,6 +10668,15 @@ def plot_rp_extremes(
     )
     print(
         f"Model estimate for obs {percentile}th %tile event 97.5th percentile: {model_est_worst_obs_975}"
+    )
+
+    # Print these values
+    print(f"Obs estimate for obs {percentile}th %tile event: {obs_est_worst_obs}")
+    print(
+        f"Obs estimate for obs {percentile}th %tile event 2.5th percentile: {obs_est_worst_obs_025}"
+    )
+    print(
+        f"Obs estimate for obs {percentile}th %tile event 97.5th percentile: {obs_est_worst_obs_975}"
     )
 
     # process into estiates
@@ -10652,6 +10689,16 @@ def plot_rp_extremes(
     rp_worst_event_025 = 1 / worst_event_025
     rp_worst_event_975 = 1 / worst_event_975
 
+    # Same for the obs
+    worst_event_obs = 1 - (obs_est_worst_obs / 100)
+    worst_event_025_obs = 1 - (obs_est_worst_obs_025 / 100)
+    worst_event_975_obs = 1 - (obs_est_worst_obs_975 / 100)
+
+    # Calculate the return period
+    rp_worst_event_obs = 1 / worst_event_obs
+    rp_worst_event_025_obs = 1 / worst_event_025_obs
+    rp_worst_event_975_obs = 1 / worst_event_975_obs
+
     # print these values
     print(f"Return period for obs {percentile}th %tile event: {rp_worst_event}")
     print(
@@ -10660,8 +10707,21 @@ def plot_rp_extremes(
     print(
         f"Return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975}"
     )
+    
+    # print these values
+    print(f"Obs return period for obs {percentile}th %tile event: {rp_worst_event_obs}")
+    print(
+        f"Obs return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025_obs}"
+    )
+    print(
+        f"Obs return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975_obs}"
+    )
 
     central_95 = abs(rp_worst_event_975 - rp_worst_event_025) / 2
+    central_95_obs = abs(rp_worst_event_975_obs - rp_worst_event_025_obs) / 2
+
+    # print the centyral 95 obs
+    print(f"Return period for central 95th percentile obs: {central_95_obs} years")
 
     # include a textbox in the top right with the return period of the worst observed event
     ax.text(
@@ -10832,6 +10892,10 @@ def dot_plot(
         linestyle="-.",
     )
 
+    # print the year of the worst observed value
+    print("The worst event occurs in the year:", obs_df[obs_val_name].idxmax())
+    print("The no. days for the worst event is:", solid_line(obs_df[obs_val_name]))
+
     # plot the scatter points for the obs
     axs[0].scatter(
         obs_df.index,
@@ -10886,6 +10950,17 @@ def dot_plot(
         events = model_df[
             model_df[model_val_name] > np.quantile(obs_df[obs_val_name], dashed_quant)
         ]
+
+    # print the chance of a very bad event
+    print(
+        f"The chance of a very bad event is: {len(very_bad_events) / len(model_df) * 100}%"
+    )
+
+    # print the change of the event in terms of 1 in x years
+    print(
+        f"The chance of a very bad event is: 1 in {round(len(model_df) / len(very_bad_events))} years"
+    )
+
 
     # Plot the points below the minimum of the obs
     axs[0].scatter(
