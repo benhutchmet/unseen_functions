@@ -10534,6 +10534,7 @@ def plot_rp_extremes(
 
     # Convert model params to an array
     model_params = np.array(model_params)
+    obs_params = np.array(obs_params)
 
     # Set up the figure
     fig, ax = plt.subplots(figsize=(5, 5))
