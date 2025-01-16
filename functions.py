@@ -12721,13 +12721,22 @@ def apply_detrend_rolling(
     obs_df_ondjfm = obs_df.shift(periods=-3, freq=pd.DateOffset(months=3)).resample("A").mean()
 
     # Take the rolling mean of the observations
-    obs_trend_line = obs_df_ondjfm[obs_val_name].rolling(
+    obs_rolling_mean = obs_df_ondjfm[obs_val_name].rolling(
         window=window_years,
         center=centered,
         min_periods=min_periods
     ).mean()
 
-    # Extract the final point on the trend line
+    # Set up the slope and intercept (linear fit for obs based on rolling mean)
+    slope_obs, intercept_obs, _, _, _ = linregress(
+        obs_rolling_mean.index.year,
+        obs_rolling_mean
+    )
+
+    # Calculate the trend line for the obs
+    obs_trend_line = slope_obs * obs_rolling_mean.index.year + intercept_obs
+
+    # Calculate the final point
     obs_final_trend_point = obs_trend_line.iloc[-1]
 
     # Set up a new column in the obs df
