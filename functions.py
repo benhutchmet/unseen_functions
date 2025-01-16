@@ -5692,6 +5692,161 @@ def apply_detrend(
 
     return obs_df, model_df
 
+# Define a function to apply the detrending
+def apply_detrend_polynomial(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str = "year",
+    model_time_name: str = "init_year",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    order_polynomial: int = 3,
+) -> pd.DataFrame:
+    """
+    Applies a detrend using Gillian's pivot method, but with a nth order
+    polynomial, instead of a linear fifth.
+
+    Parameters
+    ==========
+
+    obs_df: pd.DataFrame
+        The DataFrame containing the observations with columns for the
+        observation value and the observation time.
+
+    model_df: pd.DataFrame
+        The DataFrame containing the model data with columns for the
+        model value and the model time.
+
+    obs_val_name: str
+        The name of the observation value column.
+
+    model_val_name: str
+        The name of the model value column.
+
+    obs_time_name: str
+        The name of the observation time column. Default is "year".
+
+    model_time_name: str
+        The name of the model time column. Default is "init_year".
+
+    model_member_name: str
+        The name of the model member column. Default is "member".
+
+    model_lead_name: str
+        The name of the model lead time column. Default is "lead".
+
+    order_polynomial: int
+        The order of the polynomial to fit to the data. Default is 3.
+
+    Returns
+    =======
+
+    pd.DataFrame
+        A DataFrame containing the detrended observations and model data.
+
+    """
+
+    # Create a copy of the model df
+    model_df_copy = model_df.copy()
+    obs_df_copy = obs_df.copy()
+
+    # Set up a new df
+    model_df_init_years = pd.DataFrame()
+
+    # Loop over the unique model time name
+    for init_year in model_df_copy[model_time_name].unique():
+        for member in model_df_copy[model_member_name].unique():
+            # Select the data for this member and init year
+            data_this = model_df_copy[
+                (model_df_copy[model_time_name] == init_year)
+                & (model_df_copy[model_member_name] == member)
+            ]
+
+            # Set up the new dataframe
+            df_this = pd.DataFrame(
+                {
+                    model_time_name: data_this[model_time_name],
+                    model_member_name: data_this[model_member_name],
+                    model_val_name: data_this[model_val_name].mean(),
+                }
+            )
+
+            # Concat this to the model df init years
+            model_df_init_years = pd.concat([model_df_init_years, df_this])
+
+    # print the shape of model df init years
+    print(f"The shape of model df init years is {model_df_init_years.shape}")
+
+    # Set up the number of coeffs
+    n_coeffs = order_polynomial + 1
+
+    # Set up the empty array to store the coeffs
+    coeffs_arr = np.zeros(
+        [
+            len(model_df_init_years[model_member_name].unique()),
+            n_coeffs,
+        ]
+    )
+
+    # print the shape of the coeffs array
+    print(f"The shape of the coeffs array is {coeffs_arr.shape}")
+
+    # Loop over the unique members
+    for m, member in enumerate(model_df_init_years[model_member_name].unique()):
+        # Select the data for this member
+        data_this = model_df_init_years[model_df_init_years[model_member_name] == member]
+
+        # fit a nth order polynomial to the data
+        p_this = np.polyfit(data_this[model_time_name], data_this[model_val_name], order_polynomial)
+
+        # Store the coefficients
+        coeffs_arr[m, :] = p_this
+
+    # Calculate the mean of the coefficients
+    coeffs_mean = np.mean(coeffs_arr, axis=0)
+
+    # Evaluate the mean polynomial at the model time points
+    trend_line = np.polyval(coeffs_mean, model_df_copy[model_time_name].values)
+
+    # Calculate the value of the trend line at the final point
+    trend_final = np.polyval(coeffs_mean, model_df_copy[model_time_name].values[-1])
+
+    # Detrend the data by subtracting the trend line and adding final val
+    model_df[model_val_name + "_dt"] = (
+    model_df[model_val_name] - trend_line + trend_final
+    )
+
+    # fit a polynomial to the observations
+    coeffs_obs = np.polyfit(obs_df[obs_time_name], obs_df[obs_val_name].values, order_polynomial)
+
+    # Evaluate the polynomial at the observation time points
+    trend_line_obs = np.polyval(coeffs_obs, obs_df[obs_time_name].values
+    )
+
+    # Calculate the value of the trend line at the final point
+    trend_final_obs = np.polyval(coeffs_obs, obs_df[obs_time_name].values[-1])
+
+    # Detrend the observations
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final
+
+    # # interpolate the trend line for the observations
+    # trend_line_obs = np.interp(
+    #     obs_df[obs_time_name], model_df[model_time_name], trend_line
+    # )
+
+    # # Set up the trend final for the obs
+    # trend_final_obs = np.polyval(coeffs_mean, obs_df[obs_time_name].dt.year.astype(
+    #     int
+    # ).iloc[-1]
+    # )
+
+    # # detrend the observations
+    # obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line_obs + trend_final_obs
+
+    # return the obs df and model df
+    return obs_df, model_df
 
 # write a function to peform the linear scaling bias correction
 # Linear scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
@@ -12473,3 +12628,94 @@ def load_file_composites(
 
     # return the files
     return composite, years, members, leads, lats, lons
+
+# Define a function for applying detrend
+# based on rolling mean of ensemble mean
+def apply_detrend_rolling(
+    obs_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    obs_val_name: str,
+    model_val_name: str,
+    obs_time_name: str,
+    model_time_name: str,
+    model_iyear_name: str = "init_year",
+    model_member_name: str = "member",
+    model_lead_name: str = "lead",
+    window_years: int = 10,
+    centered: bool = True,
+    min_periods: int = 1,
+) -> pd.DataFrame:
+    """
+    Apply detrending to model data based on rolling mean of ensemble mean.
+
+    Args:
+    =====
+
+        obs_df: pd.DataFrame
+            DataFrame containing the observations.
+        model_df: pd.DataFrame
+            DataFrame containing the model data.
+        obs_val_name: str
+            Name of the column in obs_df containing the values.
+        model_val_name: str
+            Name of the column in model_df containing the values.
+        obs_time_name: str
+            Name of the column in obs_df containing the time values.
+        model_time_name: str
+            Name of the column in model_df containing the time values.
+        model_iyear_name: str
+            Name of the column in model_df containing the initialization year values.
+        model_member_name: str
+            Name of the column in model_df containing the member values.
+        model_lead_name: str
+            Name of the column in model_df containing the lead values.
+        window_years: int
+            Length of the rolling window in years.
+        centered: bool
+            Whether to use a centered window.
+        min_periods: int
+            Minimum number of periods to include in the calculation.
+
+    Returns:
+    ========
+
+        pd.DataFrame
+            DataFrame containing the detrended model data.
+    """
+    
+
+    # Make a copy of the model df
+    model_df_copy = model_df.copy()
+
+    # Calculate the model ensemble mean
+    model_ensmean = model_df_copy.groupby(
+        model_time_name
+    )[model_val_name].mean()
+
+    # Calculate the rolling mean of the ensemble mean
+    trend_line = model_ensmean.rolling(
+        window=window_years,
+        center=centered,
+        min_periods=min_periods
+    ).mean()
+
+    # Extract the final point on the trend line
+    final_trend_point = trend_line.iloc[-1]
+
+    # Set up a new column in the model df
+    model_df[model_val_name + "_dt"] = model_df[model_val_name] - trend_line.loc[model_df[model_time_name].values].values + final_trend_point
+
+    # assert that obs_time_name is the index in the obs df
+    assert obs_time_name == obs_df.index.name, "obs_time_name must be the index in the obs_df"
+
+    # print(trend_line)
+
+    # extend trend line back to 1960
+    # by making 1960 the same value as first value in trend line
+    trend_line.loc[1960] = trend_line.iloc[0]
+
+    # Detrend the obs data
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line.loc[obs_df.index.year].values + final_trend_point
+
+    # Return the detrended model data
+    return model_df, obs_df
