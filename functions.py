@@ -12708,14 +12708,30 @@ def apply_detrend_rolling(
     # assert that obs_time_name is the index in the obs df
     assert obs_time_name == obs_df.index.name, "obs_time_name must be the index in the obs_df"
 
-    # print(trend_line)
+    # # print(trend_line)
 
-    # extend trend line back to 1960
-    # by making 1960 the same value as first value in trend line
-    trend_line.loc[1960] = trend_line.iloc[0]
+    # # extend trend line back to 1960
+    # # by making 1960 the same value as first value in trend line
+    # trend_line.loc[1960] = trend_line.iloc[0]
 
-    # Detrend the obs data
-    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line.loc[obs_df.index.year].values + final_trend_point
+    # # Detrend the obs data
+    # obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line.loc[obs_df.index.year].values + final_trend_point
+
+    # shift the obs tas back by 3 months (assuming ONDJFM)
+    obs_df_ondjfm = obs_df.shift(periods=-3, freq=pd.DateOffset(months=3)).resample("A").mean()
+
+    # Take the rolling mean of the observations
+    obs_trend_line = obs_df_ondjfm[obs_val_name].rolling(
+        window=window_years,
+        center=centered,
+        min_periods=min_periods
+    ).mean()
+
+    # Extract the final point on the trend line
+    obs_final_trend_point = obs_trend_line.iloc[-1]
+
+    # Set up a new column in the obs df
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line.loc[obs_df.index.year].values + obs_final_trend_point
 
     # Return the detrended model data
     return model_df, obs_df
