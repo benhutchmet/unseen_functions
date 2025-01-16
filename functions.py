@@ -12721,26 +12721,55 @@ def apply_detrend_rolling(
     obs_df_ondjfm = obs_df.shift(periods=-3, freq=pd.DateOffset(months=3)).resample("A").mean()
 
     # Take the rolling mean of the observations
-    obs_rolling_mean = obs_df_ondjfm[obs_val_name].rolling(
+    obs_rolling_mean = obs_df[obs_val_name].rolling(
         window=window_years,
         center=centered,
         min_periods=min_periods
     ).mean()
 
+    # print the shape of the obs rolling mean
+    print(np.shape(obs_rolling_mean))
+
     # Set up the slope and intercept (linear fit for obs based on rolling mean)
     slope_obs, intercept_obs, _, _, _ = linregress(
-        obs_rolling_mean.index.year,
-        obs_rolling_mean
+        obs_rolling_mean.index.year.astype(int).values,
+        obs_rolling_mean.values,
     )
 
+    # print the slope of the obs
+    print("obs slope ", slope_obs)
+    print("obs intercept ", intercept_obs)
+
     # Calculate the trend line for the obs
-    obs_trend_line = slope_obs * obs_rolling_mean.index.year + intercept_obs
+    obs_trend_line = slope_obs * obs_rolling_mean.index.year.astype(int).values + intercept_obs
 
-    # Calculate the final point
-    obs_final_trend_point = obs_trend_line.iloc[-1]
+    # print the shape of the obs trend line
+    print(np.shape(obs_trend_line))
 
-    # Set up a new column in the obs df
-    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line.loc[obs_df.index.year].values + obs_final_trend_point
+    # calculate the final point on the trend line
+    trend_final_point = obs_trend_line[-1]
+
+    # set up a new column in the obs df
+    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line + trend_final_point
+
+    # # Calculate the trend line for the obs
+    # obs_trend_line = slope_obs * obs_rolling_mean.index.year + intercept_obs
+
+    # # Calculate the final point
+    # obs_final_trend_point = obs_trend_line[-1]
+
+    # # Format obs_trend_line as a DataFrame
+    # obs_trend_line = pd.DataFrame(obs_trend_line, index=obs_rolling_mean.index, columns=[obs_val_name + "_trend"])
+
+    # # Print the obs trend line
+    # print(obs_trend_line)
+    # print(type(obs_trend_line))
+
+    # # Ensure the indices match
+    # obs_trend_line.index = obs_trend_line.index.year
+
+    # # Align the indices and set up a new column in the obs df
+    # obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line.loc[obs_df.index.year].values + obs_final_trend_point
 
     # Return the detrended model data
     return model_df, obs_df
