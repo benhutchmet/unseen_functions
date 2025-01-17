@@ -2122,15 +2122,64 @@ def plot_distributions_fidelity(
         "kurt": [],
     }
 
+    # Get the unique times from both DataFrames
+    unique_obs_times = obs_df[obs_time_name].unique()
+    unique_model_times = model_df[model_time_name].unique()
+
+    # Check if the unique times are the same
+    if not np.array_equal(unique_obs_times, unique_model_times):
+        print("The unique times for the observations and model data are not the same. Correcting them...")
+
+        # Find the intersection of the unique times
+        common_times = np.intersect1d(unique_obs_times, unique_model_times)
+
+        # Subset both DataFrames to only include the common times
+        obs_df = obs_df[obs_df[obs_time_name].isin(common_times)]
+        model_df = model_df[model_df[model_time_name].isin(common_times)]
+
+        print("Both DataFrames have been corrected to have the same times.")
+
     # Set up the number of unique initialisation dates
-    n_years = len(model_df[model_time_name].unique())
+    n_times_obs = len(obs_df[obs_time_name].unique())
 
-    # Set up the number of unique ensemble members
-    n_members = len(model_df[model_member_name].unique())
+    unique_times_obs = np.unique(obs_df[obs_time_name])
 
-    # if the model_lead_name is not None
+    print("the number of unique winters is: ", n_times_obs)
+
+    # Set up the number of days in a model winter
+    unique_model_times = np.unique(model_df[model_time_name])
+    unique_model_members = np.unique(model_df[model_member_name])
+
+    # Subset to the first model time, member, and lead
+    first_model_time = unique_model_times[0]
+    first_model_member = unique_model_members[0]
+   
     if model_lead_name is not None:
-        n_leads = len(model_df[model_lead_name].unique())
+        unique_model_leads = np.unique(model_df[model_lead_name])   
+        first_model_lead = unique_model_leads[0]
+
+        subset_df = model_df[
+            (model_df[model_time_name] == first_model_time) &
+            (model_df[model_member_name] == first_model_member) &
+            (model_df[model_lead_name] == first_model_lead)
+        ]
+    else:
+        subset_df = model_df[
+            (model_df[model_time_name] == first_model_time) &
+            (model_df[model_member_name] == first_model_member)
+        ]
+
+    # Calculate the number of unique days in this subset
+    num_days_in_winter = len(subset_df)
+
+    print(f"Number of days in a model winter: {num_days_in_winter}")
+    
+    # print the number of days to resample for
+    print(f"Number of days to resample for: {n_times_obs * num_days_in_winter}")
+
+    # # if the model_lead_name is not None
+    # if model_lead_name is not None:
+    #     n_leads = len(model_df[model_lead_name].unique())
 
     # Set up zeros for the bootstrapped values
     boot_mean = np.zeros(nboot)
@@ -2138,90 +2187,129 @@ def plot_distributions_fidelity(
     boot_skew = np.zeros(nboot)
     boot_kurt = np.zeros(nboot)
 
-    # Extract the unique model times
-    model_times = model_df[model_time_name].unique()
+    # # Extract the unique model times
+    # model_times = model_df[model_time_name].unique()
 
-    # Extract the unique model members
-    model_members = model_df[model_member_name].unique()
+    # # Extract the unique model members
+    # model_members = model_df[model_member_name].unique()
 
-    if model_lead_name is not None:
-        # Extract the unique model leads
-        model_leads = model_df[model_lead_name].unique()
-
-    # Create the indexes for the ensemble members
-    member_idx = np.arange(n_members)
+    # if model_lead_name is not None:
+    #     # Extract the unique model leads
+    #     model_leads = model_df[model_lead_name].unique()
 
     # Loop over the number of bootstraps
     for iboot in tqdm(range(nboot), desc="Calculating bootstrap statistics"):
-        # Set up random indices for the ensemble members
-        idx_time_this = range(0, n_years)
-
         # Create an empty array to store the bootstrapped values
-        model_boot = np.zeros([n_years])
+        model_boot = np.zeros([n_times_obs, num_days_in_winter])
 
-        # Set the year index to 0
-        idx_year = 0
+        # Select n_times_obs random indices from unique model times
+        idx_time_this = random.choices(unique_model_times, k=n_times_obs)
 
-        # Loop over the number of years
-        # Randomly select an ensemble member and lead time for
-        # each year
-        # But year range stays constant
-        for itime in idx_time_this:
-            # Set up random indices for the ensemble members
-            idx_ens_this = random.choices(member_idx)
+        # select n_times_obs random indices from unique model members
+        idx_member_this = random.choices(unique_model_members, k=n_times_obs)
 
-            # Find the time at the itime index
-            model_time_this = model_times[itime]
+        # select n_times_obs random indices from unique model leads
+        if model_lead_name is not None:
+            idx_lead_this = random.choices(unique_model_leads, k=n_times_obs)
 
-            # Find the name for the member at this index
-            model_member_this = model_members[idx_ens_this]
+        # Populate the model_boot array using the selected indices
+        for i, time_this in enumerate(unique_times_obs):
+            time_idx = idx_time_this[i]
+            member_idx = idx_member_this[i]
+            lead_idx = idx_lead_this[i] if model_lead_name is not None else None
 
-            # if model_lead_name is not None
+            # Subset the model_df based on the selected indices
             if model_lead_name is not None:
-                # Set up a random choice for the lead time
-                idx_lead_this = random.choices(range(n_leads))
-
-                # Find the name for the lead at this index
-                model_lead_this = model_leads[idx_lead_this]
-
-                # Extract the model data for the year and ensemble members
-                model_data = model_df[
-                    (model_df[model_time_name] == model_time_this)
-                    & (model_df[model_member_name] == model_member_this[0])
-                    & (model_df[model_lead_name] == model_lead_this[0])
-                ][model_val_name].values
+                subset_df = model_df[
+                    (model_df[model_time_name] == time_idx) &
+                    (model_df[model_member_name] == member_idx) &
+                    (model_df[model_lead_name] == lead_idx)
+                ]
             else:
-                # Extract the model data for the year and ensemble members
-                model_data = model_df[
-                    (model_df[model_time_name] == model_time_this)
-                    & (model_df[model_member_name] == model_member_this[0])
-                ][model_val_name].values
+                subset_df = model_df[
+                    (model_df[model_time_name] == time_idx) &
+                    (model_df[model_member_name] == member_idx)
+                ]
 
-            # Check if model_data is empty
-            if model_data.size == 0:
-                # print(f"No data available for time {model_time_this}, member {model_member_this}, lead {model_lead_this if model_lead_name else 'N/A'}")
-                continue  # Skip this iteration if no data is available
+            # Ensure the subset is not empty and populate the model_boot array
+            if not subset_df.empty:
+                model_boot[i, :] = subset_df[model_val_name].values
+        # # Loop over the number of years
+        # # Randomly select an ensemble member and lead time for
+        # # each year
+        # # But year range stays constant
+        # for itime in idx_time_this:
+        #     # Set up random indices for the ensemble members
+        #     idx_ens_this = random.choices(member_idx)
 
-            # Append the model data to the bootstrapped array
-            model_boot[idx_year] = model_data
+        #     # Find the time at the itime index
+        #     model_time_this = model_times[itime]
 
-            # Increment the year index
-            idx_year += 1
+        #     # Find the name for the member at this index
+        #     model_member_this = model_members[idx_ens_this]
+
+        #     # if model_lead_name is not None
+        #     if model_lead_name is not None:
+        #         # Set up a random choice for the lead time
+        #         idx_lead_this = random.choices(range(n_leads))
+
+        #         # Find the name for the lead at this index
+        #         model_lead_this = model_leads[idx_lead_this]
+
+        #         # Extract the model data for the year and ensemble members
+        #         model_data = model_df[
+        #             (model_df[model_time_name] == model_time_this)
+        #             & (model_df[model_member_name] == model_member_this[0])
+        #             & (model_df[model_lead_name] == model_lead_this[0])
+        #         ][model_val_name].values
+        #     else:
+        #         # Extract the model data for the year and ensemble members
+        #         model_data = model_df[
+        #             (model_df[model_time_name] == model_time_this)
+        #             & (model_df[model_member_name] == model_member_this[0])
+        #         ][model_val_name].values
+
+        #     # Check if model_data is empty
+        #     if model_data.size == 0:
+        #         # print(f"No data available for time {model_time_this}, member {model_member_this}, lead {model_lead_this if model_lead_name else 'N/A'}")
+        #         continue  # Skip this iteration if no data is available
+
+        #     # # print the shape of model boot
+        #     # print(np.shape(model_boot))
+
+        #     # # print the shape of model data
+        #     # print(np.shape(model_data))
+
+        #     # # print the model time this
+        #     # print(model_time_this)
+        #     # print(model_member_this[0])
+
+        #     # # print the idx year
+        #     # print(idx_year)
+
+        #     # Append the model data to the bootstrapped array
+        #     model_boot[idx_year] = model_data
+
+        #     # Increment the year index
+        #     idx_year += 1
 
         # Calculate the statistics for the bootstrapped array
-        boot_mean[iboot] = np.mean(model_boot)
+        boot_mean[iboot] = np.mean(model_boot.flatten())
 
-        boot_sigma[iboot] = np.std(model_boot)
+        boot_sigma[iboot] = np.std(model_boot.flatten())
 
-        boot_skew[iboot] = stats.skew(model_boot)
+        boot_skew[iboot] = stats.skew(model_boot.flatten())
 
-        boot_kurt[iboot] = stats.kurtosis(model_boot)
+        boot_kurt[iboot] = stats.kurtosis(model_boot.flatten())
 
     # Append the bootstrapped statistics to the model_stats dict
     model_stats["mean"] = boot_mean
     model_stats["sigma"] = boot_sigma
     model_stats["skew"] = boot_skew
     model_stats["kurt"] = boot_kurt
+
+    # print the shape of boot mean
+    print(np.shape(boot_mean))
 
     # Calculate the obs stats
     # Define the mdi
@@ -12644,6 +12732,10 @@ def apply_detrend_rolling(
     window_years: int = 10,
     centered: bool = True,
     min_periods: int = 1,
+    canari_df: pd.DataFrame = None,
+    canari_df_wmeans: pd.DataFrame = None,
+    canari_val_name: str = None,
+    canari_time_name: str = None,
 ) -> pd.DataFrame:
     """
     Apply detrending to model data based on rolling mean of ensemble mean.
@@ -12675,6 +12767,14 @@ def apply_detrend_rolling(
             Whether to use a centered window.
         min_periods: int
             Minimum number of periods to include in the calculation.
+        canari_df: pd.DataFrame
+            DataFrame containing the CanARI data.
+        canari_df_wmeans: pd.DataFrame
+            DataFrame containing the CanARI data with the winter means.
+        canari_val_name: str
+            Name of the column in canari_df containing the values.
+        canari_time_name: str
+            Name of the column in canari_df containing the time values.
 
     Returns:
     ========
@@ -12771,5 +12871,38 @@ def apply_detrend_rolling(
     # # Align the indices and set up a new column in the obs df
     # obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line.loc[obs_df.index.year].values + obs_final_trend_point
 
+    # if the canari df is not none
+    if canari_df is not None:
+        # assert that the other variables are not none
+        assert canari_val_name is not None, "canari_val_name must be provided"
+        assert canari_time_name is not None, "canari_time_name must be provided"
+
+        # assert that the other canari df is not none
+        assert canari_df_wmeans is not None, "canari_df_wmeans must be provided"
+
+        # if the canari_df_wmeans contains effective dec year 2014
+        # then remove this year
+        if 2014 in canari_df_wmeans["effective_dec_year"].values:
+            print("removing 2014 from canari")
+            canari_df_wmeans = canari_df_wmeans[canari_df_wmeans["effective_dec_year"] != 2014]
+
+        # calculate the ensemble mean for the canari data
+        canari_ens_mean = canari_df_wmeans.groupby(
+            "effective_dec_year"
+        )["tas_ondjfm_mean"].mean()
+
+        # Calculate the canari ensmean rolling
+        canari_trend_line = canari_ens_mean.rolling(
+            window=window_years,
+            center=centered,
+            min_periods=min_periods
+        ).mean()
+
+        # Extract the final point on the trend line
+        final_canari_trend_point = canari_trend_line.iloc[-1]
+
+        # set up a new column in the canari df
+        canari_df[canari_val_name + "_dt"] = canari_df[canari_val_name] - canari_trend_line.loc[canari_df[canari_time_name].str.split("-").str[0].astype(int).values].values + final_canari_trend_point
+
     # Return the detrended model data
-    return model_df, obs_df
+    return model_df, obs_df, canari_df
