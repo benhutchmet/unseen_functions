@@ -2221,14 +2221,19 @@ def plot_distributions_fidelity(
 
             # Subset the model_df based on the selected indices
             if model_lead_name is not None:
+                # print the time this
+                print("time this: ", time_this)
+                print("member idx: ", member_idx)
+                print("lead idx", lead_idx)
+                
                 subset_df = model_df[
-                    (model_df[model_time_name] == time_idx) &
+                    (model_df[model_time_name] == time_this) &
                     (model_df[model_member_name] == member_idx) &
                     (model_df[model_lead_name] == lead_idx)
                 ]
             else:
                 subset_df = model_df[
-                    (model_df[model_time_name] == time_idx) &
+                    (model_df[model_time_name] == time_this) &
                     (model_df[model_member_name] == member_idx)
                 ]
 
