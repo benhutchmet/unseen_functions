@@ -2126,18 +2126,18 @@ def plot_distributions_fidelity(
     unique_obs_times = obs_df[obs_time_name].unique()
     unique_model_times = model_df[model_time_name].unique()
 
-    # Check if the unique times are the same
-    if not np.array_equal(unique_obs_times, unique_model_times):
-        print("The unique times for the observations and model data are not the same. Correcting them...")
+    # # Check if the unique times are the same
+    # if not np.array_equal(unique_obs_times, unique_model_times):
+    #     print("The unique times for the observations and model data are not the same. Correcting them...")
 
-        # Find the intersection of the unique times
-        common_times = np.intersect1d(unique_obs_times, unique_model_times)
+    #     # Find the intersection of the unique times
+    #     common_times = np.intersect1d(unique_obs_times, unique_model_times)
 
-        # Subset both DataFrames to only include the common times
-        obs_df = obs_df[obs_df[obs_time_name].isin(common_times)]
-        model_df = model_df[model_df[model_time_name].isin(common_times)]
+    #     # Subset both DataFrames to only include the common times
+    #     obs_df = obs_df[obs_df[obs_time_name].isin(common_times)]
+    #     model_df = model_df[model_df[model_time_name].isin(common_times)]
 
-        print("Both DataFrames have been corrected to have the same times.")
+    #     print("Both DataFrames have been corrected to have the same times.")
 
     # Set up the number of unique initialisation dates
     n_times_obs = len(obs_df[obs_time_name].unique())
@@ -2145,6 +2145,7 @@ def plot_distributions_fidelity(
     unique_times_obs = np.unique(obs_df[obs_time_name])
 
     print("the number of unique winters is: ", n_times_obs)
+    print("the unique times are: ", unique_times_obs)
 
     # Set up the number of days in a model winter
     unique_model_times = np.unique(model_df[model_time_name])
@@ -2202,7 +2203,7 @@ def plot_distributions_fidelity(
         # Create an empty array to store the bootstrapped values
         model_boot = np.zeros([n_times_obs, num_days_in_winter])
 
-        # Select n_times_obs random indices from unique model times
+        # # Select n_times_obs random indices from unique model times
         idx_time_this = random.choices(unique_model_times, k=n_times_obs)
 
         # select n_times_obs random indices from unique model members
@@ -2230,6 +2231,12 @@ def plot_distributions_fidelity(
                     (model_df[model_time_name] == time_idx) &
                     (model_df[model_member_name] == member_idx)
                 ]
+
+            # # print the time this
+            # print(time_this)
+
+            # # # print the shape of subset df
+            # print(np.shape(subset_df))
 
             # Ensure the subset is not empty and populate the model_boot array
             if not subset_df.empty:
@@ -2293,6 +2300,9 @@ def plot_distributions_fidelity(
         #     # Increment the year index
         #     idx_year += 1
 
+        # # print the shape of model boot
+        # print("shape of model boot: ", np.shape(model_boot))
+
         # Calculate the statistics for the bootstrapped array
         boot_mean[iboot] = np.mean(model_boot.flatten())
 
@@ -2315,13 +2325,31 @@ def plot_distributions_fidelity(
     # Define the mdi
     # mdi = -9999.0
 
+    # print the shape of obs df obs val name
+    print("shape of obs df obs_val_name: ", np.shape(obs_df[obs_val_name]))
+
     # Set up the dictionary to store the obs stats
     obs_stats = {
-        "mean": obs_df[obs_val_name].mean(),
-        "sigma": obs_df[obs_val_name].std(),
+        "mean": np.mean(obs_df[obs_val_name]),
+        "sigma": np.std(obs_df[obs_val_name]),
         "skew": stats.skew(obs_df[obs_val_name]),
         "kurt": stats.kurtosis(obs_df[obs_val_name]),
     }
+
+    model_stats_full = {
+        "mean": np.mean(model_df[model_val_name]),
+        "sigma": np.std(model_df[model_val_name]),
+        "skew": stats.skew(model_df[model_val_name]),
+        "kurt": stats.kurtosis(model_df[model_val_name]),
+    }
+
+    # print the obs stats
+    print("Obs stats: ")
+    print(obs_stats)
+
+    # print the model stats full
+    print("Model stats full: ")
+    print(model_stats_full)
 
     # Form a list of the model stats
     model_stats_list = [
@@ -2329,6 +2357,14 @@ def plot_distributions_fidelity(
         model_stats["sigma"],
         model_stats["skew"],
         model_stats["kurt"],
+    ]
+
+    # set up the model stats list full
+    model_stats_list_full = [
+        model_stats_full["mean"],
+        model_stats_full["sigma"],
+        model_stats_full["skew"],
+        model_stats_full["kurt"],
     ]
 
     # For the same list of the obs stats
@@ -2360,6 +2396,9 @@ def plot_distributions_fidelity(
 
         # Plot the obs stats
         ax.axvline(obs_stats_list[i], color="black", linestyle="-", label="ERA5")
+
+        # plot the model stats list full
+        ax.axvline(model_stats_list_full[i], color="blue", linestyle="-", label="model full")
 
         # Calculate the position of the obs stat in the distribution
         obs_pos = stats.percentileofscore(model_stats_list[i], obs_stats_list[i])
