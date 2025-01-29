@@ -2188,6 +2188,7 @@ def plot_distributions_fidelity(
     boot_skew = np.zeros(nboot)
     boot_kurt = np.zeros(nboot)
 
+
     # # Extract the unique model times
     # model_times = model_df[model_time_name].unique()
 
@@ -2222,9 +2223,9 @@ def plot_distributions_fidelity(
             # Subset the model_df based on the selected indices
             if model_lead_name is not None:
                 # print the time this
-                print("time this: ", time_this)
-                print("member idx: ", member_idx)
-                print("lead idx", lead_idx)
+                # print("time this: ", time_this)
+                # print("member idx: ", member_idx)
+                # print("lead idx", lead_idx)
                 
                 subset_df = model_df[
                     (model_df[model_time_name] == time_this) &
@@ -2348,13 +2349,13 @@ def plot_distributions_fidelity(
         "kurt": stats.kurtosis(model_df[model_val_name]),
     }
 
-    # print the obs stats
-    print("Obs stats: ")
-    print(obs_stats)
+    # # print the obs stats
+    # print("Obs stats: ")
+    # print(obs_stats)
 
-    # print the model stats full
-    print("Model stats full: ")
-    print(model_stats_full)
+    # # print the model stats full
+    # print("Model stats full: ")
+    # print(model_stats_full)
 
     # Form a list of the model stats
     model_stats_list = [
