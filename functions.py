@@ -11245,20 +11245,23 @@ def dot_plot(
         f"The chance of a very bad event is: {len(very_bad_events) / len(model_df) * 100}%"
     )
 
-    # print the change of the event in terms of 1 in x years
-    print(
-        f"The chance of a very bad event is: 1 in {round(len(model_df) / len(very_bad_events))} years"
-    )
+    # if len very bad events is not zero
+    if len(very_bad_events) != 0:
+        # print the change of the event in terms of 1 in x years
+        print(
+            f"The chance of a very bad event is: 1 in {round(len(model_df) / len(very_bad_events))} years"
+        )
 
-
-    # Plot the points below the minimum of the obs
-    axs[0].scatter(
-        very_bad_events[model_time_name],
-        very_bad_events[model_val_name],
-        color="red",
-        alpha=0.8,
-        label=very_bad_label,
-    )
+        # Plot the points below the minimum of the obs
+        axs[0].scatter(
+            very_bad_events[model_time_name],
+            very_bad_events[model_val_name],
+            color="red",
+            alpha=0.8,
+            label=very_bad_label,
+        )
+    else:
+        print("no very bad events")
 
     # Plot the points below the 20th percentile
     axs[0].scatter(
