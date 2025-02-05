@@ -56,8 +56,9 @@ import dictionaries as dicts
 
 # Define a function to extract the numeric part from the label
 def extract_numeric(label):
-    match = re.search(r'\d+', label)
+    match = re.search(r"\d+", label)
     return int(match.group()) if match else None
+
 
 # Function for loading each of the ensemble members for a given model
 def load_model_data(
@@ -2154,27 +2155,27 @@ def plot_distributions_fidelity(
     # Subset to the first model time, member, and lead
     first_model_time = unique_model_times[0]
     first_model_member = unique_model_members[0]
-   
+
     if model_lead_name is not None:
-        unique_model_leads = np.unique(model_df[model_lead_name])   
+        unique_model_leads = np.unique(model_df[model_lead_name])
         first_model_lead = unique_model_leads[0]
 
         subset_df = model_df[
-            (model_df[model_time_name] == first_model_time) &
-            (model_df[model_member_name] == first_model_member) &
-            (model_df[model_lead_name] == first_model_lead)
+            (model_df[model_time_name] == first_model_time)
+            & (model_df[model_member_name] == first_model_member)
+            & (model_df[model_lead_name] == first_model_lead)
         ]
     else:
         subset_df = model_df[
-            (model_df[model_time_name] == first_model_time) &
-            (model_df[model_member_name] == first_model_member)
+            (model_df[model_time_name] == first_model_time)
+            & (model_df[model_member_name] == first_model_member)
         ]
 
     # Calculate the number of unique days in this subset
     num_days_in_winter = len(subset_df)
 
     print(f"Number of days in a model winter: {num_days_in_winter}")
-    
+
     # print the number of days to resample for
     print(f"Number of days to resample for: {n_times_obs * num_days_in_winter}")
 
@@ -2187,7 +2188,6 @@ def plot_distributions_fidelity(
     boot_sigma = np.zeros(nboot)
     boot_skew = np.zeros(nboot)
     boot_kurt = np.zeros(nboot)
-
 
     # # Extract the unique model times
     # model_times = model_df[model_time_name].unique()
@@ -2226,16 +2226,16 @@ def plot_distributions_fidelity(
                 # print("time this: ", time_this)
                 # print("member idx: ", member_idx)
                 # print("lead idx", lead_idx)
-                
+
                 subset_df = model_df[
-                    (model_df[model_time_name] == time_this) &
-                    (model_df[model_member_name] == member_idx) &
-                    (model_df[model_lead_name] == lead_idx)
+                    (model_df[model_time_name] == time_this)
+                    & (model_df[model_member_name] == member_idx)
+                    & (model_df[model_lead_name] == lead_idx)
                 ]
             else:
                 subset_df = model_df[
-                    (model_df[model_time_name] == time_this) &
-                    (model_df[model_member_name] == member_idx)
+                    (model_df[model_time_name] == time_this)
+                    & (model_df[model_member_name] == member_idx)
                 ]
 
             # # print the time this
@@ -2404,7 +2404,9 @@ def plot_distributions_fidelity(
         ax.axvline(obs_stats_list[i], color="black", linestyle="-", label="ERA5")
 
         # plot the model stats list full
-        ax.axvline(model_stats_list_full[i], color="blue", linestyle="-", label="model full")
+        ax.axvline(
+            model_stats_list_full[i], color="blue", linestyle="-", label="model full"
+        )
 
         # Calculate the position of the obs stat in the distribution
         obs_pos = stats.percentileofscore(model_stats_list[i], obs_stats_list[i])
@@ -5825,6 +5827,7 @@ def apply_detrend(
 
     return obs_df, model_df
 
+
 # Define a function to apply the detrending
 def apply_detrend_polynomial(
     obs_df: pd.DataFrame,
@@ -5929,10 +5932,14 @@ def apply_detrend_polynomial(
     # Loop over the unique members
     for m, member in enumerate(model_df_init_years[model_member_name].unique()):
         # Select the data for this member
-        data_this = model_df_init_years[model_df_init_years[model_member_name] == member]
+        data_this = model_df_init_years[
+            model_df_init_years[model_member_name] == member
+        ]
 
         # fit a nth order polynomial to the data
-        p_this = np.polyfit(data_this[model_time_name], data_this[model_val_name], order_polynomial)
+        p_this = np.polyfit(
+            data_this[model_time_name], data_this[model_val_name], order_polynomial
+        )
 
         # Store the coefficients
         coeffs_arr[m, :] = p_this
@@ -5948,15 +5955,16 @@ def apply_detrend_polynomial(
 
     # Detrend the data by subtracting the trend line and adding final val
     model_df[model_val_name + "_dt"] = (
-    model_df[model_val_name] - trend_line + trend_final
+        model_df[model_val_name] - trend_line + trend_final
     )
 
     # fit a polynomial to the observations
-    coeffs_obs = np.polyfit(obs_df[obs_time_name], obs_df[obs_val_name].values, order_polynomial)
+    coeffs_obs = np.polyfit(
+        obs_df[obs_time_name], obs_df[obs_val_name].values, order_polynomial
+    )
 
     # Evaluate the polynomial at the observation time points
-    trend_line_obs = np.polyval(coeffs_obs, obs_df[obs_time_name].values
-    )
+    trend_line_obs = np.polyval(coeffs_obs, obs_df[obs_time_name].values)
 
     # Calculate the value of the trend line at the final point
     trend_final_obs = np.polyval(coeffs_obs, obs_df[obs_time_name].values[-1])
@@ -5980,6 +5988,7 @@ def apply_detrend_polynomial(
 
     # return the obs df and model df
     return obs_df, model_df
+
 
 # write a function to peform the linear scaling bias correction
 # Linear scaling in: https://www.metoffice.gov.uk/binaries/content/assets/metofficegovuk/pdf/research/ukcp/ukcp18-guidance---how-to-bias-correct.pdf
@@ -10739,11 +10748,7 @@ def plot_rp_extremes(
         )
     )
 
-    obs_params_first.append(
-        gev.fit(
-            obs_df_subset[obs_val_name].values
-        )
-    )
+    obs_params_first.append(gev.fit(obs_df_subset[obs_val_name].values))
 
     # Loop over the no. samples
     for i in tqdm(range(n_samples)):
@@ -10942,7 +10947,7 @@ def plot_rp_extremes(
         scale=np.percentile(model_params[:, 2], 97.5),
         shape=np.percentile(model_params[:, 0], 97.5),
     )
-    
+
     obs_est_worst_obs_975 = estimate_period(
         return_level=bad_obs_event,
         loc=np.percentile(obs_params[:, 1], 97.5),
@@ -10996,7 +11001,7 @@ def plot_rp_extremes(
     print(
         f"Return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975}"
     )
-    
+
     # print these values
     print(f"Obs return period for obs {percentile}th %tile event: {rp_worst_event_obs}")
     print(
@@ -11366,6 +11371,7 @@ def dot_plot(
 
     return
 
+
 # Define a function to plot the return period of extremes
 # over changing decades
 def plot_rp_extremes_decades(
@@ -11455,7 +11461,10 @@ def plot_rp_extremes_decades(
     """
 
     # assert that worst_or_perc_rp is either worst or perc
-    assert worst_or_perc_rp in ["worst", "perc"], "worst_or_perc_rp must be either 'worst' or 'perc'"
+    assert worst_or_perc_rp in [
+        "worst",
+        "perc",
+    ], "worst_or_perc_rp must be either 'worst' or 'perc'"
 
     # if worst_or_perc_rp is perc
     if worst_or_perc_rp == "perc":
@@ -11475,15 +11484,27 @@ def plot_rp_extremes_decades(
     flattened_years = np.concatenate(decade_years)
 
     # Filter out the years not in df_model_exceedance_dt["effective_dec_year"].unique()
-    filtered_years = [year for year in flattened_years if year in model_df[model_time_name].unique()]
+    filtered_years = [
+        year for year in flattened_years if year in model_df[model_time_name].unique()
+    ]
 
     # Reshape the filtered list back into the original decade structure
     filtered_decade_years = []
     for i, decade in enumerate(decades):
         if i == 0:
-            filtered_decade_years.append(np.array([year for year in filtered_years if 1960 <= year <= 1970]))
+            filtered_decade_years.append(
+                np.array([year for year in filtered_years if 1960 <= year <= 1970])
+            )
         else:
-            filtered_decade_years.append(np.array([year for year in filtered_years if decade + 1 <= year <= decade + 10]))
+            filtered_decade_years.append(
+                np.array(
+                    [
+                        year
+                        for year in filtered_years
+                        if decade + 1 <= year <= decade + 10
+                    ]
+                )
+            )
 
     # Extract the unique winter years from the model df
     unique_winter_years = model_df[model_time_name].unique()
@@ -11495,9 +11516,7 @@ def plot_rp_extremes_decades(
     # assert isinstance(obs_df.index, pd.DatetimeIndex), "Index of obs must be a datetime"
 
     # Find the year of the highest value in the obs data
-    max_year = obs_df.loc[
-        obs_df[obs_val_name].idxmax()
-    ].name
+    max_year = obs_df.loc[obs_df[obs_val_name].idxmax()].name
 
     # Print the max year
     print("The year with the greatest no. exceedance days is: ", max_year)
@@ -11512,9 +11531,7 @@ def plot_rp_extremes_decades(
     # Loop over the unique winter years
     for i, decade in tqdm(enumerate(filtered_decade_years)):
         # Subset the model data to the decade years
-        df_model_exceedance_this = model_df[
-            model_df[model_time_name].isin(decade)
-        ]
+        df_model_exceedance_this = model_df[model_df[model_time_name].isin(decade)]
 
         # initialise the list of params
         params_decade = np.zeros([n_samples, 3])
@@ -11530,7 +11547,7 @@ def plot_rp_extremes_decades(
             )
 
         # append the params to the model year
-        decade_params[i, :, :] = params_decade    
+        decade_params[i, :, :] = params_decade
 
     # end the timer
     end = time.time()
@@ -11692,6 +11709,7 @@ def plot_rp_extremes_decades(
 
     # return
 
+
 # Write a function for setting up the composites
 def plot_composite_obs_model_exceed(
     composite: np.ndarray,
@@ -11760,13 +11778,19 @@ def plot_composite_obs_model_exceed(
         # print the threshold
         print(f"Threshold: {exceed_day}")
 
-        # Filter the model df to be only the 
+        # Filter the model df to be only the
         # days greater than the threshold
         model_df_exceedance = model_df[model_df[model_val_name] > exceed_day]
 
         # extract a list of len three tuples
         # containing the init year, member and winter year
-        exceedance_list = list(zip(model_df_exceedance["init_year"], model_df_exceedance["winter_year"], model_df_exceedance["member"]))
+        exceedance_list = list(
+            zip(
+                model_df_exceedance["init_year"],
+                model_df_exceedance["winter_year"],
+                model_df_exceedance["member"],
+            )
+        )
 
         # Append the threshold to the dictionary
         exceed_dict[exceed_day] = exceedance_list
@@ -11841,14 +11865,16 @@ def plot_composite_obs_model_exceed(
         winter_years = np.arange(1, 10 + 1, 1)
 
     # Set up the composite array
-    composite_array = np.zeros([
-        len(years),
-        len(members),
-        len(winter_years),
-        len(lats),
-        len(lons),
-    ])
-    
+    composite_array = np.zeros(
+        [
+            len(years),
+            len(members),
+            len(winter_years),
+            len(lats),
+            len(lons),
+        ]
+    )
+
     # Loop over the winter years in hadgem
     for i, wyear in enumerate(winter_years):
         # Set up the lead values to extract
@@ -11879,8 +11905,7 @@ def plot_composite_obs_model_exceed(
             for ilon in range(len(lons)):
                 # Detrend the composite means
                 slope, intercept, _, _, _ = linregress(
-                    years,
-                    np.mean(composite_array[:, :, :, ilat, ilon], axis=(1, 2))
+                    years, np.mean(composite_array[:, :, :, ilat, ilon], axis=(1, 2))
                 )
 
                 # Calculate the trend line
@@ -11889,12 +11914,13 @@ def plot_composite_obs_model_exceed(
                 # Calculate the trend line to pivot around the final point
                 trend_final = slope * years[-1] + intercept
 
-
                 # loop over the unique members
                 for m, member in enumerate(members):
                     for wy, winter_year in enumerate(winter_years):
                         # set up the composite array
-                        detrend_composite_array[:, m, wy, ilat, ilon] = composite_array[:, m, wy, ilat, ilon] - (trend_line - trend_final)
+                        detrend_composite_array[:, m, wy, ilat, ilon] = composite_array[
+                            :, m, wy, ilat, ilon
+                        ] - (trend_line - trend_final)
 
         # Assign the detrended composite array to the composite array
         composite_array = detrend_composite_array
@@ -11941,7 +11967,9 @@ def plot_composite_obs_model_exceed(
     idx_years_clim = np.where(np.isin(years, years_clim))[0]
 
     # Extract the values from the composite array
-    composite_clim = np.mean(composite_array[idx_years_clim, :, :, :, :], axis=(0, 1, 2))
+    composite_clim = np.mean(
+        composite_array[idx_years_clim, :, :, :, :], axis=(0, 1, 2)
+    )
 
     # Reshape data to be 3d
     # Multiply init years * members * winter years
@@ -11960,7 +11988,9 @@ def plot_composite_obs_model_exceed(
             composite_array_this = composite_dict[thresh]
 
             # Take the mean over the first dimension
-            composite_anoms_this = np.mean(composite_array_this, axis=0) - composite_clim
+            composite_anoms_this = (
+                np.mean(composite_array_this, axis=0) - composite_clim
+            )
 
             # Assign to the dictionary
             composite_anoms_dict[thresh] = composite_anoms_this
@@ -11987,20 +12017,26 @@ def plot_composite_obs_model_exceed(
 
     for thresh in composite_dict:
         print(f"Processing threshold {thresh}")
-        
+
         # Find the n events
         n_events_this = composite_dict[thresh].shape[0]
 
         # Set up an empty array for the bootstrapped means
-        composite_means_this = np.zeros([nboot, composite_dict[thresh].shape[1], composite_dict[thresh].shape[2]])
+        composite_means_this = np.zeros(
+            [nboot, composite_dict[thresh].shape[1], composite_dict[thresh].shape[2]]
+        )
 
         # Loop over the nboot
         for iboot in tqdm(range(nboot)):
             # Set up the random indices
-            ind_ens_this = np.array([random.choice(index_ens) for i in range(n_events_this)])
+            ind_ens_this = np.array(
+                [random.choice(index_ens) for i in range(n_events_this)]
+            )
 
             # Take the mean over the random indices
-            composite_means_this[iboot, :, :] = np.mean(reshaped_composite_arr_anoms[ind_ens_this, :, :], axis=0)
+            composite_means_this[iboot, :, :] = np.mean(
+                reshaped_composite_arr_anoms[ind_ens_this, :, :], axis=0
+            )
 
         # Assign to the dictionary
         composite_means_dict[thresh] = composite_means_this
@@ -12019,7 +12055,9 @@ def plot_composite_obs_model_exceed(
         composite_anoms_this = composite_anoms_dict[thresh]
 
         # Set up the p values
-        p_values_this = np.zeros([composite_means_this.shape[1], composite_means_this.shape[2]])
+        p_values_this = np.zeros(
+            [composite_means_this.shape[1], composite_means_this.shape[2]]
+        )
 
         # Loop over the lats
         for ilat in tqdm(range(composite_means_this.shape[1])):
@@ -12031,7 +12069,10 @@ def plot_composite_obs_model_exceed(
 
                 # E.g. value of 1 if the event mean lies outside of the 2.5th or 97.5th percentile.
                 # value of 0 is the event means lies between the 2.5th and 97.5th percentile.
-                if composite_anoms_this[ilat, ilon] < lower_025 or composite_anoms_this[ilat, ilon] > higher_975:
+                if (
+                    composite_anoms_this[ilat, ilon] < lower_025
+                    or composite_anoms_this[ilat, ilon] > higher_975
+                ):
                     p_values_this[ilat, ilon] += 1
                 else:
                     p_values_this[ilat, ilon] += 0
@@ -12108,7 +12149,9 @@ def plot_composite_obs_model_exceed(
             ]
         )
     else:
-        raise NotImplementedError("The variable '{}' is not implemented.".format(psl_variable))
+        raise NotImplementedError(
+            "The variable '{}' is not implemented.".format(psl_variable)
+        )
 
     ticks = clevs
 
@@ -12136,11 +12179,13 @@ def plot_composite_obs_model_exceed(
     elif psl_variable == "tas":
         cmap = "RdBu_r"
     else:
-        raise NotImplementedError("The variable '{}' is not implemented.".format(psl_variable))
+        raise NotImplementedError(
+            "The variable '{}' is not implemented.".format(psl_variable)
+        )
 
     # loop over the fields
     for i, thresh in enumerate(composite_anoms_dict.keys()):
-        
+
         # Extract the field for this
         field_this = composite_anoms_dict[thresh]
 
@@ -12245,7 +12290,6 @@ def plot_composite_obs_model_exceed(
             alpha=0.0,
         )
 
-
     # Set up the colorbar
     cbar = fig.colorbar(
         mymap,
@@ -12334,7 +12378,7 @@ def plot_composite_obs_model_exceed(
                 raise NotImplementedError("home path not implemented yet")
             else:
                 raise ValueError(f"Unknown model path root {model_path_root_psl}")
-            
+
             # append the file to the files list
             files_list.append(file)
 
@@ -12356,7 +12400,9 @@ def plot_composite_obs_model_exceed(
         ds_list = []
 
         # Loop over the files
-        for idx, (file, (init_year, winter_year, member)) in tqdm(enumerate(zip(files_list, exceed_list))):
+        for idx, (file, (init_year, winter_year, member)) in tqdm(
+            enumerate(zip(files_list, exceed_list))
+        ):
 
             # Load the data
             ds = xr.open_mfdataset(
@@ -12595,6 +12641,7 @@ def plot_composite_obs_model_exceed(
     else:
         return psl_fields, lats, lons
 
+
 def preprocess_leads(
     ds: xr.Dataset,
     winter_year: int,
@@ -12645,10 +12692,11 @@ def preprocess_leads(
 
     return ds
 
+
 # Function to load np data with a progress bar
 def load_numpy_with_progress(path, fname, original_shape):
     file_path = os.path.join(path, fname)
-    
+
     # Check if the file exists
     if os.path.exists(file_path):
         print(f"Loading the file from {file_path}")
@@ -12657,14 +12705,16 @@ def load_numpy_with_progress(path, fname, original_shape):
         file_size = os.path.getsize(file_path)
 
         # Create a memory-mapped array
-        composite = np.memmap(file_path, dtype='float32', mode='r')
+        composite = np.memmap(file_path, dtype="float32", mode="r")
 
         # Create an empty array to hold the data
-        data = np.empty(composite.shape, dtype='float32')
+        data = np.empty(composite.shape, dtype="float32")
 
         # Read the data in chunks and update the progress bar
         chunk_size = 1024 * 1024  # 1 MB chunks
-        with tqdm(total=file_size, desc="Loading data", unit='B', unit_scale=True) as pbar:
+        with tqdm(
+            total=file_size, desc="Loading data", unit="B", unit_scale=True
+        ) as pbar:
             for i in range(0, file_size, chunk_size):
                 end = i + chunk_size
                 if end > file_size:
@@ -12717,7 +12767,7 @@ def load_file_composites(
         psl_variable,
         freq,
         season,
-        "1960-2018", # hardcoded for now
+        "1960-2018",  # hardcoded for now
     )
 
     # Form the fname
@@ -12764,6 +12814,7 @@ def load_file_composites(
 
     # return the files
     return composite, years, members, leads, lats, lons
+
 
 # Define a function for applying detrend
 # based on rolling mean of ensemble mean
@@ -12830,31 +12881,32 @@ def apply_detrend_rolling(
         pd.DataFrame
             DataFrame containing the detrended model data.
     """
-    
 
     # Make a copy of the model df
     model_df_copy = model_df.copy()
 
     # Calculate the model ensemble mean
-    model_ensmean = model_df_copy.groupby(
-        model_time_name
-    )[model_val_name].mean()
+    model_ensmean = model_df_copy.groupby(model_time_name)[model_val_name].mean()
 
     # Calculate the rolling mean of the ensemble mean
     trend_line = model_ensmean.rolling(
-        window=window_years,
-        center=centered,
-        min_periods=min_periods
+        window=window_years, center=centered, min_periods=min_periods
     ).mean()
 
     # Extract the final point on the trend line
     final_trend_point = trend_line.iloc[-1]
 
     # Set up a new column in the model df
-    model_df[model_val_name + "_dt"] = model_df[model_val_name] - trend_line.loc[model_df[model_time_name].values].values + final_trend_point
+    model_df[model_val_name + "_dt"] = (
+        model_df[model_val_name]
+        - trend_line.loc[model_df[model_time_name].values].values
+        + final_trend_point
+    )
 
     # assert that obs_time_name is the index in the obs df
-    assert obs_time_name == obs_df.index.name, "obs_time_name must be the index in the obs_df"
+    assert (
+        obs_time_name == obs_df.index.name
+    ), "obs_time_name must be the index in the obs_df"
 
     # # print(trend_line)
 
@@ -12866,14 +12918,16 @@ def apply_detrend_rolling(
     # obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - trend_line.loc[obs_df.index.year].values + final_trend_point
 
     # shift the obs tas back by 3 months (assuming ONDJFM)
-    obs_df_ondjfm = obs_df.shift(periods=-3, freq=pd.DateOffset(months=3)).resample("A").mean()
+    obs_df_ondjfm = (
+        obs_df.shift(periods=-3, freq=pd.DateOffset(months=3)).resample("A").mean()
+    )
 
     # Take the rolling mean of the observations
-    obs_rolling_mean = obs_df[obs_val_name].rolling(
-        window=window_years,
-        center=centered,
-        min_periods=min_periods
-    ).mean()
+    obs_rolling_mean = (
+        obs_df[obs_val_name]
+        .rolling(window=window_years, center=centered, min_periods=min_periods)
+        .mean()
+    )
 
     # print the shape of the obs rolling mean
     print(np.shape(obs_rolling_mean))
@@ -12889,7 +12943,9 @@ def apply_detrend_rolling(
     print("obs intercept ", intercept_obs)
 
     # Calculate the trend line for the obs
-    obs_trend_line = slope_obs * obs_rolling_mean.index.year.astype(int).values + intercept_obs
+    obs_trend_line = (
+        slope_obs * obs_rolling_mean.index.year.astype(int).values + intercept_obs
+    )
 
     # print the shape of the obs trend line
     print(np.shape(obs_trend_line))
@@ -12898,7 +12954,9 @@ def apply_detrend_rolling(
     trend_final_point = obs_trend_line[-1]
 
     # set up a new column in the obs df
-    obs_df[obs_val_name + "_dt"] = obs_df[obs_val_name] - obs_trend_line + trend_final_point
+    obs_df[obs_val_name + "_dt"] = (
+        obs_df[obs_val_name] - obs_trend_line + trend_final_point
+    )
 
     # # Calculate the trend line for the obs
     # obs_trend_line = slope_obs * obs_rolling_mean.index.year + intercept_obs
@@ -12932,25 +12990,1038 @@ def apply_detrend_rolling(
         # then remove this year
         if 2014 in canari_df_wmeans["effective_dec_year"].values:
             print("removing 2014 from canari")
-            canari_df_wmeans = canari_df_wmeans[canari_df_wmeans["effective_dec_year"] != 2014]
+            canari_df_wmeans = canari_df_wmeans[
+                canari_df_wmeans["effective_dec_year"] != 2014
+            ]
 
         # calculate the ensemble mean for the canari data
-        canari_ens_mean = canari_df_wmeans.groupby(
-            "effective_dec_year"
-        )["tas_ondjfm_mean"].mean()
+        canari_ens_mean = canari_df_wmeans.groupby("effective_dec_year")[
+            "tas_ondjfm_mean"
+        ].mean()
 
         # Calculate the canari ensmean rolling
         canari_trend_line = canari_ens_mean.rolling(
-            window=window_years,
-            center=centered,
-            min_periods=min_periods
+            window=window_years, center=centered, min_periods=min_periods
         ).mean()
 
         # Extract the final point on the trend line
         final_canari_trend_point = canari_trend_line.iloc[-1]
 
         # set up a new column in the canari df
-        canari_df[canari_val_name + "_dt"] = canari_df[canari_val_name] - canari_trend_line.loc[canari_df[canari_time_name].str.split("-").str[0].astype(int).values].values + final_canari_trend_point
+        canari_df[canari_val_name + "_dt"] = (
+            canari_df[canari_val_name]
+            - canari_trend_line.loc[
+                canari_df[canari_time_name].str.split("-").str[0].astype(int).values
+            ].values
+            + final_canari_trend_point
+        )
 
     # Return the detrended model data
     return model_df, obs_df, canari_df
+
+
+# define a function to plot the daily anoms or composites for a list of dates
+# given the cube and the dates
+def plot_daily_field(
+    cube,
+    dates: list,
+    title: str,
+    anoms: bool = False,  # By default, plot the absolute field
+    composite: bool = False,  # By default, plot all of the dates as subplots
+    months: list = [12, 1, 2],
+    climatology_years: list = [1990, 2020],
+) -> None:
+    """
+    Plots the daily field for a list of dates
+
+    Args:
+    ----
+
+        cube: iris.cube.Cube
+            The cube of the field
+        dates: list
+            A list of dates to plot
+        title: str
+            The title of the plot
+        anoms: bool
+            Whether to plot the anomalies or the absolute field
+        composite: bool
+            Whether to plot all of the dates as subplots
+        months: list
+            The months to extract
+        climatology_years: list
+            The years to use for the climatology
+
+    Returns:
+    -------
+
+        None
+
+    """
+
+    # Convert the dates to cf time.datetime objects
+    dates_this = [cftime.datetime(d.year, d.month, d.day) for d in dates]
+
+    # Extract the dates from the cube
+    cube_dates = cube.coord("time").points
+
+    # Extract the time units and calendar from the time coordinate
+    cube_time_units = cube.coord("time").units
+    cube_calendar = cube.coord("time").units.calendar
+
+    # Extract the date values from theb cube
+    cube_datetime_values = cftime.num2date(
+        cube_dates, units=cube_time_units.origin, calendar=cube_calendar
+    )
+
+    # Convert to cf time.datetime objects
+    cube_datetime_values = [
+        cftime.datetime(d.year, d.month, d.day) for d in cube_datetime_values
+    ]
+
+    # Print the dates this
+    print(f"Dates to extract: {dates_this}")
+    print(f"type of dates: {type(dates_this[0])}")
+
+    # Print the cube dates
+    print(f"Cube dates: {cube_datetime_values}")
+    print(f"type of cube dates: {type(cube_datetime_values[0])}")
+
+    # Set up an empty cube list
+    cube_list = iris.cube.CubeList([])
+
+    # Loop through the dates
+    for date in dates_this:
+        # Find the index of the date in the datetime values
+        index = np.where(np.array(cube_datetime_values) == date)[0][0]
+
+        # Extract the cube at the index
+        cube_this = cube[index]
+
+        # Append this cube to the list
+        cube_list.append(cube_this)
+
+    # Merge the cubes
+    cube_merged = cube_list.merge_cube()
+
+    # if anoms is true, calculate the climatology
+    if anoms:
+        # Extract the DJF data
+        cube_djf = cube.extract(
+            iris.Constraint(time=lambda cell: cell.point.month in months)
+        )
+
+        # Extract the 1990-2020 data
+        cube_djf_1990_2020 = cube_djf.extract(
+            iris.Constraint(
+                time=lambda cell: climatology_years[0]
+                <= cell.point.year
+                <= climatology_years[1]
+            )
+        )
+
+        # Take the mean over the time dimension
+        cube_djf_1990_2020_mean = cube_djf_1990_2020.collapsed(
+            "time", iris.analysis.MEAN
+        )
+
+        # Calculate the anomalies
+        cube_anoms = cube_merged - cube_djf_1990_2020_mean
+
+        # Set the cube merged to the cube anoms
+        cube_merged = cube_anoms
+
+        # Set up the clevs
+        clevs = np.array(np.arange(-41, 41 + 1, 2))
+
+        # remove the zero
+        if 0 in clevs:
+            clevs = np.delete(clevs, np.where(clevs == 0))
+
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+
+    else:
+        # Set the cube merged to the cube
+        cube_merged = cube_merged
+
+        # Set up the clevs and ticks for absolution values
+        clevs = np.array(np.arange(988, 1032 + 1, 4))
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+
+    # Set up the custom colormap
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # Set up the lons and lats
+    lons = cube.coord("longitude").points
+    lats = cube.coord("latitude").points
+
+    # extract the field
+    field_3d = cube_merged.data
+
+    # if composite is true, plot a single plot
+    if composite:
+        print(f"Average over {len(dates_this)} dates")
+
+        # Set up the figure
+        fig, ax = plt.subplots(
+            figsize=(12, 5), subplot_kw={"projection": ccrs.PlateCarree()}
+        )
+
+        # Set up the str for the date
+        # remove the HH:MM:SS
+        date_this_str = dates_this[0].strftime("%Y-%m-%d")
+
+        # Set up the title
+        # ax.set_title(f"{date_this_str}", fontsize=10, fontweight="bold")
+
+        # Set up the field this
+        field_this = np.mean(field_3d, axis=0)
+
+        # Plot the data
+        mymap = ax.contourf(
+            lons,
+            lats,
+            field_this / 100,
+            clevs,
+            transform=ccrs.PlateCarree(),
+            cmap=cmap,
+            extend="both",
+        )
+
+        contours = ax.contour(
+            lons,
+            lats,
+            field_this / 100,
+            clevs,
+            colors="black",
+            transform=ccrs.PlateCarree(),
+            linewidth=0.2,
+            alpha=0.5,
+        )
+
+        ax.clabel(
+            contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+        ax.coastlines()
+
+        # restrict the region to include all lons, but only lats between 30 and 80
+        ax.set_extent([lons.min(), lons.max(), 30, 80])
+
+        # format the gridlines and labels
+        # format the gridlines and labels
+        gl = ax.gridlines(
+            draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+        )
+        gl.xlabels_top = False
+        gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.xlabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_right = False
+        gl.yformatter = LATITUDE_FORMATTER
+        gl.ylabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_left = False
+        gl.ylabels_right = False
+
+        # turn off the top labels
+        gl.top_labels = False
+        gl.bottom_labels = False
+
+        # Set a textbox in the top left with the date
+        # set up the colorbar
+        cbar = plt.colorbar(
+            mymap,
+            ax=ax,
+            orientation="horizontal",
+            shrink=0.8,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+
+        if anoms:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure 1990-2020 DJF anomaly (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+        else:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+
+        # Add contour lines to the colorbar
+        cbar.add_lines(contours)
+
+        # Set up the super title
+        plt.suptitle(title, fontsize=12, fontweight="bold")
+    else:
+        print(f"Plotting {len(dates_this)} dates")
+
+        # Set up the nrows, assuming ncols is 2
+        nrows = int(np.ceil(len(dates_this) / 2))
+
+        # Set up the figure
+        fig, axs = plt.subplots(
+            nrows=nrows,
+            ncols=2,
+            figsize=(12, 5 * nrows),
+            subplot_kw={"projection": ccrs.PlateCarree()},
+        )
+
+        # Flatten the axs
+        axs = axs.flatten()
+
+        # loop over the zipped axs and dates
+        for i, (ax, date) in enumerate(zip(axs, dates_this)):
+            # # Set up the projection
+            # ax = plt.subplot(1, 2, i + 1, projection=ccrs.PlateCarree())
+
+            # set up the str for the date
+            # remove the HH:MM:SS
+            date_this_str = date.strftime("%Y-%m-%d")
+
+            # # Set up the title
+            # ax.set_title(f"{date}", fontsize=10, fontweight="bold")
+
+            # set up the field this
+            field_this = field_3d[i]
+
+            # Plot the data
+            mymap = ax.contourf(
+                lons,
+                lats,
+                field_this / 100,
+                clevs,
+                transform=ccrs.PlateCarree(),
+                cmap=cmap,
+                extend="both",
+            )
+
+            contours = ax.contour(
+                lons,
+                lats,
+                field_this / 100,
+                clevs,
+                colors="black",
+                transform=ccrs.PlateCarree(),
+                linewidth=0.2,
+                alpha=0.5,
+            )
+
+            ax.clabel(
+                contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+            )
+
+            ax.coastlines()
+
+            # restrict the region to include all lons, but only lats between 30 and 80
+            ax.set_extent([lons.min(), lons.max(), 30, 80])
+
+            # format the gridlines and labels
+            gl = ax.gridlines(
+                draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+            )
+            gl.xlabels_top = False
+            gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+            gl.xformatter = LONGITUDE_FORMATTER
+            gl.xlabel_style = {"size": 7, "color": "black"}
+            gl.ylabels_right = False
+            gl.yformatter = LATITUDE_FORMATTER
+            gl.ylabel_style = {"size": 7, "color": "black"}
+            gl.ylabels_left = False
+            gl.ylabels_right = False
+
+            # turn off the top labels
+            gl.top_labels = False
+            gl.bottom_labels = False
+
+            # Properly turn off the labels
+            # if i is 0
+            if i == 0:
+                gl.right_labels = False
+            elif i == len(dates_this) - 1:
+                gl.left_labels = False
+
+            # Set a textbox in the top left with the date
+            ax.text(
+                0.02,
+                0.95,
+                f"{date_this_str}",
+                verticalalignment="top",
+                horizontalalignment="left",
+                transform=ax.transAxes,
+                color="black",
+                fontsize=10,
+                bbox=dict(
+                    facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"
+                ),
+            )
+
+        # Set a tight layout
+        plt.tight_layout()
+
+        # Set up the colorbar
+        cbar = plt.colorbar(
+            mymap,
+            ax=axs,
+            orientation="horizontal",
+            shrink=0.8,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+
+        if anoms:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure 1990-2020 DJF anomaly (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+        else:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+
+        # Add contour lines to the colorbar
+        cbar.add_lines(contours)
+
+        # Set up the super title
+        plt.suptitle(title, fontsize=12, fontweight="bold")
+
+    return None
+
+
+# given a list of tuples, containing effective_dec_year, member, and lead
+# find the correct .nc file to extract the data from
+# and extract the data for that specific init year member lead
+def plot_dps_composite(
+    df: pd.DataFrame,
+    title: str,
+    lead: str = "time_worst_wind_lead",
+    anoms: bool = False,
+    composite: bool = False,
+    months: list = [12, 1, 2],
+    climatology_years: list = [1990, 2020],
+) -> None:
+    """
+    Plots the daily field for a list of init year, member, and lead
+    specified in the dataframe.
+
+    Args:
+    -----
+
+        df: pd.DataFrame
+            The dataframe containing the data
+        title: str
+            The title of the plot
+        lead: str
+            The lead to use for the plot
+        anoms: bool
+            Whether to plot the anomalies or the absolute field
+        composite: bool
+            Whether to plot all of the dates as subplots
+        months: list
+            The months to extract
+        climatology_years: list
+            The years to use for the climatology
+
+    Returns:
+    --------
+
+        None
+
+    """
+
+    # Hard code the base path
+    base_path = "/badc/cmip6/data/CMIP6/DCPP/MOHC/HadGEM3-GC31-MM/dcppA-hindcast/"
+
+    # set up the dictionary to store the init year, member, and lead
+    init_year_member_lead_dict = {"init_year": [], "member": [], "lead": []}
+
+    for i, row in df.iterrows():
+        # extract the init year, member, and lead
+        init_year_member_lead_dict["init_year"].append(int(row["effective_dec_year"]))
+        init_year_member_lead_dict["member"].append(int(row["member"]))
+        init_year_member_lead_dict["lead"].append(int(row[lead]))
+
+    # print the dictionary
+    print(init_year_member_lead_dict)
+
+    # Set up an empty cube list
+    cube_list = []
+
+    # set up the dates list
+    dates = []
+
+    # Loop over the dictionary
+    for i, (init_year, member, lead) in tqdm(
+        enumerate(
+            zip(
+                init_year_member_lead_dict["init_year"],
+                init_year_member_lead_dict["member"],
+                init_year_member_lead_dict["lead"],
+            )
+        )
+    ):
+        # Set up the second half of the path
+        path_this = f"s{init_year}-r{member}i1p1f2/day/psl/gn/files/d*/"
+
+        # if the lead is 60 or less, then the fname to extract is different
+        if lead <= 60:
+            # Set up the fname
+            # psl_day_HadGEM3-GC31-MM_dcppA-hindcast_s2014-r1i1p1f2_gn_20141101-20141230.nc
+            fname = f"psl_day_HadGEM3-GC31-MM_dcppA-hindcast_s{init_year}-r{member}i1p1f2_gn_{init_year}1101-{init_year}1230.nc"
+        else:
+            # Set up the fname
+            # psl_day_HadGEM3-GC31-MM_dcppA-hindcast_s2014-r1i1p1f2_gn_20150101-20151230.nc
+            fname = f"psl_day_HadGEM3-GC31-MM_dcppA-hindcast_s{init_year}-r{member}i1p1f2_gn_{init_year + 1}0101-{init_year + 1}1230.nc"
+
+        # Set up the full path
+        full_path_this = os.path.join(base_path, path_this, fname)
+
+        # glob the full path
+        full_path_this = glob.glob(full_path_this)
+
+        # if the file exists, load the cube
+        if os.path.exists(full_path_this[0]):
+            # Load the cube
+            cube = iris.load_cube(full_path_this, "psl")
+
+            # extract the date
+            if lead <= 60:
+                # Extract the index lead - 1
+                index = lead - 1
+            else:
+                # extract the date
+                index = lead - 61
+
+            # Extract the date
+            date_this = cube.coord("time").points[index]
+            date_this = cftime.num2date(
+                date_this,
+                cube.coord("time").units.origin,
+                cube.coord("time").units.calendar,
+            )
+
+            # if the date_this is not in the dates list, append it
+            if date_this not in dates:
+                dates.append(date_this)
+            else:
+                print(f"Date {date_this} already in the dates list")
+
+            # # # print the date
+            # print(f"extracting date: {date_this}")
+
+            # apply this to the cube
+            cube_subset = cube[index]
+
+            # Add auxiliary coordinate 'i'
+            # aux_coord = iris.coords.AuxCoord(i, long_name='i')
+            # cube_subset.add_aux_coord(aux_coord)
+
+            # Append the cube to the list
+            cube_list.append(cube_subset)
+        else:
+            print(f"File {full_path_this} does not exist")
+
+    # print the cube list
+    print(cube_list)
+
+    # Convert cube_list to a cube
+    cube_list = iris.cube.CubeList(cube_list)
+
+    # print cube_merged
+    print(cube_list)
+
+    # remove the bad attributes
+    remove_attributes = equalise_attributes(cube_list)
+
+    # merge the cube list
+    cube_merged = cube_list.merge_cube()
+
+    # concatenate the cube list
+    # cube_merged = cube_list.concatenate_cube()
+
+    # print the cube merged
+    print(cube_merged)
+
+    # if anoms is true, calculate the climatology
+    if anoms:
+        # TODO: Remove the DJF montlhly mean?
+        raise NotImplementedError
+
+        # Set the cube merged to the cube anoms
+        cube_merged = cube_anoms
+
+        # Set up the clevs
+        clevs = np.array(np.arange(-41, 41 + 1, 2))
+
+        # remove the zero
+        if 0 in clevs:
+            clevs = np.delete(clevs, np.where(clevs == 0))
+
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+    else:
+        # Set the cube merged to the cube
+        cube_merged = cube_merged
+
+        # Set up the clevs and ticks for absolution values
+        clevs = np.array(np.arange(988, 1032 + 1, 4))
+        ticks = clevs
+
+        # ensure that these are floats
+        clevs = clevs.astype(float)
+        ticks = ticks.astype(float)
+
+    # Set up the custom colormap
+    # custom colormap
+    cs = [
+        "#4D65AD",
+        "#3E97B7",
+        "#6BC4A6",
+        "#A4DBA4",
+        "#D8F09C",
+        "#FFFEBE",
+        "#FFD27F",
+        "#FCA85F",
+        "#F57244",
+        "#DD484C",
+        "#B51948",
+    ]
+    cmap = colors.LinearSegmentedColormap.from_list("custom_cmap", cs)
+
+    # convert cube to -180 to 180
+    cube_merged = cube_merged.intersection(longitude=(-180, 180))
+
+    # Set up the lons and lats
+    lons = cube.coord("longitude").points
+    lats = cube.coord("latitude").points
+
+    # extract the field
+    field_3d = cube_merged.data
+
+    # if composite is true, plot a single plot
+    if composite:
+        print(f"Average over {len(df)} days")
+
+        # Set up the figure
+        fig, ax = plt.subplots(
+            figsize=(12, 5), subplot_kw={"projection": ccrs.PlateCarree()}
+        )
+
+        # Set up the str for the date
+        # remove the HH:MM:SS
+        n_days = len(df)
+
+        # Set up the title
+        # ax.set_title(f"{date_this_str}", fontsize=10, fontweight="bold")
+
+        # Set up the field this
+        field_this = np.mean(field_3d, axis=0)
+
+        # Plot the data
+        mymap = ax.contourf(
+            lons,
+            lats,
+            field_this / 100,
+            clevs,
+            transform=ccrs.PlateCarree(),
+            cmap=cmap,
+            extend="both",
+        )
+
+        contours = ax.contour(
+            lons,
+            lats,
+            field_this / 100,
+            clevs,
+            colors="black",
+            transform=ccrs.PlateCarree(),
+            linewidth=0.2,
+            alpha=0.5,
+        )
+
+        ax.clabel(
+            contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+        )
+
+        ax.coastlines()
+
+        # restrict the region to include all lons, but only lats between 30 and 80
+        ax.set_extent([-35, 35, 30, 80])
+
+        # format the gridlines and labels
+        # format the gridlines and labels
+        gl = ax.gridlines(
+            draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+        )
+        gl.xlabels_top = False
+        gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+        gl.xformatter = LONGITUDE_FORMATTER
+        gl.xlabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_right = False
+        gl.yformatter = LATITUDE_FORMATTER
+        gl.ylabel_style = {"size": 7, "color": "black"}
+        gl.ylabels_left = False
+        gl.ylabels_right = False
+
+        # turn off the top labels
+        gl.top_labels = False
+        gl.bottom_labels = False
+
+        # Set a textbox in the top left with the date
+        # set up the colorbar
+        cbar = plt.colorbar(
+            mymap,
+            ax=ax,
+            orientation="horizontal",
+            shrink=0.8,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+
+        # include a textbox in the top left with the N
+        ax.text(
+            0.05,
+            0.95,
+            f"N = {n_days}",
+            verticalalignment="top",
+            horizontalalignment="left",
+            transform=ax.transAxes,
+            color="black",
+            fontsize=10,
+            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+        )
+
+        if anoms:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure 1990-2020 DJF anomaly (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+        else:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+
+        # Add contour lines to the colorbar
+        cbar.add_lines(contours)
+
+        # Set up the super title
+        plt.suptitle(title, fontsize=12, fontweight="bold")
+    else:
+        print(f"Plotting {len(df)} days")
+
+        # Set up the nrows, assuming ncols is 2
+        nrows = int(np.ceil(len(df) / 2))
+
+        # Set up the figure
+        fig, axs = plt.subplots(
+            nrows=nrows,
+            ncols=2,
+            figsize=(12, 5 * nrows),
+            subplot_kw={"projection": ccrs.PlateCarree()},
+        )
+
+        # Flatten the axs
+        axs = axs.flatten()
+
+        # loop over the zipped axs and dates
+        for i, (ax, iyear) in enumerate(
+            zip(axs, init_year_member_lead_dict["init_year"])
+        ):
+            # # Set up the projection
+            # ax = plt.subplot(1, 2, i + 1, projection=ccrs.PlateCarree())
+            # extract the member and lead
+            member_this = init_year_member_lead_dict["member"][i]
+            lead_this = init_year_member_lead_dict["lead"][i]
+
+            # set up the field this
+            field_this = field_3d[i]
+
+            # Plot the data
+            mymap = ax.contourf(
+                lons,
+                lats,
+                field_this / 100,
+                clevs,
+                transform=ccrs.PlateCarree(),
+                cmap=cmap,
+                extend="both",
+            )
+
+            contours = ax.contour(
+                lons,
+                lats,
+                field_this / 100,
+                clevs,
+                colors="black",
+                transform=ccrs.PlateCarree(),
+                linewidth=0.2,
+                alpha=0.5,
+            )
+
+            ax.clabel(
+                contours, clevs, fmt="%.1f", fontsize=8, inline=True, inline_spacing=0.0
+            )
+
+            ax.coastlines()
+
+            # restrict the region to include all lons, but only lats between 30 and 80
+            ax.set_extent([-35, 35, 30, 80])
+
+            # format the gridlines and labels
+            gl = ax.gridlines(
+                draw_labels=True, linewidth=0.5, color="black", alpha=0.5, linestyle=":"
+            )
+            gl.xlabels_top = False
+            gl.xlocator = mplticker.FixedLocator(np.arange(-180, 180, 30))
+            gl.xformatter = LONGITUDE_FORMATTER
+            gl.xlabel_style = {"size": 7, "color": "black"}
+            gl.ylabels_right = False
+            gl.yformatter = LATITUDE_FORMATTER
+            gl.ylabel_style = {"size": 7, "color": "black"}
+            gl.ylabels_left = False
+            gl.ylabels_right = False
+
+            # turn off the top labels
+            gl.top_labels = False
+            gl.bottom_labels = False
+            gl.right_labels = False
+            gl.left_labels = False
+
+            # # Properly turn off the labels
+            # # if i is 0
+            # if i == 0:
+            #     gl.right_labels = False
+            # elif i == len(df) - 1:
+            #     gl.left_labels = False
+
+            # Set a textbox in the top left with the date
+            ax.text(
+                0.05,
+                0.95,
+                f"Init. year = {iyear}\n Member = {member_this}\n Lead = {lead_this}",
+                verticalalignment="top",
+                horizontalalignment="left",
+                transform=ax.transAxes,
+                color="black",
+                fontsize=10,
+                bbox=dict(
+                    facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"
+                ),
+            )
+
+        # Set up the colorbar
+        cbar = plt.colorbar(
+            mymap,
+            ax=axs,
+            orientation="horizontal",
+            shrink=0.8,
+            pad=0.1,
+            format=FuncFormatter(format_func_one_decimal),
+        )
+
+        if anoms:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure 1990-2020 DJF anomaly (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+        else:
+            # Add colorbar label
+            cbar.set_label(
+                f"mean sea level pressure (hPa)",
+                rotation=0,
+                fontsize=10,
+            )
+
+        # Add contour lines to the colorbar
+        cbar.add_lines(contours)
+
+        # Set up the super title
+        plt.suptitle(title, fontsize=12, fontweight="bold")
+
+        # # Set a tight layout
+        # plt.tight_layout()
+
+    return None
+
+
+def plot_canari_composite(
+    df: pd.DataFrame,
+    title: str,
+    time: str = "time_worst_wind",
+    anoms: bool = False,
+    composite: bool = False,
+    months: list = [12, 1, 2],
+    climatology_years: list = [1990, 2020],
+) -> None:
+    """
+    Plots the daily fields/composites these for the output from the CANARI
+    large ensemble.
+
+    Args:
+    -----
+
+        df: pd.DataFrame
+            The dataframe containing the data
+        title: str
+            The title of the plot
+        time: str
+            The time to use for the plot
+        anoms: bool
+            Whether to plot the anomalies or the absolute field
+        composite: bool
+            Whether to plot all of the dates as subplots
+        months: list
+            The months to extract
+        climatology_years: list
+            The years to use for the climatology
+
+    Returns:
+    --------
+
+        None
+
+    """
+
+    # Hard code the base path
+    base_path = "/gws/nopw/j04/canari/shared/large-ensemble/priority/"
+    var_name_psl = "m01s16i222_4"  # mean sea level pressure
+    period = "HIST2"
+    domain = "ATM"
+    time_freq = "yearly"
+
+    # Provided time information
+    time_units = "seconds since 1950-01-01 00:00:00"
+    calendar = "360_day"
+
+    # Set up the cube list
+    cube_list = []
+
+    # Loop over the rows in the dataframe
+    for i, row in tqdm(df.iterrows()):
+        # extract the time
+        time_this = row[time]
+
+        # convert to datetime with cftime
+        time_this = cftime.datetime.strptime(time_this, "%Y-%m-%d")
+
+        # print the time this
+        # print(f"Time this: {time_this}")
+
+        # extract the year this
+        year_this = time_this.year
+
+        # convert time to the correct format
+        time_this = cftime.date2num(time_this, time_units, calendar)
+
+        # print the time this
+        # print(f"Time this: {time_this}")
+
+        seconds_in_12_hours = 12 * 60 * 60
+
+        # add 12 hours to the time this
+        time_this_mid = time_this + seconds_in_12_hours
+
+        # convert to datetime
+        time_this_mid = cftime.num2date(time_this_mid, time_units, calendar)
+
+        # Set up tyhe member this
+        member_this = row["member"]
+
+        # if member this is not an int
+        if not isinstance(member_this, int):
+            # extract the integer from the string
+            member_this = int(re.findall(r"\d+", member_this)[0])
+
+        # Print the time this and member this
+        print(f"Time this: {time_this}, member this: {member_this}")
+
+        # form the path to the data
+        # /gws/nopw/j04/canari/shared/large-ensemble/priority/HIST2/14/ATM/yearly/2014/*m01s16i222_4*
+
+        path_this = os.path.join(
+            base_path,
+            period,
+            str(member_this),
+            domain,
+            time_freq,
+            str(year_this),
+            f"*{var_name_psl}*",
+        )
+
+        # print the path this
+        print(path_this)
+
+        # glob the path
+        path_this = glob.glob(path_this)
+
+        # print the path this
+        print(path_this)
+
+        # if the path exists, load the cube
+        if os.path.exists(path_this[0]):
+            # Load the cube
+            cube_this = iris.load_cube(path_this, var_name_psl)
+
+            # print the cube
+            print(cube_this)
+
+            # subset the cube to time this mid
+            cube_this_subset = cube_this.extract(iris.Constraint(time=time_this_mid))
+
+            # print the cube this subset
+            print(cube_this_subset)
+
+            # append the cube this subset to the cube list
+            cube_list.append(cube_this_subset)
+        else:
+            print(f"File {path_this} does not exist")
+
+    # turn the list of cubes into a cube list
+    cube_list = iris.cube.CubeList(cube_list)
+
+    # merge the cube list
+    cube_merged = cube_list.merge_cube()
+
+    return None
