@@ -13538,6 +13538,9 @@ def plot_dps_composite(
             else:
                 print(f"Date {date_this} already in the dates list")
 
+                # continue
+                continue
+
             # # # print the date
             # print(f"extracting date: {date_this}")
 
