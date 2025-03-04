@@ -2195,6 +2195,9 @@ def plot_distributions_fidelity(
     # # Extract the unique model members
     # model_members = model_df[model_member_name].unique()
 
+    # print the unique model times
+    print(f"Unique model times {unique_model_times}")
+
     # if model_lead_name is not None:
     #     # Extract the unique model leads
     #     model_leads = model_df[model_lead_name].unique()
@@ -2216,9 +2219,12 @@ def plot_distributions_fidelity(
 
         # Populate the model_boot array using the selected indices
         for i, time_this in enumerate(unique_times_obs):
-            time_idx = idx_time_this[i]
+            # time_idx = idx_time_this[i]
             member_idx = idx_member_this[i]
             lead_idx = idx_lead_this[i] if model_lead_name is not None else None
+
+            # find time this as a random time
+            # time_this = idx_time_this[i]
 
             # Subset the model_df based on the selected indices
             if model_lead_name is not None:
@@ -2306,7 +2312,7 @@ def plot_distributions_fidelity(
         #     # Increment the year index
         #     idx_year += 1
 
-        # # print the shape of model boot
+        # # # print the shape of model boot
         # print("shape of model boot: ", np.shape(model_boot))
 
         # Calculate the statistics for the bootstrapped array
@@ -2403,10 +2409,10 @@ def plot_distributions_fidelity(
         # Plot the obs stats
         ax.axvline(obs_stats_list[i], color="black", linestyle="-", label="ERA5")
 
-        # plot the model stats list full
-        ax.axvline(
-            model_stats_list_full[i], color="blue", linestyle="-", label="model full"
-        )
+        # # plot the model stats list full
+        # ax.axvline(
+        #     model_stats_list_full[i], color="blue", linestyle="-", label="model full"
+        # )
 
         # Calculate the position of the obs stat in the distribution
         obs_pos = stats.percentileofscore(model_stats_list[i], obs_stats_list[i])
