@@ -4838,8 +4838,14 @@ def create_masked_matrix(
         The masked matrix of 1s and 0s for the specified country.
 
     """
-    # apply the mask
-    LONS, LATS = iris.analysis.cartography.get_xy_grids(cube[0])
+
+    # if len cube.coords(axis='x') is greater than 1
+    if len(cube.coords(axis="x")) > 1:
+        # Extract the lons and lats
+        LONS, LATS = cube.coord("longitude").points, cube.coord("latitude").points
+    else:
+        # apply the mask
+        LONS, LATS = iris.analysis.cartography.get_xy_grids(cube[0])
     x, y = LONS.flatten(), LATS.flatten()
 
     countries_shp = shpreader.natural_earth(
@@ -4881,6 +4887,18 @@ def create_masked_matrix(
                         # set the mask value to 0 at these indices
                         for idx in indices:
                             MASK_MATRIX_RESHAPE[tuple(idx)] = 0.0
+
+        # Do the same for the shetland isles
+        # i.e. if latitude is greater than 59
+        for i in range(len(lats)):
+            for j in range(len(lons)):
+                if (lats[i] > 59.0):
+                    # find the corresponding indices in the LATS and LONS arrays
+                    indices = np.argwhere((LATS == lats[i]) & (LONS == lons[j]))
+                    # set the mask value to 0 at these indices
+                    for idx in indices:
+                        MASK_MATRIX_RESHAPE[tuple(idx)] = 0.0
+                
 
     return MASK_MATRIX_RESHAPE
 
