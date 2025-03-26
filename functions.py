@@ -11114,6 +11114,7 @@ def dot_plot(
     figsize: tuple = (10, 5),
     save_prefix: str = "dot_plot",
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+    simple_detrend: bool = False,
 ) -> None:
     """
     Plots the dotplot for e.g. no. exceedance days.
@@ -11175,12 +11176,32 @@ def dot_plot(
     save_dir: str
         The directory to save the plots to. Default is "/gws/nopw/j04/canari/users/benhutch/plots".
 
+    simple_detrend: bool
+        Whether to use a simple detrending method. Default is False.
+
     Returns
     =======
 
     None
 
     """
+
+    # if simple detrend is True
+    if simple_detrend:
+        print("Detrending the obs data")
+
+        # Ensure the data is in the correct format and handle NaN values
+        obs_data = obs_df[obs_val_name].values
+        model_data = model_df[model_val_name].values
+
+        if np.isnan(obs_data).any() or np.isnan(model_data).any():
+            raise ValueError("Data contains NaN values. Please handle NaNs before detrending.")
+
+        # Detrend the obs data
+        obs_df[obs_val_name] = signal.detrend(obs_data)
+
+        # Detrend the model data
+        model_df[model_val_name] = signal.detrend(model_data)
 
     # # Assert that the index of the obs df is a datetime in years
     # assert isinstance(
@@ -11309,9 +11330,9 @@ def dot_plot(
         alpha=0.8,
         label=normal_label,
     )
-
+    
     # include the legend
-    axs[0].legend(fontsize=12)
+    axs[0].legend(fontsize=12, ncol=2, loc="lower center")
 
     # label the y-axis
     axs[0].set_ylabel(ylabel, fontsize=14)
