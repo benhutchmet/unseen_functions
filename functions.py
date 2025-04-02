@@ -11245,6 +11245,23 @@ def dot_plot(
         zorder=2,
     )
 
+    # calculate the trend in the obs time series
+    obs_trend = np.polyfit(
+        obs_df.index.year,
+        obs_df[obs_val_name],
+        1,
+    )
+
+    # Plot the trend as a dashed blue line
+    axs[0].plot(
+        obs_df.index,
+        np.polyval(obs_trend, obs_df.index.year),
+        color="blue",
+        linestyle="--",
+        linewidth=2,
+        label=f"Obs trend: {round(obs_trend[0], 3)} C/year",
+    )
+
     # if solid line is np.max and dahsed line is above 0.5
     if solid_line == np.max and dashed_quant > 0.5:
         print("Bad events have high values")
@@ -11330,9 +11347,77 @@ def dot_plot(
         alpha=0.8,
         label=normal_label,
     )
+
+    # calculate the trend in all of the model data
+    model_trend = np.polyfit(
+        model_df[model_time_name].dt.year,
+        model_df[model_val_name],
+        1,
+    )
+
+    # plot the model trend as a dashed red line
+    axs[0].plot(
+        model_df[model_time_name],
+        np.polyval(model_trend, model_df[model_time_name].dt.year),
+        color="green",
+        linestyle="--",
+        linewidth=2,
+        label=f"Model trend: {round(model_trend[0], 3)} C/year",
+    )
+
+    # calculate the model trend in the events
+    model_trend_events = np.polyfit(
+        events[model_time_name].dt.year,
+        events[model_val_name],
+        1,
+    )
+
+    # plot the model trend for events in a dashed grey line
+    axs[0].plot(
+        events[model_time_name],
+        np.polyval(model_trend_events, events[model_time_name].dt.year),
+        color="grey",
+        linestyle="--",
+        linewidth=2,
+        label=f"Model events: {round(model_trend_events[0], 3)} C/year",
+    )
+
+    # calculate the model trend in the bad events
+    model_trend_bad = np.polyfit(
+        bad_events[model_time_name].dt.year,
+        bad_events[model_val_name],
+        1,
+    )
+
+    # plot the model trend for bad events in a dashed orange line
+    axs[0].plot(
+        bad_events[model_time_name],
+        np.polyval(model_trend_bad, bad_events[model_time_name].dt.year),
+        color="orange",
+        linestyle="--",
+        linewidth=2,
+        label=f"Model bad events: {round(model_trend_bad[0], 3)} C/year",
+    )
+
+    # calculate the model trend in the very bad events
+    model_trend_very_bad = np.polyfit(
+        very_bad_events[model_time_name].dt.year,
+        very_bad_events[model_val_name],
+        1,
+    )
+
+    # plot the model trend for very bad events in a dashed red line
+    axs[0].plot(
+        very_bad_events[model_time_name],
+        np.polyval(model_trend_very_bad, very_bad_events[model_time_name].dt.year),
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Model v. bad events: {round(model_trend_very_bad[0], 3)} C/year",
+    )
     
     # include the legend
-    axs[0].legend(fontsize=12, ncol=2, loc="lower center")
+    axs[0].legend(fontsize=10, ncol=3, loc="lower center")
 
     # label the y-axis
     axs[0].set_ylabel(ylabel, fontsize=14)
