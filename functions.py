@@ -10752,27 +10752,35 @@ def plot_rp_extremes(
         high_values_rare=high_values_rare,
     )
 
-    # reverse the order of the rows
-    # FIXME: May not be correct for low values rare
-    model_df_rl_inverse = model_df_rl.iloc[::-1]
+    # print the head of model df rl
+    print(model_df_rl.head())
+    print(model_df_rl.tail())
 
-    # Create an array to store the return levels
-    model_rl = np.zeros([n_samples, len(model_df_rl)])
-    obs_rl = np.zeros([n_samples, len(obs_df_subset)])
+    # sys.exit()
 
-    # Set up the model params
-    model_params = []
-    obs_params = []
-    model_params_first = []
-    obs_params_first = []
+    # print the tail
 
-    model_params_first.append(
-        gev.fit(
-            model_df_subset[model_val_name].values,
-        )
-    )
+    # # reverse the order of the rows
+    # # FIXME: May not be correct for low values rare
+    # model_df_rl_inverse = model_df_rl.iloc[::-1]
 
-    obs_params_first.append(gev.fit(obs_df_subset[obs_val_name].values))
+    # # Create an array to store the return levels
+    model_rl_vals = np.zeros([n_samples, len(model_df_rl)])
+    # obs_rl = np.zeros([n_samples, len(obs_df_subset)])
+
+    # # Set up the model params
+    # model_params = []
+    # obs_params = []
+    # model_params_first = []
+    # obs_params_first = []
+
+    # model_params_first.append(
+    #     gev.fit(
+    #         model_df_subset[model_val_name].values,
+    #     )
+    # )
+
+    # obs_params_first.append(gev.fit(obs_df_subset[obs_val_name].values))
 
     # Loop over the no. samples
     for i in tqdm(range(n_samples)):
@@ -10783,94 +10791,114 @@ def plot_rp_extremes(
             replace=True,
         )
 
-        # set up the obs vals this
-        obs_vals_this = np.random.choice(
-            obs_df_subset[obs_val_name].values,
-            size=len(obs_df_subset),
-            replace=True,
-        )
+    #     # set up the obs vals this
+    #     obs_vals_this = np.random.choice(
+    #         obs_df_subset[obs_val_name].values,
+    #         size=len(obs_df_subset),
+    #         replace=True,
+    #     )
 
         # Quantify the empirical return levels
         model_df_rl_this = empirical_return_level(
             data=model_vals_this,
-            high_values_rare=True,
+            high_values_rare=high_values_rare,
         )
 
-        # Quantify the return levels using the gev
-        model_params.append(
-            gev.fit(
-                model_vals_this,
-            )
-        )
+    #     # Quantify the return levels using the gev
+    #     model_params.append(
+    #         gev.fit(
+    #             model_vals_this,
+    #         )
+    #     )
 
-        # Set up the obs return levels
-        obs_params.append(
-            gev.fit(
-                obs_vals_this,
-            )
-        )
+    #     # Set up the obs return levels
+    #     obs_params.append(
+    #         gev.fit(
+    #             obs_vals_this,
+    #         )
+    #     )
 
         # Store the model return levels
-        model_rl[i, :] = model_df_rl_this["sorted"]
+        model_rl_vals[i, :] = model_df_rl_this["sorted"]
 
-    levels_model = []
-    levels_obs = []
+    # levels_model = []
+    # levels_obs = []
 
-    # loop over the num_samples
-    for i in range(n_samples):
-        # Generate the ppf fit
-        levels_model.append(
-            np.array(
-                gev.ppf(
-                    1 - 1 / years,
-                    *model_params[i],
-                )
-            )
-        )
+    # # loop over the num_samples
+    # for i in range(n_samples):
+    #     # Generate the ppf fit
+    #     levels_model.append(
+    #         np.array(
+    #             gev.ppf(
+    #                 1 - 1 / years,
+    #                 *model_params[i],
+    #             )
+    #         )
+    #     )
 
-        # Generate the ppf fit
-        levels_obs.append(
-            np.array(
-                gev.ppf(
-                    1 - 1 / years,
-                    *obs_params[i],
-                )
-            )
-        )
+    #     # Generate the ppf fit
+    #     levels_obs.append(
+    #         np.array(
+    #             gev.ppf(
+    #                 1 - 1 / years,
+    #                 *obs_params[i],
+    #             )
+    #         )
+    #     )
 
-    # # Generate the ppf fit
-    levels_model_first = np.array(
-        gev.ppf(
-            1 - 1 / years,
-            *model_params_first[0],
-        )
-    )
+    # # # Generate the ppf fit
+    # levels_model_first = np.array(
+    #     gev.ppf(
+    #         1 - 1 / years,
+    #         *model_params_first[0],
+    #     )
+    # )
 
-    # Convert probs to the return level in years
-    return_years = 1 / (probs / 100)
+    # # Convert probs to the return level in years
+    # return_years = 1 / (probs / 100)
 
-    # Convert model params to an array
-    model_params = np.array(model_params)
-    obs_params = np.array(obs_params)
+    # # Convert model params to an array
+    # model_params = np.array(model_params)
+    # obs_params = np.array(obs_params)
 
     # Set up the figure
     fig, ax = plt.subplots(figsize=(5, 5))
 
-    # plot the observed return levels
-    _ = ax.fill_between(
-        return_years,
-        np.quantile(levels_obs, 0.025, axis=0).T,
-        np.quantile(levels_obs, 0.975, axis=0).T,
-        color="gray",
-        alpha=0.5,
-        label="ERA5",
+    # # plot the observed return levels
+    # _ = ax.fill_between(
+    #     return_years,
+    #     np.quantile(levels_obs, 0.025, axis=0).T,
+    #     np.quantile(levels_obs, 0.975, axis=0).T,
+    #     color="gray",
+    #     alpha=0.5,
+    #     label="ERA5",
+    # )
+
+    # # plot the model return levels
+    # _ = ax.fill_between(
+    #     return_years,
+    #     np.quantile(levels_model, 0.025, axis=0).T,
+    #     np.quantile(levels_model, 0.975, axis=0).T,
+    #     color="red",
+    #     alpha=0.5,
+    #     label="HadGEM3-GC31-MM",
+    # )
+
+    # plot the period on the x-axis
+    # against the value on the y-axis
+    plt.plot(
+        model_df_rl["period"],
+        model_df_rl["sorted"],
+        linestyle="--",
+        color="red",
     )
 
-    # plot the model return levels
+    # Plot the period against the value on the y-axis
+    # but for the 2.5th to 97.5th percentiles
     _ = ax.fill_between(
-        return_years,
-        np.quantile(levels_model, 0.025, axis=0).T,
-        np.quantile(levels_model, 0.975, axis=0).T,
+        model_df_rl["period"],
+        np.quantile(model_rl_vals, 0.025, axis=0),
+        np.quantile(model_rl_vals, 0.975, axis=0),
         color="red",
         alpha=0.5,
         label="HadGEM3-GC31-MM",
@@ -10930,128 +10958,128 @@ def plot_rp_extremes(
         fontsize=12,
     )
 
-    # Set up the obs event
-    bad_obs_event = np.percentile(obs_df[obs_val_name], percentile)
-    worst_obs_event = np.max(obs_df[obs_val_name])
+    # # Set up the obs event
+    # bad_obs_event = np.percentile(obs_df[obs_val_name], percentile)
+    # worst_obs_event = np.max(obs_df[obs_val_name])
 
-    # Quantify the return level for the worst obs event
-    model_est_worst_obs = estimate_period(
-        return_level=bad_obs_event,
-        loc=model_params_first[0][1],
-        scale=model_params_first[0][2],
-        shape=model_params_first[0][0],
-    )
+    # # Quantify the return level for the worst obs event
+    # model_est_worst_obs = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=model_params_first[0][1],
+    #     scale=model_params_first[0][2],
+    #     shape=model_params_first[0][0],
+    # )
 
-    obs_est_worst_obs = estimate_period(
-        return_level=bad_obs_event,
-        loc=obs_params_first[0][1],
-        scale=obs_params_first[0][2],
-        shape=obs_params_first[0][0],
-    )
+    # obs_est_worst_obs = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=obs_params_first[0][1],
+    #     scale=obs_params_first[0][2],
+    #     shape=obs_params_first[0][0],
+    # )
 
-    # Same but for the 2.5th percentile
-    model_est_worst_obs_025 = estimate_period(
-        return_level=bad_obs_event,
-        loc=np.percentile(model_params[:, 1], 2.5),
-        scale=np.percentile(model_params[:, 2], 2.5),
-        shape=np.percentile(model_params[:, 0], 2.5),
-    )
+    # # Same but for the 2.5th percentile
+    # model_est_worst_obs_025 = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=np.percentile(model_params[:, 1], 2.5),
+    #     scale=np.percentile(model_params[:, 2], 2.5),
+    #     shape=np.percentile(model_params[:, 0], 2.5),
+    # )
 
-    obs_est_worst_obs_025 = estimate_period(
-        return_level=bad_obs_event,
-        loc=np.percentile(obs_params[:, 1], 2.5),
-        scale=np.percentile(obs_params[:, 2], 2.5),
-        shape=np.percentile(obs_params[:, 0], 2.5),
-    )
+    # obs_est_worst_obs_025 = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=np.percentile(obs_params[:, 1], 2.5),
+    #     scale=np.percentile(obs_params[:, 2], 2.5),
+    #     shape=np.percentile(obs_params[:, 0], 2.5),
+    # )
 
-    # Same but for the 97.5th percentile
-    model_est_worst_obs_975 = estimate_period(
-        return_level=bad_obs_event,
-        loc=np.percentile(model_params[:, 1], 97.5),
-        scale=np.percentile(model_params[:, 2], 97.5),
-        shape=np.percentile(model_params[:, 0], 97.5),
-    )
+    # # Same but for the 97.5th percentile
+    # model_est_worst_obs_975 = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=np.percentile(model_params[:, 1], 97.5),
+    #     scale=np.percentile(model_params[:, 2], 97.5),
+    #     shape=np.percentile(model_params[:, 0], 97.5),
+    # )
 
-    obs_est_worst_obs_975 = estimate_period(
-        return_level=bad_obs_event,
-        loc=np.percentile(obs_params[:, 1], 97.5),
-        scale=np.percentile(obs_params[:, 2], 97.5),
-        shape=np.percentile(obs_params[:, 0], 97.5),
-    )
+    # obs_est_worst_obs_975 = estimate_period(
+    #     return_level=bad_obs_event,
+    #     loc=np.percentile(obs_params[:, 1], 97.5),
+    #     scale=np.percentile(obs_params[:, 2], 97.5),
+    #     shape=np.percentile(obs_params[:, 0], 97.5),
+    # )
 
-    # print these values
-    print(f"Model estimate for obs {percentile}th %tile event: {model_est_worst_obs}")
-    print(
-        f"Model estimate for obs {percentile}th %tile event 2.5th percentile: {model_est_worst_obs_025}"
-    )
-    print(
-        f"Model estimate for obs {percentile}th %tile event 97.5th percentile: {model_est_worst_obs_975}"
-    )
+    # # print these values
+    # print(f"Model estimate for obs {percentile}th %tile event: {model_est_worst_obs}")
+    # print(
+    #     f"Model estimate for obs {percentile}th %tile event 2.5th percentile: {model_est_worst_obs_025}"
+    # )
+    # print(
+    #     f"Model estimate for obs {percentile}th %tile event 97.5th percentile: {model_est_worst_obs_975}"
+    # )
 
-    # Print these values
-    print(f"Obs estimate for obs {percentile}th %tile event: {obs_est_worst_obs}")
-    print(
-        f"Obs estimate for obs {percentile}th %tile event 2.5th percentile: {obs_est_worst_obs_025}"
-    )
-    print(
-        f"Obs estimate for obs {percentile}th %tile event 97.5th percentile: {obs_est_worst_obs_975}"
-    )
+    # # Print these values
+    # print(f"Obs estimate for obs {percentile}th %tile event: {obs_est_worst_obs}")
+    # print(
+    #     f"Obs estimate for obs {percentile}th %tile event 2.5th percentile: {obs_est_worst_obs_025}"
+    # )
+    # print(
+    #     f"Obs estimate for obs {percentile}th %tile event 97.5th percentile: {obs_est_worst_obs_975}"
+    # )
 
-    # process into estiates
-    worst_event = 1 - (model_est_worst_obs / 100)
-    worst_event_025 = 1 - (model_est_worst_obs_025 / 100)
-    worst_event_975 = 1 - (model_est_worst_obs_975 / 100)
+    # # process into estiates
+    # worst_event = 1 - (model_est_worst_obs / 100)
+    # worst_event_025 = 1 - (model_est_worst_obs_025 / 100)
+    # worst_event_975 = 1 - (model_est_worst_obs_975 / 100)
 
-    # Calculate the return period
-    rp_worst_event = 1 / worst_event
-    rp_worst_event_025 = 1 / worst_event_025
-    rp_worst_event_975 = 1 / worst_event_975
+    # # Calculate the return period
+    # rp_worst_event = 1 / worst_event
+    # rp_worst_event_025 = 1 / worst_event_025
+    # rp_worst_event_975 = 1 / worst_event_975
 
-    # Same for the obs
-    worst_event_obs = 1 - (obs_est_worst_obs / 100)
-    worst_event_025_obs = 1 - (obs_est_worst_obs_025 / 100)
-    worst_event_975_obs = 1 - (obs_est_worst_obs_975 / 100)
+    # # Same for the obs
+    # worst_event_obs = 1 - (obs_est_worst_obs / 100)
+    # worst_event_025_obs = 1 - (obs_est_worst_obs_025 / 100)
+    # worst_event_975_obs = 1 - (obs_est_worst_obs_975 / 100)
 
-    # Calculate the return period
-    rp_worst_event_obs = 1 / worst_event_obs
-    rp_worst_event_025_obs = 1 / worst_event_025_obs
-    rp_worst_event_975_obs = 1 / worst_event_975_obs
+    # # Calculate the return period
+    # rp_worst_event_obs = 1 / worst_event_obs
+    # rp_worst_event_025_obs = 1 / worst_event_025_obs
+    # rp_worst_event_975_obs = 1 / worst_event_975_obs
 
-    # print these values
-    print(f"Return period for obs {percentile}th %tile event: {rp_worst_event}")
-    print(
-        f"Return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025}"
-    )
-    print(
-        f"Return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975}"
-    )
+    # # print these values
+    # print(f"Return period for obs {percentile}th %tile event: {rp_worst_event}")
+    # print(
+    #     f"Return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025}"
+    # )
+    # print(
+    #     f"Return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975}"
+    # )
 
-    # print these values
-    print(f"Obs return period for obs {percentile}th %tile event: {rp_worst_event_obs}")
-    print(
-        f"Obs return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025_obs}"
-    )
-    print(
-        f"Obs return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975_obs}"
-    )
+    # # print these values
+    # print(f"Obs return period for obs {percentile}th %tile event: {rp_worst_event_obs}")
+    # print(
+    #     f"Obs return period for obs {percentile}th %tile event 2.5th percentile: {rp_worst_event_025_obs}"
+    # )
+    # print(
+    #     f"Obs return period for obs {percentile}th %tile event 97.5th percentile: {rp_worst_event_975_obs}"
+    # )
 
-    central_95 = abs(rp_worst_event_975 - rp_worst_event_025) / 2
-    central_95_obs = abs(rp_worst_event_975_obs - rp_worst_event_025_obs) / 2
+    # central_95 = abs(rp_worst_event_975 - rp_worst_event_025) / 2
+    # central_95_obs = abs(rp_worst_event_975_obs - rp_worst_event_025_obs) / 2
 
-    # print the centyral 95 obs
-    print(f"Return period for central 95th percentile obs: {central_95_obs} years")
+    # # print the centyral 95 obs
+    # print(f"Return period for central 95th percentile obs: {central_95_obs} years")
 
-    # include a textbox in the top right with the return period of the worst observed event
-    ax.text(
-        0.95,
-        0.02,
-        f"Obs {percentile}th %tile RP: {round(rp_worst_event)} +/- {round(central_95)} years",
-        horizontalalignment="right",
-        verticalalignment="bottom",
-        transform=ax.transAxes,
-        fontsize=10,
-        # bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
-    )
+    # # include a textbox in the top right with the return period of the worst observed event
+    # ax.text(
+    #     0.95,
+    #     0.02,
+    #     f"Obs {percentile}th %tile RP: {round(rp_worst_event)} +/- {round(central_95)} years",
+    #     horizontalalignment="right",
+    #     verticalalignment="bottom",
+    #     transform=ax.transAxes,
+    #     fontsize=10,
+    #     # bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.5"),
+    # )
 
     # include a legend in the top left
     ax.legend(fontsize=10, loc="upper left")
@@ -11073,6 +11101,9 @@ def plot_rp_extremes(
     )
 
     return
+
+# Define a function for plotting the empirical return pe
+
 
 
 # Set up the sigmoid fit
